@@ -642,7 +642,7 @@ function drawDash() {
   $("#dash").innerHTML = `
     <div class="dash-top"><div class="hello"><div class="ava">${esc((p.display_name || u.name || "?")[0].toUpperCase())}</div>
       <div><div class="kicker" style="margin:0"><i></i>My earnings</div><h2 style="font-size:30px">Hey ${esc(p.display_name || u.name)}</h2></div></div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap">${u.is_admin ? `<a class="btn sm" href="/admin/earn">Manage campaigns</a>` : ""}<a class="btn sm" href="${S.data.earn_only && !u.is_admin ? "#download" : "/app"}">Make clips</a></div></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">${u.is_admin ? `<a class="btn sm" href="/admin/earn">Manage campaigns</a>` : ""}<a class="btn sm" href="${S.data.earn_only && !u.is_admin ? "#download" : "/app"}">Make clips</a><button class="btn sm" data-act="signout">Sign out</button></div></div>
     ${verifyNote}
     <div class="kpis">
       <div class="kpi hi"><span>Owed to you</span><b>${inr2(t.owed)}</b><small>approved, waiting for payout</small></div>
@@ -657,7 +657,7 @@ function drawDash() {
 function drawNav() {
   const r = $("#navRight");
   if (S.user) {
-    r.innerHTML = `<a class="signin" href="#me">My earnings</a>${S.data.earn_only && !S.user.is_admin ? `<a class="btn primary" href="#download">Download clip maker</a>` : `<a class="btn primary" href="/app">Open ClipKontrast</a>`}`;
+    r.innerHTML = `<a class="signin" href="#me">My earnings</a><a class="signin" href="#" data-act="signout">Sign out</a>${S.data.earn_only && !S.user.is_admin ? `<a class="btn primary" href="#download">Download clip maker</a>` : `<a class="btn primary" href="/app">Open ClipKontrast</a>`}`;
     $("#heroCta").href = "#me"; $("#heroCta").firstChild.textContent = "Go to my earnings ";
   } else if (S.data && S.data.accounts === false) {
     r.innerHTML = `<a class="btn primary" href="/app">Open ClipKontrast</a>`;
@@ -717,6 +717,7 @@ document.addEventListener("click", async e => {
   const act = a.dataset.act;
   if (act === "close" || (act === "close-bg" && e.target === a)) return closeSheet();
   if (act === "tab") { S.tab = a.dataset.t; drawDash(); return; }
+  if (act === "signout") { e.preventDefault(); try { await api("/api/auth/logout", {method: "POST"}); } catch {} location.href = "/earn"; return; }
   if (act === "profile-first") { closeSheet(); S.tab = "profile"; drawDash(); $("#me").scrollIntoView(); return; }
   if (act === "submit-for") { S.submitFor = a.dataset.id; closeSheet(); S.tab = "submit"; drawDash(); $("#me").scrollIntoView(); setTimeout(() => $("#subForm [name=url]")?.focus(), 400); return; }
   if (act === "join") {
