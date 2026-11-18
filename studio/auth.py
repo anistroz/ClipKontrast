@@ -141,9 +141,9 @@ def _make_code(uid: str) -> str:
     """A fresh six-digit code for confirming the email. A new code makes the older one stop working."""
     code = f"{secrets.randbelow(10 ** 6):06d}"
     with db.engine.begin() as c:
-        c.execute(db.email_tokens.delete().where(db.email_tokens.c.user_id == uid, db.email_tokens.c.purpose == "verify_code"))
+        c.execute(db.email_tokens.delete().where(db.email_tokens.c.user_id == uid, db.email_tokens.c.purpose == "vcode"))
         # the code is stored hashed together with the account, like a link, so the table never holds a usable code
-        c.execute(db.email_tokens.insert().values(token_hash=_h(uid + ":" + code), user_id=uid, purpose="verify_code",
+        c.execute(db.email_tokens.insert().values(token_hash=_h(uid + ":" + code), user_id=uid, purpose="vcode",
                                                   expires_at=time.time() + CODE_TTL))
     return code
 
@@ -159,7 +159,7 @@ def verify_code(uid: str, code: str):
         raise AuthError("Too many tries. Ask for a new code, or wait 15 minutes.")
     with db.engine.begin() as c:
         row = c.execute(sa.select(db.email_tokens).where(db.email_tokens.c.token_hash == _h(uid + ":" + code),
-                                                          db.email_tokens.c.purpose == "verify_code",
+                                                          db.email_tokens.c.purpose == "vcode",
                                                           db.email_tokens.c.user_id == uid)).first()
         if not row or row.used_at:
             raise AuthError("That code isn't right. Check the newest email, or ask for a new code.")

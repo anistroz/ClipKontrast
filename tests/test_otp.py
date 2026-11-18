@@ -35,6 +35,16 @@ def verified(c):
     return c.get("/api/status").json()["user"]["verified"]
 
 
+# PostgreSQL refuses text longer than a column allows (SQLite doesn't), so every purpose must fit the column
+sys.path.insert(0, ROOT)
+import re as _re
+from studio import db as _db
+_limit = _db.email_tokens.c.purpose.type.length
+_purposes = set(_re.findall(r'purpose\s*==\s*"(\w+)"|purpose="(\w+)"|_make_link\([^,]+, \'(\w+)\'', open(os.path.join(ROOT, "studio", "auth.py")).read()))
+_purposes = {p for t in _purposes for p in t if p}
+check(f"every one-time code purpose fits the database column ({_limit} letters): {sorted(_purposes)}",
+      all(len(p) <= _limit for p in _purposes) and len(_purposes) >= 3, True)
+
 try:
     for _ in range(60):
         try:
