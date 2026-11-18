@@ -118,7 +118,12 @@ header.nav .btn{height:40px;border-radius:999px}
 .path .btn svg{width:18px;height:18px;fill:currentColor}
 .hero-notes{display:flex;flex-wrap:wrap;gap:8px 18px;margin-top:18px;font-size:13px;color:var(--frame-dim)}
 .hero-notes span::before{content:"✓";color:var(--brand);font-weight:700;margin-right:6px}
-.hero h1.two{font-size:clamp(38px,4.3vw,62px)}
+.hero h1.two{font-size:clamp(32px,3.7vw,52px);margin-bottom:14px;text-wrap:balance}
+.hero h1 .nw{white-space:nowrap}
+.rate-line{display:flex;flex-wrap:wrap;gap:6px 0;margin:0 0 18px;font-size:17px;color:var(--frame-dim)}
+.rate-line span{display:inline;white-space:nowrap}
+.rate-line span + span::before{content:"";display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--brand);margin:0 12px;vertical-align:middle}
+.rate-line b{color:var(--brand);font-weight:700}
 .reel3{position:relative;display:flex;justify-content:center;align-items:flex-end;gap:12px;padding-top:92px}
 .reel3 figure{margin:0;width:30%;max-width:160px}
 .reel3 figure.mid{width:37%;max-width:200px;transform:translateY(-22px)}
@@ -382,6 +387,8 @@ footer.site .fbottom{display:flex;justify-content:space-between;gap:12px;flex-wr
   .paths{grid-template-columns:1fr}
   .reel3{gap:8px}.reel3 .ph{border-width:4px;border-radius:16px}.reel3 figure.mid{transform:translateY(-14px)}
   .reel3{padding-top:24px}.reel3 .chip.c2{display:none}
+  .rate-line{display:grid;gap:4px;font-size:16px}
+  .rate-line span::before,.rate-line span + span::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--brand);margin:0 10px 0 0;vertical-align:middle}
   .mbar{display:grid;grid-template-columns:1.5fr 1fr}
   footer.site{padding-bottom:96px}
   .calc{padding:22px;border-radius:22px}.calc-r{padding:18px}
@@ -433,7 +440,8 @@ footer.site .fbottom{display:flex;justify-content:space-between;gap:12px;flex-wr
     <div class="hero-in">
       <div>
         <a class="pill-live reveal" href="#campaigns" id="heroPill"><b><i></i>LIVE</b><span id="heroPillText">Paid clipping campaigns are open</span></a>
-        <h1 class="reveal two" style="--d:.06s" id="heroH1">Make clips free.<br><span class="hl">Get paid</span> for views.</h1>
+        <h1 class="reveal two" style="--d:.06s" id="heroH1">Clip streams for free.<br><span class="hl">Get paid</span> <span class="nw">for posting them!</span></h1>
+        <p class="rate-line reveal" style="--d:.09s" id="rateLine"><span>Paid per 1,000 views</span><span>Straight to your UPI</span></p>
         <p class="lede reveal" style="--d:.12s" id="heroLede">Our <b>free AI clip maker</b> finds the best moments in a stream and adds captions, on <b>your own PC</b>. Post the clips on <b>YouTube, Instagram or X</b>, send us the link, and get paid for every <b>1,000 views</b>, straight to your <b>UPI</b>.</p>
         <div class="pot reveal" style="--d:.15s" id="pot" hidden>
           <div class="pot-top"><span>Up for grabs right now</span><b id="potAmt">₹0</b></div>
@@ -899,7 +907,7 @@ function drawHero() {
   const c0 = live.filter(c => c.rate_per_1k).sort((a, b) => b.remaining - a.remaining)[0];
   if (c0) {
     // the hook with the real numbers: the rate, what's left to earn and the most one clip can make
-    $("#heroH1").innerHTML = `Clip streams.<br><span class="hl">${esc(inr2(c0.rate_per_1k))}</span> per 1K views.`;
+    $("#rateLine").innerHTML = `<span><b>${esc(inr2(c0.rate_per_1k))}</b> per 1,000 views</span>` + (c0.max_per_clip ? `<span>Up to <b>${esc(inr(c0.max_per_clip))}</b> a clip</span>` : "") + "<span>Paid to your UPI</span>";
     $("#heroLede").innerHTML = `Our <b>free AI app</b> turns streams into captioned shorts on <b>your PC</b>. Post them, send us the link, get paid to <b>UPI</b>. One clip with <b>100K views = ${esc(inr(payFor(100000, c0)))}</b>.`;
     if (c0.max_per_clip) { $("#exAmt").parentElement.firstChild.textContent = "One clip can earn up to"; $("#exAmt").textContent = inr(c0.max_per_clip); $("#exSub").textContent = `${inr2(c0.rate_per_1k)} per 1K views · ${c0.title}`; }
     $("#pot").hidden = false;
