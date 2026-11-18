@@ -68,6 +68,14 @@ header.nav .right{display:flex;align-items:center;gap:8px}
 header.nav .signin{text-decoration:none;font-weight:500;font-size:15px;padding:8px 12px;border-radius:var(--r);transition:background-color .15s ease}
 header.nav .signin:hover{background:var(--muted)}
 header.nav .btn{height:40px;border-radius:999px}
+.menu-btn{display:none;width:42px;height:42px;border:1px solid var(--line);border-radius:12px;background:#fff;flex-direction:column;justify-content:center;align-items:center;gap:5px;cursor:pointer;flex:none}
+.menu-btn span{display:block;width:18px;height:2px;border-radius:2px;background:var(--ink);transition:transform .2s ease}
+.menu-btn[aria-expanded="true"] span:first-child{transform:translateY(3.5px) rotate(45deg)}.menu-btn[aria-expanded="true"] span:last-child{transform:translateY(-3.5px) rotate(-45deg)}
+.mnav{border-top:1px solid var(--line);background:#fff;padding:6px 20px 18px;display:grid;box-shadow:0 18px 30px -24px rgba(0,0,0,.35)}
+.mnav[hidden]{display:none}
+.mnav > a{padding:14px 2px;border-bottom:1px solid var(--line);text-decoration:none;color:var(--text);font-weight:550;font-size:17px}
+.mnav-auth{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px}
+.mnav-auth .btn{height:48px;border-radius:999px;justify-content:center}
 .badge-new{font-size:10px;font-weight:700;background:var(--brand);color:var(--ink);padding:2px 6px;border-radius:999px;margin-left:4px;vertical-align:2px}
 
 /* hero */
@@ -96,8 +104,12 @@ header.nav .btn{height:40px;border-radius:999px}
 .chip b{display:block;font-size:20px;color:#fff;letter-spacing:-.03em;font-weight:650}
 .chip b.lime{color:var(--brand)}
 .chip .bar{height:6px;border-radius:99px;background:var(--frame-3);margin-top:8px;overflow:hidden}.chip .bar i{display:block;height:100%;background:var(--brand);width:72%}
-.chip.c1{left:-4%;top:14%}.chip.c2{right:-6%;top:44%}.chip.c3{left:2%;bottom:6%}
+.chip.c1{left:-4%;top:14%}.chip.c2{right:-6%;top:44%}.chip.c3{left:-6%;bottom:-3%}
 .chip .ok{display:inline-flex;align-items:center;gap:6px;color:var(--brand);font-weight:600}
+.chip > span:not(.ok){display:block;font-size:12px;margin-top:2px}
+.stage .ph .credit{position:absolute;left:8px;right:8px;bottom:8px;text-align:center;font-size:11px;font-weight:600;color:#fff;background:rgba(15,11,9,.62);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);border-radius:999px;padding:5px 8px}
+.dl-link{display:inline-block;margin-top:18px;color:var(--frame-text);font-weight:550;text-decoration:none;border-bottom:1px solid rgba(198,244,50,.5);padding-bottom:2px;transition:color .15s ease,border-color .15s ease}
+.dl-link:hover{color:var(--brand);border-color:var(--brand)}
 .marq{border-top:1px solid var(--frame-line);margin-top:56px;overflow:hidden;padding:16px 0;position:relative;z-index:2}
 .marq div{display:flex;gap:56px;width:max-content;animation:slide 30s linear infinite;font-weight:600;color:var(--frame-dim);white-space:nowrap;font-size:16px}
 .marq div span b{color:var(--brand)}
@@ -265,10 +277,12 @@ footer.site h4{font-size:13px;font-weight:600;color:#fff;margin:4px 0 14px}
 footer.site ul{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:10px}
 footer.site ul a{color:#B9A597;text-decoration:none;transition:color .15s ease}
 footer.site ul a:hover{color:#C6F432}
+footer.site .fnote{font-size:12px;color:#6F6158;margin:14px 0 0;max-width:720px}
 footer.site .fbottom{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:44px;padding-top:20px;border-top:1px solid rgba(255,255,255,.08);font-size:13px;color:#8C7B70}
 
 @media (max-width:980px){
-  .hero-in{grid-template-columns:1fr}.stage{display:none}
+  .hero-in{grid-template-columns:1fr;gap:28px}.stage{max-width:340px;margin:0 auto}
+  .menu-btn{display:inline-flex}
   .ticker,.kpis{grid-template-columns:1fr 1fr}
   .checks{grid-template-columns:1fr 1fr}.steps{grid-template-columns:1fr 1fr}
   .grid2{grid-template-columns:1fr}
@@ -283,6 +297,9 @@ footer.site .fbottom{display:flex;justify-content:space-between;gap:12px;flex-wr
   .checks,.steps,.row2{grid-template-columns:1fr}
   .camps{grid-template-columns:1fr}
   header.nav .signin{display:none}
+  header.nav .right .btn{display:none}
+  .chip.c1,.chip.c3{display:none}.chip.c2{right:-2%;top:52%}
+  .hero .ctas .btn{flex:1 1 auto;justify-content:center}
   .lb-row{grid-template-columns:36px 1fr 90px}.lb-row .hide-xs{display:none}
   .panel{padding:18px}
 }
@@ -293,12 +310,17 @@ footer.site .fbottom{display:flex;justify-content:space-between;gap:12px;flex-wr
 <header class="nav" id="nav"><div class="wrap">
   <a href="/" aria-label="ClipKontrast home"><img src="/brand/logo.svg" alt="ClipKontrast"></a>
   <nav aria-label="Sections">
-    <a href="/clip-maker">Clip maker</a><a href="/earn" class="on">Earn<span class="badge-new">NEW</span></a><a href="#campaigns">Campaigns</a><a href="#checks">How we verify</a><a href="#leaderboard">Leaderboard</a><a href="#faq">FAQ</a>
+    <a href="#how">How it works</a><a href="#campaigns">Campaigns</a><a href="#leaderboard">Leaderboard</a><a href="#faq">FAQ</a><a href="/clip-maker">Free clip maker</a>
   </nav>
   <div class="right" id="navRight">
     <a class="signin" href="/login?next=%2Fearn">Sign in</a>
     <a class="btn primary" href="/signup?next=%2Fearn%23me">Start earning</a>
   </div>
+  <button class="menu-btn" type="button" data-act="menu" aria-label="Menu" aria-expanded="false" aria-controls="mnav"><span></span><span></span></button>
+</div>
+<div class="mnav" id="mnav" hidden>
+  <a href="#how">How it works</a><a href="#campaigns">Campaigns</a><a href="#leaderboard">Leaderboard</a><a href="#faq">FAQ</a><a href="/clip-maker">Free clip maker</a>
+  <div class="mnav-auth" id="mnavAuth"><a class="btn" href="/login?next=%2Fearn">Sign in</a><a class="btn primary" href="/signup?next=%2Fearn%23me">Start earning</a></div>
 </div></header>
 
 <main>
@@ -314,13 +336,13 @@ footer.site .fbottom{display:flex;justify-content:space-between;gap:12px;flex-wr
           <a class="btn primary" id="heroCta" href="/signup?next=%2Fearn%23me">Start earning
             <svg viewBox="0 0 256 256"><path d="M221.66,133.66l-72,72a8,8,0,0,1-11.32-11.32L196.69,136H40a8,8,0,0,1,0-16H196.69L138.34,61.66a8,8,0,0,1,11.32-11.32l72,72A8,8,0,0,1,221.66,133.66Z"/></svg></a>
           <a class="btn ghost-d" href="#campaigns">See live campaigns</a>
-          <a class="btn ghost-d" href="#download" id="heroDl">Download the free clip maker</a>
         </div>
+        <a class="dl-link reveal" style="--d:.22s" href="#download" id="heroDl">No editing skills? Get our free clip maker <span aria-hidden="true">→</span></a>
       </div>
       <div class="stage reveal" style="--d:.2s" aria-hidden="true">
-        <div class="ph"><video src="/brand/demo-hype.mp4" poster="/brand/demo-hype.jpg" autoplay muted loop playsinline preload="metadata"></video></div>
-        <div class="chip c1">Views verified<b>48,210</b><span class="ok">● YouTube API</span></div>
-        <div class="chip c2">This clip earned<b class="lime">₹964</b></div>
+        <div class="ph"><video src="/brand/demo-hype.mp4" poster="/brand/demo-hype.jpg" autoplay muted loop playsinline preload="metadata"></video><span class="credit">Example clip · IShowSpeed</span></div>
+        <div class="chip c1">Views checked<b>Automatically</b><span class="ok">● YouTube API</span></div>
+        <div class="chip c2">Example: 50K views<b class="lime">₹1,250</b><span>at ₹25 per 1K views</span></div>
         <div class="chip c3">Campaign budget<b id="chipBudget">₹45,000</b><div class="bar"><i></i></div></div>
       </div>
     </div>
@@ -341,12 +363,38 @@ footer.site .fbottom{display:flex;justify-content:space-between;gap:12px;flex-wr
   <div class="wrap" id="dash"></div>
 </section>
 
+<section id="how">
+  <div class="wrap">
+    <div class="kicker reveal"><i></i>How it works</div>
+    <h2 class="reveal">From stream to UPI <span>in four steps.</span></h2>
+    <div class="steps">
+      <div class="st reveal"><div class="n">1</div><h3>Set up your profile</h3><p>Add your UPI ID, WhatsApp number and your YouTube, Instagram, X or TikTok handles. It takes a minute.</p></div>
+      <div class="st reveal" style="--d:.05s"><div class="n">2</div><h3>Join a campaign</h3><p>Read what the creator wants, then join. You'll see exactly which streams and videos to clip.</p></div>
+      <div class="st reveal" style="--d:.1s"><div class="n">3</div><h3>Clip and post</h3><p>Cut the best moments, add a hook and captions, credit the creator, and post from your own accounts.</p></div>
+      <div class="st reveal" style="--d:.15s"><div class="n">4</div><h3>Send the link, get paid</h3><p>Paste each clip link here. We verify it, count the views, and send the money to your UPI.</p></div>
+    </div>
+    <div class="fly reveal" id="download">
+      <div><h3>Don't have an editor? ClipKontrast makes the clips for you.</h3>
+        <p>Paste the creator's stream link and ClipKontrast finds the best moments and gives you captioned vertical clips with hooks, ready to post. Free.</p></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><a class="btn dark" id="dlBtn" href="/app">Download free</a><a class="btn" href="#" id="dlHelp" data-act="dlhelp">How to install</a></div>
+    </div>
+  </div>
+</section>
+
 <section id="campaigns">
   <div class="wrap">
     <div class="kicker reveal"><i></i>Live campaigns</div>
     <h2 class="reveal">Pick a campaign. <span>Start clipping today.</span></h2>
     <p class="sub reveal">Each campaign has a fixed budget and a fixed rate. It pays until the budget runs out or the end date arrives, so the clips posted early earn the most.</p>
     <div id="camps"></div>
+  </div>
+</section>
+
+<section id="leaderboard" style="padding-top:0">
+  <div class="wrap">
+    <div class="kicker reveal"><i></i>Leaderboard</div>
+    <h2 class="reveal">Top clippers <span>across every campaign.</span></h2>
+    <div id="lb"></div>
   </div>
 </section>
 
@@ -360,46 +408,20 @@ footer.site .fbottom{display:flex;justify-content:space-between;gap:12px;flex-wr
       <div class="ck reveal" style="--d:.05s"><div class="n">02</div><h3>Posted during the campaign</h3><p>The posting time is read from the platform. Clips posted before the campaign started don't count.</p></div>
       <div class="ck reveal" style="--d:.1s"><div class="n">03</div><h3>Credit in the caption</h3><p>If the campaign asks for a tag like @creator, it's checked in your caption and description.</p></div>
       <div class="ck reveal" style="--d:.15s"><div class="n">04</div><h3>Never paid twice</h3><p>Each clip can be sent in once. The same link in another form, or from another account, is refused.</p></div>
-      <div class="ck reveal" style="--d:.2s"><div class="n">05</div><h3>Real views, counted later</h3><p>Views are counted after the hold period (usually 7 days): automatically for YouTube, and from your Insights screenshot for the others.</p></div>
+      <div class="ck reveal" style="--d:.2s"><div class="n">05</div><h3>Real views, counted later</h3><p>Views are counted a few days after you post (usually 7). YouTube is counted for you; for Instagram and X you add a screenshot of your views.</p></div>
     </div>
   </div>
 </section>
 
-<section id="how">
-  <div class="wrap">
-    <div class="kicker reveal"><i></i>How it works</div>
-    <h2 class="reveal">From stream to UPI <span>in four steps.</span></h2>
-    <div class="steps">
-      <div class="st reveal"><div class="n">1</div><h3>Set up your profile</h3><p>Add your UPI ID, WhatsApp number and your YouTube, Instagram, X or TikTok handles. It takes a minute.</p></div>
-      <div class="st reveal" style="--d:.05s"><div class="n">2</div><h3>Join a campaign</h3><p>Read the brief and rules, then join. You get the creator's stream and VOD links for clipping.</p></div>
-      <div class="st reveal" style="--d:.1s"><div class="n">3</div><h3>Clip and post</h3><p>Cut the best moments, add a hook and captions, credit the creator, and post from your own accounts.</p></div>
-      <div class="st reveal" style="--d:.15s"><div class="n">4</div><h3>Send the link, get paid</h3><p>Paste each clip link here. We verify it, count the views, and send the money to your UPI.</p></div>
-    </div>
-    <div class="fly reveal" id="download">
-      <div><h3>Don't have an editor? ClipKontrast makes the clips for you.</h3>
-        <p>Paste the creator's stream link and ClipKontrast finds the best moments and gives you captioned vertical clips with hooks, ready to post. Free.</p></div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap"><a class="btn dark" id="dlBtn" href="/app">Download free</a><a class="btn" href="#" id="dlHelp" data-act="dlhelp">How to install</a></div>
-    </div>
-  </div>
-</section>
-
-<section id="leaderboard" style="padding-top:0">
-  <div class="wrap">
-    <div class="kicker reveal"><i></i>Leaderboard</div>
-    <h2 class="reveal">Top clippers <span>across every campaign.</span></h2>
-    <div id="lb"></div>
-  </div>
-</section>
-
-<section id="faq" style="padding-top:0">
+<section id="faq">
   <div class="wrap">
     <div class="kicker"><i></i>FAQ</div>
     <h2>Questions clippers ask.</h2>
     <div class="faq">
       <details open><summary>Do I need a big following?</summary><p>No. Shorts, Reels and X push good clips to people who don't follow you. A strong hook in the first two seconds and posting fast matter far more than followers.</p></details>
       <details><summary>How much can I earn?</summary><p>Each campaign shows its rate per 1,000 views. At ₹20 per 1,000, a clip with 50,000 views earns ₹1,000. Some campaigns have a minimum view count and a most-per-clip limit, both shown on the campaign.</p></details>
-      <details><summary>When do I get paid?</summary><p>Views are counted after the campaign's hold period, usually 7 days after you post. Once your clip is approved, the amount shows as owed in your dashboard, and payouts go to your UPI ID. You get a notification when the money is sent.</p></details>
-      <details><summary>How are Instagram and X views counted?</summary><p>YouTube views are read automatically. For Instagram and X, open the clip's Insights after the hold period, take a screenshot that shows the views, and add it to the clip in your dashboard.</p></details>
+      <details><summary>When do I get paid?</summary><p>Views are counted a few days after you post (usually 7, each campaign shows its number). Once your clip is approved, the amount shows as owed in your dashboard, and payouts go to your UPI ID. You get a notification when the money is sent.</p></details>
+      <details><summary>How are Instagram and X views counted?</summary><p>YouTube views are read automatically. For Instagram and X, wait the campaign's days (usually 7), open your clip's view stats (Insights), take a screenshot that shows the views, and add it to the clip under My clips.</p></details>
       <details><summary>Why was my clip refused?</summary><p>The most common reasons: the clip is on a different account from the one in your profile, it was posted before the campaign started, it was already sent in, or it breaks a campaign rule (no credit, copyrighted music, a plain reupload). The reason is always shown on the clip.</p></details>
       <details><summary>Can I use more than one account?</summary><p>One account per platform per profile. Add your YouTube, Instagram, X and TikTok handles, and you can post on all four.</p></details>
       <details><summary>What happens when the budget runs out?</summary><p>The campaign closes on its own and stops taking new clips. Clips that were already approved are still paid.</p></details>
@@ -413,10 +435,11 @@ footer.site .fbottom{display:flex;justify-content:space-between;gap:12px;flex-wr
     <div><a href="/"><img src="/brand/logo-light.svg" alt="ClipKontrast" width="120" height="30"></a>
       <p>The AI clip maker for streams, and paid clipping campaigns for the people who post them.</p></div>
     <div><h4>Earn</h4><ul><li><a href="#campaigns">Live campaigns</a></li><li><a href="#checks">How we verify</a></li><li><a href="#leaderboard">Leaderboard</a></li><li><a href="#me">My earnings</a></li></ul></div>
-    <div><h4>Clip maker</h4><ul><li><a href="/clip-maker">How it works</a></li><li><a href="#download">Download free</a></li><li><a href="/signup">Create an account</a></li></ul></div>
+    <div><h4>Clip maker</h4><ul><li><a href="/clip-maker">What it does</a></li><li><a href="#download">Download free</a></li><li><a href="/signup">Create an account</a></li></ul></div>
     <div><h4>Legal</h4><ul><li><a href="/terms">Terms of Service</a></li><li><a href="/privacy">Privacy Policy</a></li><li><a href="/acceptable-use">Acceptable Use</a></li></ul></div>
   </div>
-  <div class="fbottom"><span>© <span id="yr"></span> ClipKontrast</span><span>Run a campaign for your channel? Email us from the contact page.</span></div>
+  <div class="fbottom"><span>© <span id="yr"></span> ClipKontrast</span><span>Want clippers for your channel? <a href="mailto:hello@clipkontrast.com" style="color:inherit">hello@clipkontrast.com</a></span></div>
+  <p class="fnote">Example clips on this site come from public streams and are credited to their creators. ClipKontrast isn't affiliated with or endorsed by them.</p>
 </div></footer>
 
 <div id="sheet"></div>
@@ -538,7 +561,7 @@ async function openCampaign(slug) {
         ${c.required_tag ? `<h4>Required in your caption</h4><div class="note info"><b>${esc(c.required_tag)}</b><span>Checked automatically on YouTube, and by hand on the others.</span></div>` : ""}
         <h4>Streams and footage to clip</h4>
         ${c.sources ? (c.sources.length ? `<div class="srcs">${c.sources.map(s => `<a href="${esc(safeUrl(s))}" target="_blank" rel="noopener">↗ ${esc(s)}</a>`).join("")}</div>` : `<div class="locked">Links will be posted here.</div>`)
-          : `<div class="locked">🔒 Join the campaign to see the stream and VOD links.</div>`}
+          : `<div class="locked">🔒 Join the campaign to see which streams and videos to clip.</div>`}
         <h4>Top clippers in this campaign</h4>
         ${c.leaderboard.length ? `<div class="mini-lb">${c.leaderboard.map((r, i) => `<div><span>${i + 1}. ${esc(r.name)}</span><span class="num">${short(r.views)} views · ${inr(r.earned)}</span></div>`).join("")}</div>` : `<div class="locked">No clips yet. Yours could be first.</div>`}
       </div>
@@ -606,7 +629,7 @@ function drawDash() {
         <div class="side-box"><h4>What happens next</h4><ol>
           <li>The link is checked right away: your account, posting time, caption tag and duplicates.</li>
           <li>Views are counted ${joinedOpen[0].hold_days} days after posting${p.youtube ? ", automatically for YouTube" : ""}.</li>
-          <li>For Instagram and X, add an Insights screenshot to the clip in <b>My clips</b> once the hold period is over.</li>
+          <li>For Instagram and X, add a screenshot of the clip's views (Insights) in <b>My clips</b> once the waiting days are over.</li>
           <li>Once approved, the amount is owed and gets paid to <b>${esc(p.upi)}</b>.</li></ol></div></div>`;
   } else if (S.tab === "clips") {
     body = m.submissions.length ? `<div class="tbl-wrap"><table><thead><tr><th>Clip</th><th>Checks</th><th style="text-align:right">Views</th><th style="text-align:right">Earnings</th><th>Status</th><th></th></tr></thead><tbody>
@@ -659,6 +682,7 @@ function drawNav() {
   if (S.user) {
     r.innerHTML = `<a class="signin" href="#me">My earnings</a><a class="signin" href="#" data-act="signout">Sign out</a>${S.data.earn_only && !S.user.is_admin ? `<a class="btn primary" href="#download">Download clip maker</a>` : `<a class="btn primary" href="/app">Open ClipKontrast</a>`}`;
     $("#heroCta").href = "#me"; $("#heroCta").firstChild.textContent = "Go to my earnings ";
+    $("#mnavAuth").innerHTML = `<a class="btn primary" href="#me">My earnings</a><a class="btn" href="#" data-act="signout">Sign out</a>`;
   } else if (S.data && S.data.accounts === false) {
     r.innerHTML = `<a class="btn primary" href="/app">Open ClipKontrast</a>`;
   }
@@ -711,11 +735,15 @@ document.addEventListener("submit", async e => {
 });
 
 // ---------------------------------------------------------------- actions
+document.addEventListener("click", e => {
+  if (e.target.closest("#mnav a") && !e.target.closest("[data-act]")) { $("#mnav").hidden = true; $(".menu-btn").setAttribute("aria-expanded", "false"); }
+});
 document.addEventListener("click", async e => {
   const o = e.target.closest("[data-open]"); if (o) { e.preventDefault(); closeSheet(); openCampaign(o.dataset.open); return; }
   const a = e.target.closest("[data-act]"); if (!a) return;
   const act = a.dataset.act;
   if (act === "close" || (act === "close-bg" && e.target === a)) return closeSheet();
+  if (act === "menu") { const open = a.getAttribute("aria-expanded") !== "true"; a.setAttribute("aria-expanded", open); $("#mnav").hidden = !open; return; }
   if (act === "tab") { S.tab = a.dataset.t; drawDash(); return; }
   if (act === "signout") { e.preventDefault(); try { await api("/api/auth/logout", {method: "POST"}); } catch {} location.href = "/earn"; return; }
   if (act === "profile-first") { closeSheet(); S.tab = "profile"; drawDash(); $("#me").scrollIntoView(); return; }

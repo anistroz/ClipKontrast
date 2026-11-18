@@ -111,6 +111,8 @@ h1 .hl{display:inline-block;background:var(--brand);color:var(--ink);padding:0 .
 .bar input::placeholder{color:var(--faint)}
 .bar .btn{height:46px;border-radius:999px}
 .ask .or{color:var(--faint);font-size:15px}
+.ask .dl-big{height:58px;padding:0 30px;border-radius:999px;font-size:17px}
+.ask .dl-help{height:58px;padding:0 24px;border-radius:999px;font-size:16px}
 .ask .up{height:58px;border-radius:999px;padding:0 22px}
 .notes{display:flex;gap:8px 16px;justify-content:center;flex-wrap:wrap;font-size:13px;color:var(--dim);margin-top:12px}
 .notes span{display:inline-flex;align-items:center;gap:6px}.notes svg{width:16px;height:16px;color:var(--good)}
@@ -302,11 +304,11 @@ details p{color:var(--dim);margin-top:12px;font-size:16px}
     <div class="notes reveal" style="--d:.28s"><span><svg viewBox="0 0 256 256" aria-hidden="true"><path d="M173.66,98.34a8,8,0,0,1,0,11.32l-56,56a8,8,0,0,1-11.32,0l-24-24a8,8,0,0,1,11.32-11.32L112,148.69l50.34-50.35A8,8,0,0,1,173.66,98.34ZM232,128A104,104,0,1,1,128,24,104.11,104.11,0,0,1,232,128Zm-16,0a88,88,0,1,0-88,88A88.1,88.1,0,0,0,216,128Z"/></svg><span>Free and open source</span></span><span><svg viewBox="0 0 256 256" aria-hidden="true"><path d="M173.66,98.34a8,8,0,0,1,0,11.32l-56,56a8,8,0,0,1-11.32,0l-24-24a8,8,0,0,1,11.32-11.32L112,148.69l50.34-50.35A8,8,0,0,1,173.66,98.34ZM232,128A104,104,0,1,1,128,24,104.11,104.11,0,0,1,232,128Zm-16,0a88,88,0,1,0-88,88A88.1,88.1,0,0,0,216,128Z"/></svg>Uses your own AI key</span><span><svg viewBox="0 0 256 256" aria-hidden="true"><path d="M173.66,98.34a8,8,0,0,1,0,11.32l-56,56a8,8,0,0,1-11.32,0l-24-24a8,8,0,0,1,11.32-11.32L112,148.69l50.34-50.35A8,8,0,0,1,173.66,98.34ZM232,128A104,104,0,1,1,128,24,104.11,104.11,0,0,1,232,128Zm-16,0a88,88,0,1,0-88,88A88.1,88.1,0,0,0,216,128Z"/></svg>Runs on your own PC</span></div>
   </div></div>
   <div class="reel">
-    <figure class="reveal" style="--d:.1s"><div class="phone"><video src="/brand/demo-bounce.mp4" poster="/brand/demo-bounce.jpg" autoplay muted loop playsinline preload="metadata"></video></div><figcaption><b>Bounce</b><br>caption style</figcaption></figure>
-    <figure class="mid reveal" style="--d:.18s"><div class="phone"><video src="/brand/demo-hype.mp4" poster="/brand/demo-hype.jpg" autoplay muted loop playsinline preload="metadata"></video></div><figcaption><b>Hype</b><br>caption style</figcaption></figure>
-    <figure class="reveal" style="--d:.26s"><div class="phone"><video src="/brand/demo-clean.mp4" poster="/brand/demo-clean.jpg" autoplay muted loop playsinline preload="metadata"></video></div><figcaption><b>Clean</b><br>caption style</figcaption></figure>
+    <figure class="reveal" style="--d:.1s"><div class="phone"><video src="/brand/demo-bounce.mp4" poster="/brand/demo-bounce.jpg" autoplay muted loop playsinline preload="metadata"></video></div><figcaption><b>Kai Cenat</b><br>GTA 6 reaction</figcaption></figure>
+    <figure class="mid reveal" style="--d:.18s"><div class="phone"><video src="/brand/demo-hype.mp4" poster="/brand/demo-hype.jpg" autoplay muted loop playsinline preload="metadata"></video></div><figcaption><b>IShowSpeed</b><br>on GTA 6</figcaption></figure>
+    <figure class="reveal" style="--d:.26s"><div class="phone"><video src="/brand/demo-clean.mp4" poster="/brand/demo-clean.jpg" autoplay muted loop playsinline preload="metadata"></video></div><figcaption><b>GTA 6 trailer</b><br>stream reaction</figcaption></figure>
   </div>
-  <p class="reel-note">The three caption styles, rendered by ClipKontrast itself.</p>
+  <p class="reel-note">Example clips made with ClipKontrast from public streams, credited to the creators. Not affiliated with or endorsed by them.</p>
 </div>
 <div class="earnband"><div class="wrap"><a href="/earn"><span class="eb-live"><i></i>NEW</span><span><b>Earn with ClipKontrast.</b> Join paid clipping campaigns, post from your own accounts and get paid per 1,000 views, straight to UPI.</span><span class="eb-go">See campaigns →</span></a></div></div>
 <div class="sized"><div class="plats">
@@ -466,6 +468,11 @@ fetch("/api/public").then(r => r.json()).then(p => {
   $$('[data-auth="up2"]').forEach(e => { e.href = dl; e.target = "_blank"; e.rel = "noopener"; e.lastChild.textContent = "Download free"; });
   $$('[data-auth="up"]').forEach(e => { e.href = "/earn"; e.textContent = "Start earning"; });
   $$(".linkform button").forEach(b => b.firstChild.textContent = "Download free ");
+  // here the link bars would only lead to the download, so they become one clear download button
+  const arrow = `<svg viewBox="0 0 256 256" aria-hidden="true"><path d="M221.66,133.66l-72,72a8,8,0,0,1-11.32-11.32L196.69,136H40a8,8,0,0,1,0-16H196.69L138.34,61.66a8,8,0,0,1,11.32-11.32l72,72A8,8,0,0,1,221.66,133.66Z"/></svg>`;
+  const dlHtml = `<a class="btn primary dl-big" href="${dl}" target="_blank" rel="noopener">Download free ${arrow}</a><a class="btn dl-help" href="https://github.com/anistroz/clipkontrast#readme" target="_blank" rel="noopener">How to install</a>`;
+  $$(".bar").forEach(b => { const box = b.closest(".ask") || b.parentElement; box.classList.add("ask"); box.innerHTML = dlHtml; });
+  $$(".sub").forEach(p => { if (p.textContent.startsWith("Paste the link")) p.textContent = "Download it, paste a stream link and see what the AI picks. Free, for Windows, Mac and Linux."; });
   const nav = document.querySelector("header.nav nav");
   if (nav) { nav.querySelector('a[href="#for"]')?.remove(); nav.querySelector('a[href="#open"]')?.remove(); nav.insertAdjacentHTML("beforeend", `<a href="${dl}" target="_blank" rel="noopener">Download</a>`); }
 }).catch(() => {});
