@@ -71,7 +71,7 @@ header.nav .btn{height:40px;border-radius:999px}
 .menu-btn{display:none;width:42px;height:42px;border:1px solid var(--line);border-radius:12px;background:#fff;flex-direction:column;justify-content:center;align-items:center;gap:5px;cursor:pointer;flex:none}
 .menu-btn span{display:block;width:18px;height:2px;border-radius:2px;background:var(--ink);transition:transform .2s ease}
 .menu-btn[aria-expanded="true"] span:first-child{transform:translateY(3.5px) rotate(45deg)}.menu-btn[aria-expanded="true"] span:last-child{transform:translateY(-3.5px) rotate(-45deg)}
-.mnav{border-top:1px solid var(--line);background:#fff;padding:6px 20px 18px;display:grid;box-shadow:0 18px 30px -24px rgba(0,0,0,.35)}
+.mnav{border-top:1px solid var(--line);background:#fff;padding:6px 20px 18px;display:grid}
 .mnav[hidden]{display:none}
 .mnav > a{padding:14px 2px;border-bottom:1px solid var(--line);text-decoration:none;color:var(--text);font-weight:550;font-size:17px}
 .mnav-auth{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px}
@@ -122,7 +122,7 @@ header.nav .btn{height:40px;border-radius:999px}
 .reel3{position:relative;display:flex;justify-content:center;align-items:flex-end;gap:12px;padding-top:92px}
 .reel3 figure{margin:0;width:30%;max-width:160px}
 .reel3 figure.mid{width:37%;max-width:200px;transform:translateY(-22px)}
-.reel3 .ph{aspect-ratio:9/16;border-radius:22px;overflow:hidden;border:6px solid #0f0b09;background:#0f0b09;box-shadow:0 30px 60px -30px rgba(0,0,0,.8)}
+.reel3 .ph{aspect-ratio:9/16;border-radius:22px;overflow:hidden;border:6px solid #0f0b09;background:#0f0b09}
 .reel3 video{width:100%;height:100%;object-fit:cover;display:block}
 .reel3 figcaption{font-size:12px;color:var(--frame-dim);text-align:center;margin-top:10px;line-height:1.35}
 .reel3 figcaption b{display:block;color:#fff;font-weight:600;font-size:13px}
@@ -130,6 +130,49 @@ header.nav .btn{height:40px;border-radius:999px}
 .reel3 .reel-note{position:absolute;left:0;right:0;bottom:-30px;text-align:center;font-size:11px;color:#8C7B70;margin:0}
 .camp.locked .cover img,.camp.locked .cover .gen{filter:saturate(.55) brightness(.8)}
 .camp.locked .foot span:last-child{font-weight:600;color:var(--ink)}
+/* earnings calculator */
+.calc{display:grid;grid-template-columns:1.15fr .85fr;gap:28px;background:var(--frame);border-radius:28px;padding:36px;color:var(--frame-text)}
+.calc h2{color:#fff}
+.calc-sub{color:var(--frame-dim);margin:10px 0 26px}
+.calc-sub b{color:var(--frame-text)}
+.sl{display:block;margin-top:22px}
+.sl > span{display:flex;justify-content:space-between;align-items:baseline;font-size:15px;color:var(--frame-dim);margin-bottom:12px}
+.sl > span b{color:#fff;font-size:22px;letter-spacing:-.03em}
+.sl input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:8px;border-radius:99px;background:var(--frame-3);outline:0;cursor:pointer}
+.sl input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:26px;height:26px;border-radius:50%;background:var(--brand);border:4px solid var(--frame)}
+.sl input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;background:var(--brand);border:4px solid var(--frame)}
+.sl input[type=range]:focus-visible::-webkit-slider-thumb{outline:3px solid rgba(198,244,50,.5)}
+.calc-r{background:var(--frame-2);border:1px solid var(--frame-line);border-radius:22px;padding:24px;display:flex;flex-direction:column;gap:14px;justify-content:center}
+.out span{display:block;font-size:14px;color:var(--frame-dim)}
+.out b{display:block;font-size:34px;color:#fff;letter-spacing:-.04em;font-weight:650;line-height:1.15;font-variant-numeric:tabular-nums}
+.out.big b{font-size:clamp(40px,5vw,56px);color:var(--brand)}
+.calc .fine{font-size:12px;color:#8C7B70;margin:0}
+.calc-r .btn{height:52px;border-radius:999px;justify-content:center;font-size:16px}
+/* FAQ */
+.faq-grid{display:grid;grid-template-columns:.75fr 1.25fr;gap:56px;align-items:start}
+.faq-grid .faq{margin-top:0;max-width:none}
+.faq-l{position:sticky;top:90px}
+.help{margin-top:26px;border:1px solid var(--line);border-radius:var(--r-lg);padding:20px;display:flex;flex-direction:column;gap:4px;background:var(--soft)}
+.help b{font-size:16px;color:var(--ink)}
+.help span{color:var(--dim);font-size:14px}
+.help a{margin-top:6px;font-weight:600;color:var(--deep)}
+/* the last push */
+.final{background:var(--frame);color:var(--frame-text);text-align:center;padding:96px 0;overflow:hidden}
+.final h2{color:#fff;font-size:clamp(36px,5.4vw,68px);letter-spacing:-.05em}
+.final h2 .hl{color:var(--ink);background:var(--brand);padding:0 .14em;border-radius:.16em;display:inline-block}
+.final p{color:var(--frame-dim);font-size:18px;margin:14px 0 30px}
+.final .ctas{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+.final .ctas .btn{height:54px;padding:0 26px;border-radius:999px;font-size:16px}
+/* locked covers */
+.cover .gen.soon-art{gap:10px}
+.cover .gen.soon-art svg{width:64px;height:64px;fill:currentColor;opacity:.85}
+/* the bar that follows the thumb on phones */
+.mbar{position:fixed;left:12px;right:12px;bottom:12px;z-index:45;display:none;gap:8px;padding:7px;background:rgba(255,255,255,.94);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);border:1px solid var(--line-2);border-radius:999px;transform:translateY(140%);transition:transform .25s ease}
+.mbar.show{transform:none}
+.mbar .btn{height:46px;border-radius:999px;justify-content:center;font-size:15px}
+.swipe{display:none}
+/* dashboard tabs: short names on phones */
+.tabs .ts{display:none}
 .dl-link{display:inline-block;margin-top:18px;color:var(--frame-text);font-weight:550;text-decoration:none;border-bottom:1px solid rgba(198,244,50,.5);padding-bottom:2px;transition:color .15s ease,border-color .15s ease}
 .dl-link:hover{color:var(--brand);border-color:var(--brand)}
 .marq{border-top:1px solid var(--frame-line);margin-top:56px;overflow:hidden;padding:16px 0;position:relative;z-index:2}
@@ -291,7 +334,7 @@ details p{color:var(--dim);margin-top:10px;max-width:720px}
 .toast.bad{background:var(--bad)}.toast.good{background:var(--good)}
 
 /* footer */
-footer.site{background:#1E1612;color:#B9A597;padding:56px 0 28px;font-size:14px}
+footer.site{border-top:1px solid rgba(255,255,255,.08);background:#1E1612;color:#B9A597;padding:56px 0 28px;font-size:14px}
 footer.site .fgrid{display:grid;grid-template-columns:1.4fr repeat(3,1fr);gap:32px}
 footer.site img{height:30px;display:block;margin-bottom:14px}
 footer.site p{max-width:300px;line-height:1.6;margin:0 0 18px}
@@ -305,6 +348,9 @@ footer.site .fbottom{display:flex;justify-content:space-between;gap:12px;flex-wr
 @media (max-width:980px){
   .hero-in{grid-template-columns:1fr;gap:40px}.stage{max-width:340px;margin:0 auto}
   .reel3{max-width:480px;margin:0 auto;width:100%}
+  .calc{grid-template-columns:1fr;padding:28px}
+  .faq-grid{grid-template-columns:1fr;gap:20px}.faq-l{position:static}
+  .aside{order:-1}
   .menu-btn{display:inline-flex}
   .ticker,.kpis{grid-template-columns:1fr 1fr}
   .checks{grid-template-columns:1fr 1fr}.steps{grid-template-columns:1fr 1fr}
@@ -325,6 +371,26 @@ footer.site .fbottom{display:flex;justify-content:space-between;gap:12px;flex-wr
   .paths{grid-template-columns:1fr}
   .reel3{gap:8px}.reel3 .ph{border-width:4px;border-radius:16px}.reel3 figure.mid{transform:translateY(-14px)}
   .reel3{padding-top:24px}.reel3 .chip.c2{display:none}
+  .mbar{display:grid;grid-template-columns:1.5fr 1fr}
+  footer.site{padding-bottom:96px}
+  .calc{padding:22px;border-radius:22px}.calc-r{padding:18px}
+  .final{padding:72px 0}
+  .checks{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;gap:10px;margin:28px -24px 0;padding:0 24px 8px;scrollbar-width:none}
+  .checks::-webkit-scrollbar{display:none}
+  .ck{flex:0 0 80%;scroll-snap-align:start}
+  .swipe{display:block;font-size:13px;color:var(--frame-dim);margin-top:10px}
+  .st{display:grid;grid-template-columns:40px 1fr;column-gap:12px;padding:18px}
+  .st .n{grid-row:span 2;margin:0}.st h3{margin:2px 0 4px}
+  .tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:0}
+  .tabs button{padding:12px 2px;font-size:14px}
+  .tabs .tl{display:none}.tabs .ts{display:inline}
+  table.stack thead{display:none}
+  table.stack tr{display:grid;grid-template-columns:1fr 1fr;gap:8px 14px;padding:14px 0;border-bottom:1px solid var(--line)}
+  table.stack tr:last-child{border-bottom:0}
+  table.stack td{border:0;padding:0;text-align:left!important}
+  table.stack td.full{grid-column:1/-1}
+  table.stack td[data-l]::before{content:attr(data-l);display:block;font-size:11px;color:var(--faint);margin-bottom:2px}
+  table.stack td:empty{display:none}
   .hero .ctas .btn{flex:1 1 auto;justify-content:center}
   .lb-row{grid-template-columns:36px 1fr 90px}.lb-row .hide-xs{display:none}
   .panel{padding:18px}
@@ -378,7 +444,7 @@ footer.site .fbottom{display:flex;justify-content:space-between;gap:12px;flex-wr
         <figure><div class="ph"><video src="/brand/demo-bounce.mp4" poster="/brand/demo-bounce.jpg" autoplay muted loop playsinline preload="metadata"></video></div><figcaption><b>Kai Cenat</b>GTA 6 reaction</figcaption></figure>
         <figure class="mid"><div class="ph"><video src="/brand/demo-hype.mp4" poster="/brand/demo-hype.jpg" autoplay muted loop playsinline preload="metadata"></video></div><figcaption><b>IShowSpeed</b>on GTA 6</figcaption></figure>
         <figure><div class="ph"><video src="/brand/demo-clean.mp4" poster="/brand/demo-clean.jpg" autoplay muted loop playsinline preload="metadata"></video></div><figcaption><b>GTA 6 trailer</b>stream reaction</figcaption></figure>
-        <div class="chip c2" aria-hidden="true">Example: 50K views<b class="lime">₹1,250</b><span>at ₹25 per 1K views</span></div>
+        <div class="chip c2" aria-hidden="true">Example: 50K views<b class="lime" id="exAmt">₹1,250</b><span id="exSub">at ₹25 per 1K views</span></div>
         <span id="chipBudget" hidden></span>
         <p class="reel-note">Example clips made with our clip maker, credited to the creators.</p>
       </div>
@@ -427,10 +493,31 @@ footer.site .fbottom{display:flex;justify-content:space-between;gap:12px;flex-wr
   </div>
 </section>
 
-<section id="leaderboard" style="padding-top:0">
+<section id="calc" style="padding-top:0">
+  <div class="wrap">
+    <div class="calc reveal">
+      <div class="calc-l">
+        <div class="kicker" style="color:var(--brand)"><i></i>Earnings calculator</div>
+        <h2>What could your clips make?</h2>
+        <p class="calc-sub">Slide to see it. Worked out with <b id="calcCamp">an example rate</b>.</p>
+        <label class="sl"><span>Views on one clip <b id="calcViewsOut">50K</b></span><input type="range" id="calcViews" min="0" max="100" value="56.6" step="0.1" aria-label="Views on one clip"></label>
+        <label class="sl"><span>Clips you post a week <b id="calcClipsOut">5</b></span><input type="range" id="calcClips" min="1" max="30" value="5" aria-label="Clips a week"></label>
+      </div>
+      <div class="calc-r">
+        <div class="out"><span>One clip earns</span><b id="calcOne">₹1,250</b></div>
+        <div class="out big"><span>In a month, about</span><b id="calcMonth">₹27,000</b></div>
+        <p class="fine" id="calcFine">An estimate. What you're paid depends on the real views each clip gets.</p>
+        <a class="btn primary" id="calcCta" href="/signup?next=%2Fearn%23me">Start earning <svg viewBox="0 0 256 256" aria-hidden="true"><path d="M221.66,133.66l-72,72a8,8,0,0,1-11.32-11.32L196.69,136H40a8,8,0,0,1,0-16H196.69L138.34,61.66a8,8,0,0,1,11.32-11.32l72,72A8,8,0,0,1,221.66,133.66Z"/></svg></a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="leaderboard">
   <div class="wrap">
     <div class="kicker reveal"><i></i>Leaderboard</div>
     <h2 class="reveal">Top clippers <span>across every campaign.</span></h2>
+    <p class="sub reveal">Ranked by views. Your name shows up here once your first clip is counted.</p>
     <div id="lb"></div>
   </div>
 </section>
@@ -447,13 +534,17 @@ footer.site .fbottom{display:flex;justify-content:space-between;gap:12px;flex-wr
       <div class="ck reveal" style="--d:.15s"><div class="n">04</div><h3>Never paid twice</h3><p>Each clip can be sent in once. The same link in another form, or from another account, is refused.</p></div>
       <div class="ck reveal" style="--d:.2s"><div class="n">05</div><h3>Real views, counted later</h3><p>Views are counted a few days after you post (usually 7). YouTube is counted for you; for Instagram and X you add a screenshot of your views.</p></div>
     </div>
+    <p class="swipe">Swipe for more →</p>
   </div>
 </section>
 
 <section id="faq">
-  <div class="wrap">
-    <div class="kicker"><i></i>FAQ</div>
-    <h2>Questions clippers ask.</h2>
+  <div class="wrap faq-grid">
+    <div class="faq-l">
+      <div class="kicker"><i></i>FAQ</div>
+      <h2>Questions clippers ask.</h2>
+      <div class="help"><b>Still stuck?</b><span>Email us and a real person will help.</span><a href="mailto:hello@clipkontrast.com">hello@clipkontrast.com</a></div>
+    </div>
     <div class="faq">
       <details open><summary>Do I need a big following?</summary><p>No. Shorts, Reels and X push good clips to people who don't follow you. A strong hook in the first two seconds and posting fast matter far more than followers.</p></details>
       <details><summary>How much can I earn?</summary><p>Each campaign shows its rate per 1,000 views. At ₹20 per 1,000, a clip with 50,000 views earns ₹1,000. Some campaigns have a minimum view count and a most-per-clip limit, both shown on the campaign.</p></details>
@@ -462,7 +553,15 @@ footer.site .fbottom{display:flex;justify-content:space-between;gap:12px;flex-wr
       <details><summary>Why was my clip refused?</summary><p>The most common reasons: the clip is on a different account from the one in your profile, it was posted before the campaign started, it was already sent in, or it breaks a campaign rule (no credit, copyrighted music, a plain reupload). The reason is always shown on the clip.</p></details>
       <details><summary>Can I use more than one account?</summary><p>One account per platform per profile. Add your YouTube, Instagram, X and TikTok handles, and you can post on all four.</p></details>
       <details><summary>What happens when the budget runs out?</summary><p>The campaign closes on its own and stops taking new clips. Clips that were already approved are still paid.</p></details>
+      <details><summary>Do I have to use the ClipKontrast clip maker?</summary><p>No. Any clip that follows the campaign's rules counts, however you made it. The clip maker is free and just makes it faster: it finds the best moments and adds captions for you.</p></details>
     </div>
+  </div>
+</section>
+<section id="start" class="final">
+  <div class="wrap final-in reveal">
+    <h2>Your next clip could <span class="hl">pay you.</span></h2>
+    <p>Free clip maker. Paid campaigns. Money straight to your UPI.</p>
+    <div class="ctas"><a class="btn primary" id="finalCta" href="/signup?next=%2Fearn%23me">Start earning <svg viewBox="0 0 256 256" aria-hidden="true"><path d="M221.66,133.66l-72,72a8,8,0,0,1-11.32-11.32L196.69,136H40a8,8,0,0,1,0-16H196.69L138.34,61.66a8,8,0,0,1,11.32-11.32l72,72A8,8,0,0,1,221.66,133.66Z"/></svg></a><a class="btn ghost-d" id="finalDl" href="#download">Download the clip maker</a></div>
   </div>
 </section>
 </main>
@@ -480,6 +579,7 @@ footer.site .fbottom{display:flex;justify-content:space-between;gap:12px;flex-wr
 </div></footer>
 
 <div id="sheet"></div>
+<div class="mbar" id="mbar"><a class="btn primary" id="mbarCta" href="/signup?next=%2Fearn%23me">Start earning</a><a class="btn" id="mbarDl" href="#download">Download</a></div>
 
 <script>
 const $ = (s, r = document) => r.querySelector(s), $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -487,7 +587,7 @@ const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt
 const inr = (n, d = 0) => "₹" + Number(n || 0).toLocaleString("en-IN", {maximumFractionDigits: d, minimumFractionDigits: d});
 const inr2 = n => inr(n, Number(n) % 1 ? 2 : 0);
 const num = n => Number(n || 0).toLocaleString("en-IN");
-const short = n => n >= 1e7 ? (n / 1e7).toFixed(1).replace(/\.0$/, "") + " Cr" : n >= 1e5 ? (n / 1e5).toFixed(1).replace(/\.0$/, "") + " L" : n >= 1e3 ? (n / 1e3).toFixed(1).replace(/\.0$/, "") + "K" : String(n || 0);
+const short = n => n >= 1e7 ? (n / 1e7).toFixed(1).replace(/\.0$/, "") + " Cr" : n >= 1e5 ? (n / 1e5).toFixed(n < 1e6 ? 2 : 1).replace(/\.?0+$/, "") + " L" : n >= 1e3 ? (n / 1e3).toFixed(1).replace(/\.0$/, "") + "K" : String(n || 0);
 const PLAT = {youtube: ["YouTube Shorts", "#FF3B30"], instagram: ["Instagram Reels", "#D62976"], x: ["X", "#211813"], tiktok: ["TikTok", "#25F4EE"]};
 const safeUrl = u => /^https?:\/\//i.test(u || "") ? u : "#";
 const S = {data: null, me: null, user: null, tab: "submit", open: null};
@@ -539,6 +639,7 @@ function cover(c, big = false) {
   if (c.member) tags.push('<span class="tag">✓ Joined</span>');
   const initials = (c.creator_name || c.title).split(/\s+/).map(w => w[0]).join("").slice(0, 2).toUpperCase();
   const art = c.cover ? `<img src="${esc(c.cover)}" alt="">`
+    : (st === "soon" || st === "starts") ? `<div class="gen soon-art" style="background:${esc(c.accent)}"><svg viewBox="0 0 256 256" aria-hidden="true"><path d="M208,80H176V56a48,48,0,0,0-96,0V80H48A16,16,0,0,0,32,96V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V96A16,16,0,0,0,208,80ZM96,56a32,32,0,0,1,64,0V80H96ZM208,208H48V96H208V208Zm-68-56a12,12,0,1,1-12-12A12,12,0,0,1,140,152Z"/></svg><span class="gn">${st === "soon" ? "Revealing soon" : "Opens " + esc(date(c.starts_at))}</span></div>`
     : `<div class="gen" style="background:${esc(c.accent)}"><span class="gi">${esc(initials)}</span><span class="gn">${esc(c.creator_name || c.title)}</span></div>`;
   return `<div class="cover">${art}<div class="tags">${tags.join("")}</div></div>`;
 }
@@ -666,7 +767,7 @@ function drawDash() {
   const m = S.me, t = m.totals, p = m.profile, u = S.user;
   const joinedOpen = S.data.campaigns.filter(c => c.open && m.joined.includes(c.id));
   const openNotJoined = S.data.campaigns.filter(c => c.open && !m.joined.includes(c.id));
-  const tabs = [["submit", "Send a clip"], ["clips", "My clips", m.submissions.length], ["payouts", "Payouts", m.payouts.length], ["profile", "Payout profile" + (p.complete ? "" : " ⚠")]];
+  const tabs = [["submit", "Send a clip", 0, "Send"], ["clips", "My clips", m.submissions.length, "Clips"], ["payouts", "Payouts", m.payouts.length, "Payouts"], ["profile", "Payout profile" + (p.complete ? "" : " ⚠"), 0, "Profile" + (p.complete ? "" : " ⚠")]];
   let body = "";
   if (S.tab === "submit") {
     body = !p.complete ? `<div class="note warn"><span>Set up your payout profile first: UPI ID, WhatsApp number and at least one account handle. Clips are matched to these handles.</span><button class="btn sm dark" data-act="tab" data-t="profile">Set it up</button></div>`
@@ -684,20 +785,20 @@ function drawDash() {
           <li>For Instagram and X, add a screenshot of the clip's views (Insights) in <b>My clips</b> once the waiting days are over.</li>
           <li>Once approved, the amount is owed and gets paid to <b>${esc(p.upi)}</b>.</li></ol></div></div>`;
   } else if (S.tab === "clips") {
-    body = m.submissions.length ? `<div class="tbl-wrap"><table><thead><tr><th>Clip</th><th>Checks</th><th style="text-align:right">Views</th><th style="text-align:right">Earnings</th><th>Status</th><th></th></tr></thead><tbody>
+    body = m.submissions.length ? `<div class="tbl-wrap"><table class="stack"><thead><tr><th>Clip</th><th>Checks</th><th style="text-align:right">Views</th><th style="text-align:right">Earnings</th><th>Status</th><th></th></tr></thead><tbody>
       ${m.submissions.map(s => `<tr>
-        <td><div class="clip-url"><a href="${esc(safeUrl(s.url))}" target="_blank" rel="noopener">${esc(PLAT[s.platform][0])} · ${esc(s.url.replace(/^https?:\/\/(www\.)?/, ""))}</a><small>${esc(s.campaign)} · sent ${esc(ago(s.submitted_at))}${s.views_source === "api" ? " · views from YouTube" : ""}</small>
+        <td class="full"><div class="clip-url"><a href="${esc(safeUrl(s.url))}" target="_blank" rel="noopener">${esc(PLAT[s.platform][0])} · ${esc(s.url.replace(/^https?:\/\/(www\.)?/, ""))}</a><small>${esc(s.campaign)} · sent ${esc(ago(s.submitted_at))}${s.views_source === "api" ? " · views from YouTube" : ""}</small>
           ${s.review_note ? `<small style="color:${s.status === "rejected" ? "var(--bad)" : "var(--dim)"}">${esc(s.review_note)}</small>` : ""}</div></td>
-        <td>${checkChips(s.checks)}</td>
-        <td style="text-align:right" class="num">${num(s.views)}</td>
-        <td style="text-align:right" class="num">${s.status === "approved" || s.status === "paid" ? inr2(s.amount) : s.status === "rejected" ? "—" : "~" + inr2(s.estimate)}</td>
-        <td>${statusChip(s)}</td>
-        <td><div class="actions">${s.status === "pending" ? `<label class="btn xs" title="Add a screenshot of the clip's Insights showing the views">${s.has_proof ? "Replace proof" : "Add proof"}<input type="file" accept="image/png,image/jpeg,image/webp" hidden data-proof="${s.id}"></label>
+        <td class="full">${checkChips(s.checks)}</td>
+        <td style="text-align:right" class="num" data-l="Views">${num(s.views)}</td>
+        <td style="text-align:right" class="num" data-l="Earnings">${s.status === "approved" || s.status === "paid" ? inr2(s.amount) : s.status === "rejected" ? "—" : "~" + inr2(s.estimate)}</td>
+        <td data-l="Status">${statusChip(s)}</td>
+        <td class="full"><div class="actions">${s.status === "pending" ? `<label class="btn xs" title="Add a screenshot of the clip's Insights showing the views">${s.has_proof ? "Replace proof" : "Add proof"}<input type="file" accept="image/png,image/jpeg,image/webp" hidden data-proof="${s.id}"></label>
           <button class="btn xs" data-act="withdraw" data-id="${s.id}" title="Remove this clip">Remove</button>` : ""}${s.has_proof ? `<a class="btn xs" href="/api/earn/proof/${s.id}" target="_blank">Proof</a>` : ""}</div></td>
       </tr>`).join("")}</tbody></table></div>` : `<div class="empty" style="margin:0"><b>No clips yet</b>Send your first clip from the Send a clip tab.</div>`;
   } else if (S.tab === "payouts") {
-    body = m.payouts.length ? `<table><thead><tr><th>Date</th><th>Clips</th><th>Sent to</th><th>Reference</th><th style="text-align:right">Amount</th></tr></thead><tbody>
-      ${m.payouts.map(x => `<tr><td>${esc(new Date(x.created_at * 1000).toLocaleDateString("en-IN"))}</td><td>${x.clips}</td><td>${esc(x.upi)}</td><td>${esc(x.ref || "—")}</td><td style="text-align:right" class="num">${inr2(x.amount)}</td></tr>`).join("")}</tbody></table>`
+    body = m.payouts.length ? `<table class="stack"><thead><tr><th>Date</th><th>Clips</th><th>Sent to</th><th>Reference</th><th style="text-align:right">Amount</th></tr></thead><tbody>
+      ${m.payouts.map(x => `<tr><td data-l="Date">${esc(new Date(x.created_at * 1000).toLocaleDateString("en-IN"))}</td><td data-l="Clips">${x.clips}</td><td data-l="Sent to">${esc(x.upi)}</td><td data-l="Reference">${esc(x.ref || "—")}</td><td style="text-align:right" class="num" data-l="Amount">${inr2(x.amount)}</td></tr>`).join("")}</tbody></table>`
       : `<div class="empty" style="margin:0"><b>No payouts yet</b>Approved clips show up as owed. When the money is sent to your UPI, it's listed here.</div>`;
   } else {
     body = `<form id="profForm" autocomplete="off"><div class="grid2"><div>
@@ -725,28 +826,60 @@ function drawDash() {
       <div class="kpi"><span>Paid to you</span><b>${inr2(t.paid)}</b><small>${m.payouts.length} payout${m.payouts.length === 1 ? "" : "s"}</small></div>
       <div class="kpi"><span>Views</span><b>${short(t.views)}</b><small>across ${t.clips} clip${t.clips === 1 ? "" : "s"}</small></div>
     </div>
-    <div class="tabs">${tabs.map(([k, l, n]) => `<button class="${S.tab === k ? "on" : ""}" data-act="tab" data-t="${k}">${esc(l)}${n ? `<span class="cnt">${n}</span>` : ""}</button>`).join("")}</div>
+    <div class="tabs">${tabs.map(([k, l, n, sh]) => `<button class="${S.tab === k ? "on" : ""}" data-act="tab" data-t="${k}"><span class="tl">${esc(l)}</span><span class="ts">${esc(sh)}</span>${n ? `<span class="cnt">${n}</span>` : ""}</button>`).join("")}</div>
     <div class="panel">${body}</div>`;
 }
 
+function setCtas(href, text) {
+  for (const id of ["heroCta", "calcCta", "finalCta", "mbarCta"]) {
+    const a = $("#" + id); if (!a) continue;
+    a.href = href;
+    const t = id === "mbarCta" && text.startsWith("Join ") ? "Join campaign" : text;   // the phone bar is narrow
+    if (a.firstChild && a.firstChild.nodeType === 3) a.firstChild.textContent = t + " "; else a.textContent = t;
+  }
+}
 function drawNav() {
   const r = $("#navRight");
   if (S.user) {
     r.innerHTML = `<a class="signin" href="#me">My earnings</a><a class="signin" href="#" data-act="signout">Sign out</a>${S.data.earn_only && !S.user.is_admin ? `<a class="btn primary" href="#download">Download clip maker</a>` : `<a class="btn primary" href="/app">Open ClipKontrast</a>`}`;
     // signed in: join a campaign first, then the button takes them to their earnings
     const open = S.data.campaigns.filter(c => c.open), joined = open.filter(c => (S.me?.joined || []).includes(c.id));
-    if (joined.length || !open.length) { $("#heroCta").href = "#me"; $("#heroCta").firstChild.textContent = "My earnings "; }
-    else { $("#heroCta").href = "#c=" + open[0].slug; $("#heroCta").firstChild.textContent = open.length > 1 ? "Join a campaign " : `Join ${open[0].title} `; }
+    if (joined.length || !open.length) setCtas("#me", "My earnings");
+    else setCtas("#c=" + open[0].slug, open.length > 1 ? "Join a campaign" : `Join ${open[0].title}`);
     $("#mnavAuth").innerHTML = `<a class="btn primary" href="#me">My earnings</a><a class="btn" href="#" data-act="signout">Sign out</a>`;
   } else if (S.data && S.data.accounts === false) {
     r.innerHTML = `<a class="btn primary" href="/app">Open ClipKontrast</a>`;
   }
+}
+function payFor(views, c) {
+  if (views < (c.min_views || 0)) return 0;
+  const a = views / 1000 * c.rate_per_1k;
+  return c.max_per_clip ? Math.min(a, c.max_per_clip) : a;
+}
+function calcCamp() {
+  const live = S.data.campaigns.filter(c => c.open && c.rate_per_1k);
+  return live[0] || {title: "", rate_per_1k: 25, min_views: 1000, max_per_clip: 0, example: true};
+}
+function drawCalc() {
+  const c = calcCamp(), v = +$("#calcViews").value, n = +$("#calcClips").value;
+  const raw = 1000 * Math.pow(1000, v / 100);                               // 1K to 10L, finer at the low end
+  const step = Math.pow(10, Math.max(2, Math.floor(Math.log10(raw)) - 1));   // two round figures: 51,300 becomes 51,000
+  const views = Math.round(raw / step) * step;
+  const one = payFor(views, c), month = one * n * 4.3;
+  $("#calcViewsOut").textContent = short(views); $("#calcClipsOut").textContent = n;
+  $("#calcOne").textContent = inr(one); $("#calcMonth").textContent = inr(Math.round(month / 100) * 100);
+  $("#calcCamp").textContent = c.example ? "an example rate of ₹25 per 1,000 views" : `the ${c.title} rate`;
+  $("#calcFine").textContent = (c.example ? "" : `${inr2(c.rate_per_1k)} per 1,000 views` + (c.max_per_clip ? `, up to ${inr(c.max_per_clip)} a clip` : "") + (c.min_views ? `, from ${num(c.min_views)} views` : "") + ". ")
+    + "An estimate: what you're paid depends on the real views each clip gets.";
 }
 function drawHero() {
   const o = S.data.overview, live = S.data.campaigns.filter(c => c.open);
   countTo($("#tLive"), o.live_budget, v => inr(v)); countTo($("#tPaid"), o.paid_out, v => inr(v));
   countTo($("#tClippers"), o.clippers, v => num(Math.round(v))); countTo($("#tViews"), o.views, v => short(Math.round(v)));
   const soon = S.data.campaigns.filter(c => c.state === "soon" || c.state === "starts");
+  const ex = calcCamp();
+  $("#exAmt").textContent = inr(payFor(50000, ex)); $("#exSub").textContent = `at ${inr2(ex.rate_per_1k)} per 1K views` + (ex.title ? ` · ${ex.title}` : "");
+  drawCalc();
   if (live[0]) { $("#heroPillText").textContent = `${live[0].title}: ${inr2(live[0].rate_per_1k)} per 1K views`; $("#heroPill").href = "#c=" + live[0].slug; $("#chipBudget").textContent = inr(live[0].budget); }
   else if (soon[0]) { $("#heroPill").querySelector("b").innerHTML = "<i></i>SOON"; $("#heroPillText").textContent = `Coming soon: ${soon[0].title}`; $("#heroPill").href = "#c=" + soon[0].slug; }
 }
@@ -757,7 +890,7 @@ async function load() {
   S.user = S.data.user;
   if (S.user) { try { S.me = await api("/api/earn/me"); } catch { S.me = null; S.user = null; } }
   const dl = S.data.download_url;
-  if (S.data.earn_only || S.data.accounts === false) { for (const b of [$("#dlBtn"), $("#heroDl")]) { b.href = dl; b.target = "_blank"; b.rel = "noopener"; } }
+  if (S.data.earn_only || S.data.accounts === false) { for (const b of [$("#dlBtn"), $("#heroDl"), $("#finalDl"), $("#mbarDl")]) { if (!b) continue; b.href = dl; b.target = "_blank"; b.rel = "noopener"; } }
   else { $("#dlBtn").textContent = "Open the clip maker"; $("#dlHelp").hidden = true; }
   drawNav(); drawHero(); drawCamps(); drawLb(); drawDash();
 }
@@ -790,6 +923,17 @@ document.addEventListener("submit", async e => {
   try { await api("/api/auth/verify-code", {method: "POST", body: {code: f.code.value}}); toast("Email confirmed. You're ready to earn.", "good"); await load(); }
   catch (err) { toast(err.message, "bad"); b.disabled = false; f.code.select(); }
 });
+
+// ---------------------------------------------------------------- calculator and the phone bar
+document.addEventListener("input", e => { if (e.target.id === "calcViews" || e.target.id === "calcClips") drawCalc(); });
+function placeBar() {
+  const bar = $("#mbar"); if (!bar) return;
+  const pastHero = $(".hero").getBoundingClientRect().bottom < 0;
+  const atEnd = $("#start").getBoundingClientRect().top < innerHeight;
+  bar.classList.toggle("show", pastHero && !atEnd && !$("#sheet").innerHTML);
+}
+addEventListener("scroll", placeBar, {passive: true});
+addEventListener("resize", placeBar);
 
 // ---------------------------------------------------------------- actions
 document.addEventListener("click", e => {
