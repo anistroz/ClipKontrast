@@ -637,7 +637,8 @@ function drawDash() {
       <button class="btn primary">Save profile</button></div>
       <div class="side-box"><h4>Why we need this</h4><ol><li>Your handles prove the clips you send are yours. A clip from any other account is refused.</li><li>Your UPI ID is where payouts go. Double-check it.</li><li>We only use your WhatsApp number for campaign updates and payout questions.</li></ol></div></div></form>`;
   }
-  const verifyNote = u.verified ? "" : `<div class="note warn" style="margin-top:20px"><span>Confirm your email to join campaigns and send clips. We sent a link to <b>${esc(u.email)}</b>.</span><button class="btn sm" data-act="resend">Send a new link</button></div>`;
+  const verifyNote = u.verified ? "" : `<div class="note warn" style="margin-top:20px;flex-wrap:wrap;gap:10px"><span>Confirm your email to join campaigns and send clips. We sent a 6-digit code to <b>${esc(u.email)}</b>.</span>
+    <form id="vcode" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><input name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="7" placeholder="123456" aria-label="6-digit code" style="width:120px;font-size:18px;letter-spacing:4px;text-align:center;padding:8px 10px;border-radius:10px;border:1px solid var(--line,#ddd)"><button class="btn sm primary" type="submit">Confirm</button><button class="btn sm" type="button" data-act="resend">Send a new code</button></form></div>`;
   $("#dash").innerHTML = `
     <div class="dash-top"><div class="hello"><div class="ava">${esc((p.display_name || u.name || "?")[0].toUpperCase())}</div>
       <div><div class="kicker" style="margin:0"><i></i>My earnings</div><h2 style="font-size:30px">Hey ${esc(p.display_name || u.name)}</h2></div></div>
@@ -699,6 +700,16 @@ function route() {
   else if (h === "#me" && S.user) $("#me").scrollIntoView();
 }
 
+// ---------------------------------------------------------------- confirming the email with the code
+document.addEventListener("submit", async e => {
+  if (e.target.id !== "vcode") return;
+  e.preventDefault();
+  const f = e.target, b = f.querySelector("[type=submit]");
+  b.disabled = true;
+  try { await api("/api/auth/verify-code", {method: "POST", body: {code: f.code.value}}); toast("Email confirmed. You're ready to earn.", "good"); await load(); }
+  catch (err) { toast(err.message, "bad"); b.disabled = false; f.code.select(); }
+});
+
 // ---------------------------------------------------------------- actions
 document.addEventListener("click", async e => {
   const o = e.target.closest("[data-open]"); if (o) { e.preventDefault(); closeSheet(); openCampaign(o.dataset.open); return; }
@@ -725,7 +736,7 @@ document.addEventListener("click", async e => {
     return;
   }
   if (act === "resend") {
-    try { const r = await api("/api/auth/resend-verification", {method: "POST"}); toast(r.verified ? "Your email is already confirmed." : "A new link is on its way. Check your spam folder too.", "good"); } catch (err) { toast(err.message, "bad"); }
+    try { const r = await api("/api/auth/resend-verification", {method: "POST"}); if (r.verified) { toast("Your email is already confirmed.", "good"); await load(); return; } toast("A new code is on its way. Check your spam folder too.", "good"); } catch (err) { toast(err.message, "bad"); }
   }
 });
 document.addEventListener("keydown", e => { if (e.key === "Escape" && S.open) closeSheet(); });

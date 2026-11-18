@@ -508,6 +508,21 @@ def resend_verification(request: Request):
     return {"sent": auth.send_verify(u), "mail_ready": mailer.ready()}
 
 
+@app.post("/api/auth/verify-code")
+def verify_code(request: Request, body: dict = Body(...)):
+    u = _me(request)
+    if not u:
+        raise HTTPException(401, "Please sign in.")
+    if auth.is_verified(u.id):
+        return {"verified": True}
+    try:
+        auth.verify_code(u.id, str(body.get("code", "")))
+    except auth.AuthError as e:
+        raise HTTPException(400, str(e))
+    ctx.bump(u.id)
+    return {"verified": True}
+
+
 @app.get("/auth/verify")
 def verify_email(request: Request, t: str = ""):
     try:

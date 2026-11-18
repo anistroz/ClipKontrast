@@ -1298,7 +1298,7 @@ function drawShell() {  const nav = (v, icon, label, extra = "") => `<button cla
   const toolBar = S.status.no_ffmpeg ? `<div class="vb" role="alert">${ic("warn")}<span><b>ClipKontrast can't make clips yet: ffmpeg isn't installed on this computer.</b> Open a terminal, run <code>winget install Gyan.FFmpeg</code> (Mac: <code>brew install ffmpeg</code>, Linux: <code>sudo apt install ffmpeg</code>), then close ClipKontrast and start it again.</span></div>` : "";
   const aiBar = !toolBar && S.status.ai?.problem && me?.is_admin && S.view !== "settings" ? `<div class="vb" role="status">${ic("warn")}<span><b>The AI isn't answering.</b> ${esc(S.status.ai.problem)} Until then, clips are picked by loudness.</span><button class="btn sm primary" data-act="go" data-v="settings" data-tab="ai">Open AI settings</button></div>` : "";
   const diskBar = !toolBar && S.status.disk_full && S.view !== "settings" ? `<div class="vb" role="alert">${ic("warn")}<span><b>The drive ClipKontrast saves to is almost full, so it can't take new videos.</b> Free up space on it, or move ClipKontrast's folder to a bigger drive.</span>${me?.is_admin ? `<button class="btn sm primary" data-act="go" data-v="settings" data-tab="storage">Open Storage</button>` : ""}</div>` : "";
-  put($("#vbanner"), toolBar ? toolBar : diskBar ? diskBar : aiBar ? aiBar : upBar ? upBar : me && me.verified === false ? `<div class="vb" role="status">${ic("warn")}<span>Confirm your email to start clipping. We sent a link to <b>${esc(me.email)}</b>.</span><button class="btn sm" data-act="resendverify">Send a new link</button></div>`
+  put($("#vbanner"), toolBar ? toolBar : diskBar ? diskBar : aiBar ? aiBar : upBar ? upBar : me && me.verified === false ? `<div class="vb" role="status">${ic("warn")}<span>Confirm your email to start clipping. We sent a 6-digit code to <b>${esc(me.email)}</b>.</span><form id="vcode" style="display:flex;gap:6px;align-items:center"><input name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="7" placeholder="123456" aria-label="6-digit code" style="width:110px;letter-spacing:3px;text-align:center"><button class="btn sm" type="submit">Confirm</button></form><button class="btn sm" data-act="resendverify">Send a new code</button></div>`
     : kk && kk.ready === false && S.view !== "usage" ? `<div class="vb" role="status">${ic("bolt")}<span>${me?.is_admin ? "Add your AI key to let the AI pick clips and write titles. Until then, clips are picked by loudness." : "The AI isn't set up on this server yet, so clips are picked by loudness."}</span>${me?.is_admin && S.view !== "settings" ? `<button class="btn sm primary" data-act="go" data-v="settings" data-tab="ai">${ic("plus")}Add AI key</button>` : ""}</div>` : "");
   put($("#tpic"), pic); $("#tpic").classList.toggle("live", !!(c && (c.live_job || liveOn(c).length)));
   put($("#utabs"), tabs); moveInd(); $(".topbar").classList.toggle("tabbed", !!tabs);
@@ -2220,6 +2220,14 @@ function loop() {
 
 /* ============================================================ actions */
 document.addEventListener("submit", e => { if (e.target.id === "addform") { e.preventDefault(); makeClips(); } });
+document.addEventListener("submit", async e => {
+  if (e.target.id !== "vcode") return;
+  e.preventDefault();
+  const f = e.target, b = f.querySelector("[type=submit]");
+  b.disabled = true;
+  try { await send("/api/auth/verify-code", {code: f.code.value}); S.status = await api("/api/status"); drawShell(); toast("Email confirmed. You're ready to clip.", "ok"); }
+  catch (err) { toast(err.message, "bad"); b.disabled = false; f.code.select(); }
+});
 $("#file").addEventListener("change", e => { attach(e.target.files); e.target.value = ""; });
 document.addEventListener("dragover", e => { const a = $(".composer"); if (a) { e.preventDefault(); a.classList.add("over"); } });
 document.addEventListener("dragleave", () => $(".composer")?.classList.remove("over"));
@@ -2425,7 +2433,7 @@ document.addEventListener("click", async e => {
     if (a === "resendverify") {
       b.disabled = true;
       try { const r = await send("/api/auth/resend-verification"); if (r.verified) { S.status = await api("/api/status"); drawShell(); return toast("Your email is already confirmed.", "ok"); }
-        toast(r.mail_ready ? `New link sent to ${S.status.user.email}. Check your spam folder too.` : "Email isn't set up on this server yet, so the link was written to the server log.", r.mail_ready ? "ok" : "bad"); }
+        toast(r.mail_ready ? `New code sent to ${S.status.user.email}. Check your spam folder too.` : "Email isn't set up on this server yet, so the code was written to the server log.", r.mail_ready ? "ok" : "bad"); }
       catch (e) { toast(e.message, "bad"); }
       b.disabled = false; return;
     }

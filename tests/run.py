@@ -49,6 +49,7 @@ def main() -> int:
         runs = [("permissions", ["tests/test_permissions.py", BASE, str(ROOT), sys.executable]),
                 ("Earn: campaigns, links, cross-checks, budget and payouts", ["tests/test_earn.py", BASE, str(ROOT), sys.executable]),
                 ("Earn-only website: clip-making off, Earn on", ["tests/test_earn_only.py", str(ROOT)]),
+                ("confirming the email with a six-digit code", ["tests/test_otp.py", str(ROOT)]),
                 ("abuse and limits", ["tests/test_abuse.py", BASE, str(ROOT)]),
                 ("queue under load", ["tests/test_load_queue.py", str(ROOT)]),
                 ("deleting and bulk actions", ["tests/test_delete.py"]),

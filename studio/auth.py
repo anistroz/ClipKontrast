@@ -133,12 +133,51 @@ def _use_link(token: str, purpose: str) -> str:
     return row.user_id
 
 
+CODE_TTL = 15 * 60          # a six-digit code works for 15 minutes
+CODE_TRIES = 5              # wrong guesses allowed per account in that time, so a code can't be guessed
+
+
+def _make_code(uid: str) -> str:
+    """A fresh six-digit code for confirming the email. A new code makes the older one stop working."""
+    code = f"{secrets.randbelow(10 ** 6):06d}"
+    with db.engine.begin() as c:
+        c.execute(db.email_tokens.delete().where(db.email_tokens.c.user_id == uid, db.email_tokens.c.purpose == "verify_code"))
+        # the code is stored hashed together with the account, like a link, so the table never holds a usable code
+        c.execute(db.email_tokens.insert().values(token_hash=_h(uid + ":" + code), user_id=uid, purpose="verify_code",
+                                                  expires_at=time.time() + CODE_TTL))
+    return code
+
+
+def verify_code(uid: str, code: str):
+    """Confirm the email with the code from the email. Each code works once, for 15 minutes, with 5 tries."""
+    code = re.sub(r"\D", "", str(code or ""))
+    if len(code) != 6:
+        raise AuthError("Enter the 6-digit code from the email.")
+    try:
+        throttle("vcode:" + uid, CODE_TRIES, CODE_TTL)
+    except AuthError:
+        raise AuthError("Too many tries. Ask for a new code, or wait 15 minutes.")
+    with db.engine.begin() as c:
+        row = c.execute(sa.select(db.email_tokens).where(db.email_tokens.c.token_hash == _h(uid + ":" + code),
+                                                          db.email_tokens.c.purpose == "verify_code",
+                                                          db.email_tokens.c.user_id == uid)).first()
+        if not row or row.used_at:
+            raise AuthError("That code isn't right. Check the newest email, or ask for a new code.")
+        if row.expires_at < time.time():
+            raise AuthError("That code has expired. Ask for a new one.")
+        c.execute(db.email_tokens.update().where(db.email_tokens.c.token_hash == row.token_hash).values(used_at=time.time()))
+    mark_verified(uid)
+
+
 def send_verify(u) -> bool:
+    """One email with a six-digit code to type in, and a button for confirming with one click."""
     from . import mailer
     link = f"{config.PUBLIC_URL}/auth/verify?t={_make_link(u.id, 'verify', 3 * 86400)}"
-    return mailer.send(u.email, "Confirm your email for ClipKontrast", "Confirm your email",
-                       "Thanks for joining ClipKontrast. Confirm this is your email address to start clipping.",
-                       "Confirm my email", link, "The link works for 3 days. If you didn't sign up, you can ignore this email.")
+    code = _make_code(u.id)
+    return mailer.send(u.email, f"{code} is your ClipKontrast code", "Confirm your email",
+                       "Thanks for joining ClipKontrast. Enter this code on the website to confirm your email address. It works for 15 minutes.",
+                       "Or confirm with one click", link,
+                       "The button works for 3 days. If you didn't sign up, you can ignore this email.", code=code)
 
 
 def verify_link(token: str) -> str:
