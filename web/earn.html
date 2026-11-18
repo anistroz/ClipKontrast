@@ -499,6 +499,7 @@ async function api(path, opts = {}) {
   else if (opts.body !== undefined) { o.body = JSON.stringify(opts.body); o.headers["Content-Type"] = "application/json"; }
   const r = await fetch(path, o);
   let d = null; try { d = await r.json(); } catch {}
+  if (r.status === 413 || (r.status === 502 && opts.body instanceof FormData)) throw new Error("That file is too big. Use an image under 8 MB.");
   if (!r.ok) throw new Error((d && d.detail) || "Something went wrong. Try again.");
   return d;
 }

@@ -8,7 +8,15 @@
 	request_body @upload {
 		max_size 2200MB
 	}
-	@small not path /api/upload /api/upload/*
+	# Earn pictures: a campaign's cover and the screenshots of a clip's views (phone screenshots are often 2-5 MB)
+	@images path_regexp ^/api/(admin/)?earn/.+/(cover|proof)$
+	request_body @images {
+		max_size 12MB
+	}
+	@small {
+		not path /api/upload /api/upload/*
+		not path_regexp ^/api/(admin/)?earn/.+/(cover|proof)$
+	}
 	request_body @small {
 		max_size 1MB
 	}
