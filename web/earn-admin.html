@@ -262,6 +262,24 @@ function mathPreview() {
 const HANDLE_URL = {youtube: h => "https://www.youtube.com/" + (h.startsWith("@") ? h : "@" + h), instagram: h => "https://www.instagram.com/" + h.replace(/^@/, ""),
   x: h => "https://x.com/" + h.replace(/^@/, ""), tiktok: h => "https://www.tiktok.com/@" + h.replace(/^@/, "")};
 const HANDLE_LABEL = {youtube: "YT", instagram: "IG", x: "X", tiktok: "TT"};
+// a ready-to-send WhatsApp welcome: the clipper's name and the campaign's real numbers, nothing typed by hand
+function waWelcome(c) {
+  const camp = S.camps.find(x => c.campaigns.includes(x.title)) || S.camps.find(x => x.open) || null;
+  const first = (c.name || "").split(" ")[0];
+  const lines = [`Hi${first ? " " + first : ""}! Thanks for joining the ClipKontrast campaign 🎬 I'm here to help you with anything you need.`, ""];
+  if (camp) {
+    lines.push(`Your campaign: ${camp.title}`);
+    if (camp.budget) lines.push(`Clipper pool: ${inr(camp.budget)}`);
+    if (camp.rate_per_1k) lines.push(`You earn: ${inr(camp.rate_per_1k)} per 1,000 views` + (camp.max_per_clip ? ` (up to ${inr(camp.max_per_clip)} a clip)` : ""));
+    const src = (camp.raw_sources || "").split("\n").map(x => x.trim()).filter(Boolean)[0];
+    if (src) lines.push(`Streamer to clip: ${src}`);
+    if (camp.required_tag) lines.push(`Put ${camp.required_tag} in every caption`);
+    lines.push("");
+  }
+  lines.push(`Send your clip links here: ${location.origin}/earn#me`, "", "DM me for any queries!");
+  return lines.join("\n");
+}
+const waLink = c => `https://wa.me/${c.whatsapp.replace(/\D/g, "")}?text=${encodeURIComponent(waWelcome(c))}`;
 function drawClippers() {
   if (!S.clippers) return "Loading…";
   const q = (S.cq || "").toLowerCase();
@@ -277,7 +295,7 @@ function drawClippers() {
       ${list.map(c => `<tr>
         <td><b>${esc(c.name || "—")}</b>${c.email_confirmed ? "" : ' <span class="chip pending">Email not confirmed</span>'}${c.profile_complete ? "" : ' <span class="chip draft">No payout profile</span>'}
           <div style="color:var(--faint);font-size:12px">${esc(c.email)}${c.city ? " · " + esc(c.city) : ""}</div></td>
-        <td>${c.whatsapp ? `<a href="https://wa.me/${esc(c.whatsapp.replace(/\D/g, ""))}" target="_blank" rel="noopener">${esc(c.whatsapp)}</a>` : "—"}</td>
+        <td>${c.whatsapp ? `<div style="font-size:13px">${esc(c.whatsapp)}</div><a class="btn xs primary" style="margin-top:6px" href="${esc(waLink(c))}" target="_blank" rel="noopener" title="Opens WhatsApp with the welcome message typed in">WhatsApp welcome</a>` : "—"}</td>
         <td>${c.upi ? `<span class="mono">${esc(c.upi)}</span>` : "—"}</td>
         <td>${Object.entries(c.handles).filter(([, h]) => h).map(([k, h]) => `<a href="${esc(HANDLE_URL[k](h))}" target="_blank" rel="noopener" style="display:block;font-size:13px"><b>${HANDLE_LABEL[k]}</b> ${esc(h)}</a>`).join("") || "—"}</td>
         <td style="font-size:13px">${c.campaigns.length ? c.campaigns.map(esc).join("<br>") : "—"}</td>
