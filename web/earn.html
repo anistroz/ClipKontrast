@@ -173,6 +173,16 @@ header.nav .btn{height:40px;border-radius:999px}
 .swipe{display:none}
 /* dashboard tabs: short names on phones */
 .tabs .ts{display:none}
+.pot{margin-top:24px;max-width:620px;border:1px solid rgba(198,244,50,.4);border-radius:18px;padding:16px 18px;background:linear-gradient(90deg,rgba(198,244,50,.12),rgba(198,244,50,.03))}
+.pot[hidden]{display:none}
+.pot-top{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}
+.pot-top span{font-size:14px;color:var(--frame-text);font-weight:550}
+.pot-top b{font-size:clamp(28px,3.4vw,40px);color:var(--brand);letter-spacing:-.04em;font-weight:700;line-height:1;font-variant-numeric:tabular-nums}
+.pot-bar{height:8px;border-radius:99px;background:var(--frame-3);margin:12px 0 10px;overflow:hidden}
+.pot-bar i{display:block;height:100%;width:0;border-radius:99px;background:var(--brand);transition:width 1.2s cubic-bezier(.2,.8,.2,1)}
+.pot-foot{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;font-size:13px;color:var(--frame-dim)}
+.pot-foot .hot{color:var(--frame-text);font-weight:550}
+.pot-foot .hot::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--brand);margin-right:7px;vertical-align:1px;animation:pulse 1.3s infinite}
 .dl-link{display:inline-block;margin-top:18px;color:var(--frame-text);font-weight:550;text-decoration:none;border-bottom:1px solid rgba(198,244,50,.5);padding-bottom:2px;transition:color .15s ease,border-color .15s ease}
 .dl-link:hover{color:var(--brand);border-color:var(--brand)}
 .marq{border-top:1px solid var(--frame-line);margin-top:56px;overflow:hidden;padding:16px 0;position:relative;z-index:2}
@@ -423,8 +433,13 @@ footer.site .fbottom{display:flex;justify-content:space-between;gap:12px;flex-wr
     <div class="hero-in">
       <div>
         <a class="pill-live reveal" href="#campaigns" id="heroPill"><b><i></i>LIVE</b><span id="heroPillText">Paid clipping campaigns are open</span></a>
-        <h1 class="reveal two" style="--d:.06s">Make clips free.<br><span class="hl">Get paid</span> for views.</h1>
-        <p class="lede reveal" style="--d:.12s">Our <b>free app</b> turns long streams into captioned shorts, right on <b>your own PC</b>. Post them on your <b>YouTube, Instagram or X</b>, send us the link, and earn for every <b>1,000 views</b>, paid to your <b>UPI</b>.</p>
+        <h1 class="reveal two" style="--d:.06s" id="heroH1">Make clips free.<br><span class="hl">Get paid</span> for views.</h1>
+        <p class="lede reveal" style="--d:.12s" id="heroLede">Our <b>free AI clip maker</b> finds the best moments in a stream and adds captions, on <b>your own PC</b>. Post the clips on <b>YouTube, Instagram or X</b>, send us the link, and get paid for every <b>1,000 views</b>, straight to your <b>UPI</b>.</p>
+        <div class="pot reveal" style="--d:.15s" id="pot" hidden>
+          <div class="pot-top"><span>Up for grabs right now</span><b id="potAmt">₹0</b></div>
+          <div class="pot-bar"><i id="potBar"></i></div>
+          <div class="pot-foot"><span id="potLeft"></span><span class="hot">Clips posted early earn the most</span></div>
+        </div>
         <div class="paths reveal" style="--d:.18s">
           <div class="path">
             <span class="ptag">STEP 1 · FREE</span>
@@ -439,7 +454,7 @@ footer.site .fbottom{display:flex;justify-content:space-between;gap:12px;flex-wr
             <a class="btn primary" id="heroCta" href="/signup?next=%2Fearn%23me">Start earning <svg viewBox="0 0 256 256" aria-hidden="true"><path d="M221.66,133.66l-72,72a8,8,0,0,1-11.32-11.32L196.69,136H40a8,8,0,0,1,0-16H196.69L138.34,61.66a8,8,0,0,1,11.32-11.32l72,72A8,8,0,0,1,221.66,133.66Z"/></svg></a>
           </div>
         </div>
-        <div class="hero-notes reveal" style="--d:.22s"><span>Windows, Mac and Linux</span><span>No editing skills needed</span><span>No followers needed</span></div>
+        <div class="hero-notes reveal" style="--d:.22s" id="heroNotes"><span>No followers needed</span><span>No editing skills needed</span><span>Paid to UPI</span></div>
       </div>
       <div class="reel3 reveal" style="--d:.2s">
         <figure><div class="ph"><video src="/brand/demo-bounce.mp4" poster="/brand/demo-bounce.jpg" autoplay muted loop playsinline preload="metadata"></video></div><figcaption><b>Kai Cenat</b>GTA 6 reaction</figcaption></figure>
@@ -881,6 +896,19 @@ function drawHero() {
   const ex = calcCamp();
   $("#exAmt").textContent = inr(payFor(50000, ex)); $("#exSub").textContent = `at ${inr2(ex.rate_per_1k)} per 1K views` + (ex.title ? ` · ${ex.title}` : "");
   drawCalc();
+  const c0 = live.filter(c => c.rate_per_1k).sort((a, b) => b.remaining - a.remaining)[0];
+  if (c0) {
+    // the hook with the real numbers: the rate, what's left to earn and the most one clip can make
+    $("#heroH1").innerHTML = `Clip streams.<br><span class="hl">${esc(inr2(c0.rate_per_1k))}</span> per 1K views.`;
+    $("#heroLede").innerHTML = `Our <b>free AI app</b> turns streams into captioned shorts on <b>your PC</b>. Post them, send us the link, get paid to <b>UPI</b>. One clip with <b>50K views = ${esc(inr(payFor(50000, c0)))}</b>.`;
+    if (c0.max_per_clip) { $("#exAmt").parentElement.firstChild.textContent = "One clip can earn up to"; $("#exAmt").textContent = inr(c0.max_per_clip); $("#exSub").textContent = `${inr2(c0.rate_per_1k)} per 1K views · ${c0.title}`; }
+    $("#pot").hidden = false;
+    countTo($("#potAmt"), o.live_budget, v => inr(v));
+    const leftPct = c0.budget ? Math.max(0, Math.min(100, 100 - c0.used_pct)) : 100;
+    requestAnimationFrame(() => setTimeout(() => $("#potBar").style.width = Math.max(2, leftPct) + "%", 200));
+    $("#potLeft").textContent = live.length > 1 ? `Across ${live.length} live campaigns` : `${Math.round(leftPct)}% of the ${c0.title} budget still left`;
+    $("#heroNotes").innerHTML = (c0.max_per_clip ? `<span>Up to ${esc(inr(c0.max_per_clip))} a clip</span>` : "") + "<span>No followers needed</span><span>Paid to UPI</span>";
+  }
   if (live[0]) { $("#heroPillText").textContent = `${live[0].title}: ${inr2(live[0].rate_per_1k)} per 1K views`; $("#heroPill").href = "#c=" + live[0].slug; $("#chipBudget").textContent = inr(live[0].budget); }
   else if (soon[0]) { $("#heroPill").querySelector("b").innerHTML = "<i></i>SOON"; $("#heroPillText").textContent = `Coming soon: ${soon[0].title}`; $("#heroPill").href = "#c=" + soon[0].slug; }
 }
