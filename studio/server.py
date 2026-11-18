@@ -218,6 +218,8 @@ class Gate:
             await self.inner(scope, receive, send_with_headers)
         finally:
             ctx._uid.reset(token)
+            if method not in ("GET", "HEAD"):
+                _EARN_PUBLIC.clear()        # something may have changed: the next visitor sees the Earn page fresh
 
 
 app.add_middleware(Gate)
@@ -493,7 +495,8 @@ def _signed_in(request: Request, user, first: bool, redirect=None):
 @app.post("/api/auth/signup")
 def signup(request: Request, body: dict = Body(...)):
     try:
-        auth.throttle("signup:" + _ip(request), 8, 3600)
+        # per address, generous: mobile networks in India put thousands of people behind one address (CGNAT)
+        auth.throttle("signup:" + _ip(request), 60, 3600)
         user, first = auth.signup(str(body.get("email", "")), str(body.get("password", "")), str(body.get("name", "")))
     except auth.AuthError as e:
         raise HTTPException(400, str(e))
@@ -545,7 +548,7 @@ def verify_email(request: Request, t: str = ""):
 def forgot_password(request: Request, body: dict = Body(...)):
     email = str(body.get("email", "")).strip().lower()
     try:
-        auth.throttle("forgot-ip:" + _ip(request), 10, 3600)
+        auth.throttle("forgot-ip:" + _ip(request), 40, 3600)
         auth.throttle("forgot:" + email, 3, 3600)
     except auth.AuthError as e:
         raise HTTPException(429, str(e))
@@ -556,7 +559,7 @@ def forgot_password(request: Request, body: dict = Body(...)):
 @app.post("/api/auth/reset")
 def reset_password(request: Request, body: dict = Body(...)):
     try:
-        auth.throttle("reset-ip:" + _ip(request), 20, 3600)
+        auth.throttle("reset-ip:" + _ip(request), 60, 3600)
         user = auth.reset_password(str(body.get("token", "")), str(body.get("password", "")))
     except auth.AuthError as e:
         raise HTTPException(400, str(e))
@@ -567,7 +570,7 @@ def reset_password(request: Request, body: dict = Body(...)):
 def login(request: Request, body: dict = Body(...)):
     email = str(body.get("email", ""))
     try:
-        auth.throttle("login-ip:" + _ip(request), 30, 600)
+        auth.throttle("login-ip:" + _ip(request), 150, 600)   # shared mobile addresses; each account has its own limit below
         auth.throttle(f"login:{email.strip().lower()[:254]}:{_ip(request)}", 8, 600)
         auth.throttle("login:" + email.strip().lower()[:254], 60, 600)
         user = auth.login(email, str(body.get("password", "")))
@@ -618,7 +621,7 @@ def google_callback(request: Request, code: str = "", state: str = "", error: st
     if error or not code or not state or not hmac.compare_digest(request.cookies.get("g_state", ""), state):
         return RedirectResponse("/login?error=google", 303)
     try:
-        auth.throttle("google:" + _ip(request), 30, 600)
+        auth.throttle("google:" + _ip(request), 150, 600)
         user, first, nxt = auth.google_finish(code, state)
     except auth.AuthError:
         return RedirectResponse("/login?error=google", 303)
@@ -1642,12 +1645,23 @@ def earn_cover(cid: str):
     return FileResponse(f, media_type="image/jpeg", headers={"Cache-Control": "public, max-age=86400"})
 
 
+_EARN_PUBLIC: dict = {}      # the Earn page as a visitor sees it, kept for a few seconds so a rush of visitors is cheap
+
+
 @app.get("/api/earn/public/overview")
 def earn_overview(request: Request):
     me_ = getattr(request.state, "user", None)
-    return {"overview": earn.overview(), "campaigns": earn.campaigns(uid=_uid_or_none(request)), "leaderboard": earn.leaderboard(),
-            "user": auth.public(me_) if me_ else None, "accounts": config.ACCOUNTS,
-            "earn_only": config.EARN_ONLY, "download_url": config.DOWNLOAD_URL}
+    if not me_:
+        # everyone who isn't signed in sees the same page: worked out at most every 10 seconds, not once per visitor
+        hit = _EARN_PUBLIC.get("v")
+        if hit and time.time() - hit[0] < 10:
+            return hit[1]
+    out = {"overview": earn.overview(), "campaigns": earn.campaigns(uid=_uid_or_none(request)), "leaderboard": earn.leaderboard(),
+           "user": auth.public(me_) if me_ else None, "accounts": config.ACCOUNTS,
+           "earn_only": config.EARN_ONLY, "download_url": config.DOWNLOAD_URL}
+    if not me_:
+        _EARN_PUBLIC["v"] = (time.time(), out)
+    return out
 
 
 @app.get("/api/earn/public/campaigns/{key}")
