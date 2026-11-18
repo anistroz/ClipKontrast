@@ -999,7 +999,8 @@ document.addEventListener("click", async e => {
   }
   if (act === "dlhelp") {
     e.preventDefault();
-    toast("Windows: unzip to C:\\ClipKontrast, double-click Start-ClipKontrast-Windows.bat. Mac: right-click Start-ClipKontrast-Mac.command, Open. First start takes 5 to 10 minutes.");
+    const dl = S.data?.download_url; if (dl) window.open(dl, "_blank", "noopener");
+    toast("The setup guide is in the same folder as the download. Windows: unzip to C:\\ClipKontrast and double-click Start-ClipKontrast-Windows.bat.");
     return;
   }
   if (act === "resend") {

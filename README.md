@@ -1,6 +1,6 @@
 # ClipKontrast
 
-> Based on [PeakCut](https://github.com/haziqahmedqasmi/peakcut) (MIT License). Rebranded and modified as ClipKontrast.
+> Based on PeakCut (MIT License). Rebranded and modified as ClipKontrast.
 >
 > Guide by [@anistroz.ai](https://www.instagram.com/anistroz.ai/) (Instagram) and [@anistrozelite](https://www.youtube.com/@anistrozelite) (YouTube).
 > Screenshots ke saath poori guide: folder mein **`SETUP-GUIDE.html`** kholo.
@@ -10,7 +10,7 @@ Free hai, koi sign-in nahi chahiye.
 
 ## Apne PC pe kaise chalaye (3 steps)
 
-**1. Download karo.** [Yahan click karke ZIP download karo](https://github.com/anistroz/clipkontrast/archive/refs/heads/main.zip) (ya upar hare **Code** button, phir **Download ZIP**).
+**1. Download karo.** [Yahan se download karo](https://drive.google.com/drive/folders/1BMRVHQ7vFiOQhX7m5j6kl7zmDWWRz7eq?usp=drive_link): Google Drive folder khulega, usme ClipKontrast ki ZIP aur setup guide dono hain.
 
 **2. Unzip karo, chhote folder mein.**
 - **Windows:** ZIP pe right-click karo, phir **Extract All**, aur folder ko `C:\ClipKontrast` pe rakho.
@@ -73,7 +73,7 @@ Phir start file dobara chalao.
 
 ## Credits aur licence
 
-ClipKontrast [PeakCut](https://github.com/haziqahmedqasmi/peakcut) pe based hai, jo MIT License ke tahat open source hai ([LICENSE](LICENSE)).
+ClipKontrast PeakCut pe based hai, jo MIT License ke tahat open source hai (LICENSE file dekho).
 Caption fonts (`studio/fonts/`: Anton, Archivo Black, Poppins) SIL Open Font License ke tahat hain.
 
 Sirf wahi videos clip karo jo tumhari hain ya jinki permission hai, aur jahan post karte ho un sites ke rules follow karo.

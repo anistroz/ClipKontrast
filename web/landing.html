@@ -470,7 +470,7 @@ fetch("/api/public").then(r => r.json()).then(p => {
   $$(".linkform button").forEach(b => b.firstChild.textContent = "Download free ");
   // here the link bars would only lead to the download, so they become one clear download button
   const arrow = `<svg viewBox="0 0 256 256" aria-hidden="true"><path d="M221.66,133.66l-72,72a8,8,0,0,1-11.32-11.32L196.69,136H40a8,8,0,0,1,0-16H196.69L138.34,61.66a8,8,0,0,1,11.32-11.32l72,72A8,8,0,0,1,221.66,133.66Z"/></svg>`;
-  const dlHtml = `<a class="btn primary dl-big" href="${dl}" target="_blank" rel="noopener">Download free ${arrow}</a><a class="btn dl-help" href="https://github.com/anistroz/clipkontrast#readme" target="_blank" rel="noopener">How to install</a>`;
+  const dlHtml = `<a class="btn primary dl-big" href="${dl}" target="_blank" rel="noopener">Download free ${arrow}</a><a class="btn dl-help" href="${dl}" target="_blank" rel="noopener">How to install</a>`;
   $$(".bar").forEach(b => { const box = b.closest(".ask") || b.parentElement; box.classList.add("ask"); box.innerHTML = dlHtml; });
   $$(".sub").forEach(p => { if (p.textContent.startsWith("Paste the link")) p.textContent = "Download it, paste a stream link and see what the AI picks. Free, for Windows, Mac and Linux."; });
   const nav = document.querySelector("header.nav nav");

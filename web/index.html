@@ -1215,7 +1215,7 @@ async function checkNew(first) {
 /* feedback goes to the maker's Instagram. A problem's message is copied first, so it can be pasted there. */
 async function openFeedback(kind = "bug", context = "") {
   const url = S.status?.links?.follow;
-  if (!url) return toast(context ? "Copy this message and open an issue on GitHub." : "There's no feedback link on this server.");
+  if (!url) return toast(context ? "Copy this message and send it to the person who runs this ClipKontrast." : "There's no feedback link on this server.");
   if (context) { try { await navigator.clipboard.writeText(context); toast("The problem is copied. Paste it in your message.", "ok"); } catch {} }
   window.open(url, "_blank", "noopener");
 }
@@ -1285,7 +1285,8 @@ function drawShell() {  const nav = (v, icon, label, extra = "") => `<button cla
   }
   if (S.view === "overview" || S.view === "library") {
     const L = S.status.links || {};
-    act = (L.repo ? `<a class="btn" href="${esc(L.repo)}" target="_blank" rel="noopener" title="Star ClipKontrast on GitHub">${ic("github")}<span>Star<span class="long"> on GitHub</span></span></a>` : "")
+    act = (L.repo ? `<a class="btn" href="${esc(L.repo)}" target="_blank" rel="noopener" title="Star ClipKontrast on GitHub">${ic("github")}<span>Star<span class="long"> on GitHub</span></span></a>`
+           : L.earn ? `<a class="btn" href="${esc(L.earn)}" target="_blank" rel="noopener" title="Get paid for the clips you post">₹<span>Earn<span class="long"> money</span></span></a>` : "")
         + (L.follow ? `<a class="btn primary" href="${esc(L.follow)}" target="_blank" rel="noopener" title="Follow the maker of ClipKontrast on Instagram">${ic("instagram")}Follow me</a>` : "");
   }
   const me = S.status.user;

@@ -164,11 +164,12 @@ ACCOUNTS = env("CLIPKONTRAST_ACCOUNTS", "0") == "1"
 # clips on their own computers with the free download. EARN_URL is where the downloaded app sends people to earn.
 EARN_ONLY = env("CLIPKONTRAST_EARN_ONLY", "0") == "1"
 EARN_URL = (env("CLIPKONTRAST_EARN_URL") or "https://clipkontrast.com").rstrip("/")
-# The two buttons along the top of the dashboard: the project's code, and where to follow its maker (feedback goes
-# there too). Set either to an empty value to hide that button, or point them at your own pages in a fork.
-REPO_URL = env("CLIPKONTRAST_REPO_URL", "https://github.com/anistroz/clipkontrast").strip()
+# The buttons along the top of the dashboard: where to follow its maker (feedback goes there too), and optionally the
+# project's code (off by default: clippers are sent to the download folder and the Earn page, not to the code).
+REPO_URL = env("CLIPKONTRAST_REPO_URL", "").strip()
 FOLLOW_URL = env("CLIPKONTRAST_FOLLOW_URL", "https://www.instagram.com/anistroz.ai/").strip()
-DOWNLOAD_URL = (env("CLIPKONTRAST_DOWNLOAD_URL") or REPO_URL + "/archive/refs/heads/main.zip").strip()     # where "Download the free clip studio" goes
+# where every "Download" button goes: the folder with the clip maker's zip and the setup guide
+DOWNLOAD_URL = (env("CLIPKONTRAST_DOWNLOAD_URL") or "https://drive.google.com/drive/folders/1BMRVHQ7vFiOQhX7m5j6kl7zmDWWRz7eq?usp=drive_link").strip()
 
 # ---------------------------------------------------------------- limits (per user, and for the whole server)
 # Your own ClipKontrast has no limits unless you set them: 0 (the default) means "none" for every limit below. The
