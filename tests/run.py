@@ -51,6 +51,7 @@ def main() -> int:
                 ("Earn-only website: clip-making off, Earn on", ["tests/test_earn_only.py", str(ROOT)]),
                 ("confirming the email with a six-digit code", ["tests/test_otp.py", str(ROOT)]),
                 ("mail through Brevo's web API", ["tests/test_mail_api.py"]),
+                ("Earn: handles with dots, and campaign states", ["tests/test_earn_states.py"]),
                 ("abuse and limits", ["tests/test_abuse.py", BASE, str(ROOT)]),
                 ("queue under load", ["tests/test_load_queue.py", str(ROOT)]),
                 ("deleting and bulk actions", ["tests/test_delete.py"]),

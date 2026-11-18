@@ -128,6 +128,8 @@ header.nav .btn{height:40px;border-radius:999px}
 .reel3 figcaption b{display:block;color:#fff;font-weight:600;font-size:13px}
 .reel3 .chip.c2{left:0;top:0;right:auto;bottom:auto}
 .reel3 .reel-note{position:absolute;left:0;right:0;bottom:-30px;text-align:center;font-size:11px;color:#8C7B70;margin:0}
+.camp.locked .cover img,.camp.locked .cover .gen{filter:saturate(.55) brightness(.8)}
+.camp.locked .foot span:last-child{font-weight:600;color:var(--ink)}
 .dl-link{display:inline-block;margin-top:18px;color:var(--frame-text);font-weight:550;text-decoration:none;border-bottom:1px solid rgba(198,244,50,.5);padding-bottom:2px;transition:color .15s ease,border-color .15s ease}
 .dl-link:hover{color:var(--brand);border-color:var(--brand)}
 .marq{border-top:1px solid var(--frame-line);margin-top:56px;overflow:hidden;padding:16px 0;position:relative;z-index:2}
@@ -525,9 +527,12 @@ function countTo(el, to, fmt) {
 // ---------------------------------------------------------------- campaign cards
 function cover(c, big = false) {
   const tags = [];
-  if (c.open) tags.push('<span class="tag live"><i></i>LIVE</span>');
-  else if (c.status === "paused") tags.push('<span class="tag off">Paused</span>');
-  else if (c.status === "live" && c.starts_at > Date.now() / 1000) tags.push('<span class="tag dark">Starts ' + esc(date(c.starts_at)) + '</span>');
+  const st = c.state || (c.open ? "open" : c.status);
+  if (st === "open") tags.push('<span class="tag live"><i></i>LIVE</span>');
+  else if (st === "soon") tags.push('<span class="tag dark">🔒 Coming soon</span>');
+  else if (st === "starts") tags.push('<span class="tag dark">🔒 Opens ' + esc(date(c.starts_at)) + '</span>');
+  else if (st === "paused") tags.push('<span class="tag off">Paused</span>');
+  else if (st === "full") tags.push('<span class="tag off">Budget used up</span>');
   else tags.push('<span class="tag off">Ended</span>');
   if (c.category) tags.push(`<span class="tag dark">${esc(c.category)}</span>`);
   if (c.member) tags.push('<span class="tag">✓ Joined</span>');
@@ -537,17 +542,24 @@ function cover(c, big = false) {
   return `<div class="cover">${art}<div class="tags">${tags.join("")}</div></div>`;
 }
 const plats = c => `<div class="plats">${c.platforms.map(p => `<span class="plat"><i style="background:${PLAT[p][1]}"></i>${esc(PLAT[p][0])}</span>`).join("")}</div>`;
+function stateLine(c) {
+  const st = c.state || (c.open ? "open" : c.status);
+  return st === "open" ? esc(until(c.ends_at) || "Open now")
+    : st === "soon" ? "🔒 Coming soon" : st === "starts" ? "🔒 Opens " + esc(date(c.starts_at))
+    : st === "paused" ? "Paused" : st === "full" ? "Budget used up" : "Ended";
+}
 function card(c) {
-  return `<button class="camp reveal" data-open="${esc(c.slug)}">
+  const locked = c.state === "soon" || c.state === "starts";
+  return `<button class="camp reveal${locked ? " locked" : ""}" data-open="${esc(c.slug)}">
     ${cover(c)}
     <div class="body">
       <div><div class="by">${esc(c.creator_name || "ClipKontrast campaign")}</div><h3>${esc(c.title)}</h3></div>
       ${c.tagline ? `<p class="tl">${esc(c.tagline)}</p>` : ""}
-      <div class="rate"><b>${inr2(c.rate_per_1k)}</b><span>per 1,000 views${c.max_per_clip ? ` · up to ${inr(c.max_per_clip)} a clip` : ""}</span></div>
-      <div class="budget"><div class="row"><span><b>${inr(c.remaining)}</b> left</span><span>of ${inr(c.budget)}</span></div><div class="meter"><i style="width:0" data-w="${100 - c.used_pct}"></i></div></div>
+      ${c.rate_per_1k ? `<div class="rate"><b>${inr2(c.rate_per_1k)}</b><span>per 1,000 views${c.max_per_clip ? ` · up to ${inr(c.max_per_clip)} a clip` : ""}</span></div>` : `<div class="rate"><b>Soon</b><span>rate announced when it opens</span></div>`}
+      ${c.budget ? `<div class="budget"><div class="row"><span><b>${inr(c.remaining)}</b> left</span><span>of ${inr(c.budget)}</span></div><div class="meter"><i style="width:0" data-w="${100 - c.used_pct}"></i></div></div>` : ""}
       ${plats(c)}
     </div>
-    <div class="foot"><span><b>${num(c.clippers)}</b> clippers · <b>${num(c.clips)}</b> clips</span><span>${c.open ? esc(until(c.ends_at) || "Open") : ""}</span></div>
+    <div class="foot"><span><b>${num(c.clippers)}</b> clippers · <b>${num(c.clips)}</b> clips</span><span>${stateLine(c)}</span></div>
   </button>`;
 }
 function drawCamps() {
@@ -577,7 +589,11 @@ async function openCampaign(slug) {
   if (location.hash !== "#c=" + slug) history.replaceState(null, "", "#c=" + slug);
   const me = S.user, prof = S.me?.profile;
   let cta;
-  if (!c.open) cta = `<button class="btn" disabled>${c.status === "paused" ? "Paused for now" : "Not taking clips"}</button>`;
+  const stc = c.state || (c.open ? "open" : c.status);
+  if (stc === "soon") cta = me ? `<button class="btn" disabled>🔒 Coming soon</button><div style="font-size:13px;color:var(--dim);text-align:center">Fill in your payout profile now, so you can join the moment it opens.</div>`
+    : `<a class="btn primary" href="${signupHref("/earn#c=" + c.slug)}">Sign up now, join when it opens ${ARROW}</a>`;
+  else if (stc === "starts") cta = `<button class="btn" disabled>🔒 Opens ${esc(date(c.starts_at))}</button>`;
+  else if (!c.open) cta = `<button class="btn" disabled>${stc === "paused" ? "Paused for now" : stc === "full" ? "Budget used up" : "Not taking clips"}</button>`;
   else if (!me) cta = `<a class="btn primary" href="${signupHref("/earn#c=" + c.slug)}">Sign up to join ${ARROW}</a><a class="btn" href="/login?next=${encodeURIComponent("/earn#c=" + c.slug)}">I have an account</a>`;
   else if (c.member) cta = `<button class="btn primary" data-act="submit-for" data-id="${esc(c.id)}">Send a clip ${ARROW}</button>`;
   else if (!prof?.complete) cta = `<button class="btn primary" data-act="profile-first">Set up payout profile</button>`;
@@ -601,8 +617,8 @@ async function openCampaign(slug) {
         ${c.leaderboard.length ? `<div class="mini-lb">${c.leaderboard.map((r, i) => `<div><span>${i + 1}. ${esc(r.name)}</span><span class="num">${short(r.views)} views · ${inr(r.earned)}</span></div>`).join("")}</div>` : `<div class="locked">No clips yet. Yours could be first.</div>`}
       </div>
       <aside class="aside">
-        <div><div class="big">${inr2(c.rate_per_1k)}</div><div style="color:var(--dim);font-size:14px">per 1,000 views</div></div>
-        <div class="budget"><div class="row"><span><b>${inr(c.remaining)}</b> left</span><span>${inr(c.budget)}</span></div><div class="meter"><i style="width:${Math.max(1.5, 100 - c.used_pct)}%"></i></div></div>
+        ${c.rate_per_1k ? `<div><div class="big">${inr2(c.rate_per_1k)}</div><div style="color:var(--dim);font-size:14px">per 1,000 views</div></div>` : `<div><div class="big">Soon</div><div style="color:var(--dim);font-size:14px">The rate and budget are announced when it opens.</div></div>`}
+        ${c.budget ? `<div class="budget"><div class="row"><span><b>${inr(c.remaining)}</b> left</span><span>${inr(c.budget)}</span></div><div class="meter"><i style="width:${Math.max(1.5, 100 - c.used_pct)}%"></i></div></div>` : ""}
         <dl>
           <dt>Platforms</dt><dd>${c.platforms.map(p => esc(PLAT[p][0].split(" ")[0])).join(", ")}</dd>
           ${c.min_views ? `<dt>Minimum views</dt><dd>${num(c.min_views)}</dd>` : ""}
@@ -653,7 +669,7 @@ function drawDash() {
   let body = "";
   if (S.tab === "submit") {
     body = !p.complete ? `<div class="note warn"><span>Set up your payout profile first: UPI ID, WhatsApp number and at least one account handle. Clips are matched to these handles.</span><button class="btn sm dark" data-act="tab" data-t="profile">Set it up</button></div>`
-      : !joinedOpen.length ? `<div class="note info"><span>${openNotJoined.length ? "Join a campaign first. Open one below and press Join." : "No campaign is open right now. You'll see it here the moment one starts."}</span>${openNotJoined.length ? `<button class="btn sm dark" data-open="${esc(openNotJoined[0].slug)}">See ${esc(openNotJoined[0].title)}</button>` : ""}</div>`
+      : !joinedOpen.length ? `<div class="note info"><span>${openNotJoined.length ? "Join a campaign first. Open one below and press Join." : (S.data.campaigns.some(c => c.state === "soon" || c.state === "starts") ? "Campaigns are coming soon. Fill in your payout profile now so you can join the moment one opens. " : "") + "No campaign is open right now. You'll see it here the moment one starts."}</span>${openNotJoined.length ? `<button class="btn sm dark" data-open="${esc(openNotJoined[0].slug)}">See ${esc(openNotJoined[0].title)}</button>` : ""}</div>`
       : `<div class="grid2"><form id="subForm" autocomplete="off">
           <div class="field"><label>Campaign</label><select name="campaign">${joinedOpen.map(c => `<option value="${esc(c.id)}" ${S.submitFor === c.id ? "selected" : ""}>${esc(c.title)} · ${inr2(c.rate_per_1k)}/1K</option>`).join("")}</select></div>
           <div class="field"><label>Clip link</label><div class="linkbox"><input name="url" value="${esc(S.prefill || "")}" placeholder="https://youtube.com/shorts/…  or an Instagram, X or TikTok link" required><span class="det" id="det"></span></div>
@@ -716,7 +732,10 @@ function drawNav() {
   const r = $("#navRight");
   if (S.user) {
     r.innerHTML = `<a class="signin" href="#me">My earnings</a><a class="signin" href="#" data-act="signout">Sign out</a>${S.data.earn_only && !S.user.is_admin ? `<a class="btn primary" href="#download">Download clip maker</a>` : `<a class="btn primary" href="/app">Open ClipKontrast</a>`}`;
-    $("#heroCta").href = "#me"; $("#heroCta").firstChild.textContent = "Go to my earnings ";
+    // signed in: join a campaign first, then the button takes them to their earnings
+    const open = S.data.campaigns.filter(c => c.open), joined = open.filter(c => (S.me?.joined || []).includes(c.id));
+    if (joined.length || !open.length) { $("#heroCta").href = "#me"; $("#heroCta").firstChild.textContent = "My earnings "; }
+    else { $("#heroCta").href = "#c=" + open[0].slug; $("#heroCta").firstChild.textContent = open.length > 1 ? "Join a campaign " : `Join ${open[0].title} `; }
     $("#mnavAuth").innerHTML = `<a class="btn primary" href="#me">My earnings</a><a class="btn" href="#" data-act="signout">Sign out</a>`;
   } else if (S.data && S.data.accounts === false) {
     r.innerHTML = `<a class="btn primary" href="/app">Open ClipKontrast</a>`;
@@ -726,7 +745,9 @@ function drawHero() {
   const o = S.data.overview, live = S.data.campaigns.filter(c => c.open);
   countTo($("#tLive"), o.live_budget, v => inr(v)); countTo($("#tPaid"), o.paid_out, v => inr(v));
   countTo($("#tClippers"), o.clippers, v => num(Math.round(v))); countTo($("#tViews"), o.views, v => short(Math.round(v)));
+  const soon = S.data.campaigns.filter(c => c.state === "soon" || c.state === "starts");
   if (live[0]) { $("#heroPillText").textContent = `${live[0].title}: ${inr2(live[0].rate_per_1k)} per 1K views`; $("#heroPill").href = "#c=" + live[0].slug; $("#chipBudget").textContent = inr(live[0].budget); }
+  else if (soon[0]) { $("#heroPill").querySelector("b").innerHTML = "<i></i>SOON"; $("#heroPillText").textContent = `Coming soon: ${soon[0].title}`; $("#heroPill").href = "#c=" + soon[0].slug; }
 }
 
 // ---------------------------------------------------------------- loading

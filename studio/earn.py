@@ -30,7 +30,7 @@ COVERS = DIR / "covers"
 PROOFS = DIR / "proofs"
 SETTINGS = DIR / "settings.json"
 PLATFORMS = {"youtube": "YouTube Shorts", "instagram": "Instagram Reels", "x": "X", "tiktok": "TikTok"}
-STATUSES = ("draft", "live", "paused", "ended")
+STATUSES = ("draft", "soon", "live", "paused", "ended")    # soon: shown to everyone as "coming soon", nobody can join yet
 YT_API = "https://www.googleapis.com/youtube/v3"
 _lock = threading.RLock()
 _channels: dict = {}          # YouTube channel id -> (when looked up, "@handle" lower case)
@@ -88,7 +88,8 @@ def _clean_handle(v: str, platform: str) -> str:
     v = (v or "").strip()
     if not v:
         return ""
-    if "/" in v or "." in v.split("@")[0]:
+    # a link (it has a slash, or starts with the platform's own address); a plain handle may have dots, like rahul.clips
+    if "/" in v or re.match(r"(https?://)?(www\.|m\.)?(instagram|youtube|youtu|x|twitter|tiktok)\.(com|be)\b", v, re.I):
         p = urlparse(v if "://" in v else "https://" + v)
         parts = [x for x in p.path.split("/") if x]
         if platform == "youtube" and parts[:1] == ["channel"] and len(parts) > 1:
@@ -333,12 +334,27 @@ def _camp_dict(r, st: dict, admin=False, member=False) -> dict:
          "committed": committed, "paid": round(st["paid"], 2), "remaining": round(max(0.0, r.budget - committed), 2),
          "used_pct": round(min(100.0, committed / r.budget * 100), 1) if r.budget else 0,
          "clips": st["clips"], "views": st["views"], "clippers": st["clippers"],
-         "open": _is_open(r, committed), "member": member}
+         "open": _is_open(r, committed), "state": _state(r, committed), "member": member}
     if admin or member:
         d["sources"] = [x.strip() for x in r.sources.splitlines() if x.strip()]
     if admin:
         d.update(pending=st["pending"], created_at=r.created_at, raw_rules=r.rules, raw_sources=r.sources)
     return d
+
+
+def _state(r, committed: float) -> str:
+    """Where a campaign stands, in one word, so pages can say why it is or isn't taking clips.
+    open | soon (announced, not open yet) | starts (live, opens at starts_at) | full (budget used) | ended | paused | draft"""
+    now = _now()
+    if r.status == "live":
+        if r.ends_at and r.ends_at <= now:
+            return "ended"
+        if r.starts_at and r.starts_at > now:
+            return "starts"
+        if r.budget - committed <= 0.5:
+            return "full"
+        return "open"
+    return r.status
 
 
 def _is_open(r, committed: float) -> bool:
@@ -356,7 +372,7 @@ def campaigns(admin=False, uid: str = "") -> list:
         rows = c.execute(q.order_by(c_.created_at.desc())).all()
         st = _stats(c, [r.id for r in rows])
         mine = {r[0] for r in c.execute(sa.select(db.earn_members.c.campaign_id).where(db.earn_members.c.user_id == uid))} if uid else set()
-    order = {"live": 0, "paused": 1, "draft": 2, "ended": 3}
+    order = {"live": 0, "soon": 1, "paused": 2, "draft": 3, "ended": 4}
     out = [_camp_dict(r, st[r.id], admin, r.id in mine) for r in rows]
     out.sort(key=lambda d: (not d["open"], order.get(d["status"], 9), -d["clippers"], -d["clips"], -d["remaining"]))
     return out
@@ -395,6 +411,44 @@ def leaderboard(cid: str = "", limit: int = 10) -> list:
     with db.engine.connect() as c:
         return [{"name": _public_name(dn or "", email), "clips": n, "views": int(v or 0), "earned": round(float(e or 0), 2)}
                 for _, n, v, e, dn, email in c.execute(q)]
+
+
+def clippers_admin() -> list:
+    """Everyone who signed up, with their payout profile, the campaigns they joined and what they sent. Admins only."""
+    u, p, s, m = db.users.c, db.earn_profiles.c, db.earn_submissions.c, db.earn_members.c
+    with db.engine.connect() as c:
+        rows = c.execute(sa.select(u.id, u.email, u.name, u.created_at, p.display_name, p.whatsapp, p.upi, p.youtube,
+                                   p.instagram, p.x, p.tiktok, p.city)
+                         .select_from(db.users.outerjoin(db.earn_profiles, p.user_id == u.id))
+                         .order_by(u.created_at.desc()).limit(2000)).all()
+        verified = {r[0] for r in c.execute(sa.select(db.email_ok.c.user_id))}
+        titles = {r.id: r.title for r in c.execute(sa.select(db.earn_campaigns.c.id, db.earn_campaigns.c.title))}
+        joined = {}
+        for cid, uid in c.execute(sa.select(m.campaign_id, m.user_id)):
+            joined.setdefault(uid, []).append(titles.get(cid, cid))
+        sent = {}
+        for uid, status, n, amt, views in c.execute(sa.select(s.user_id, s.status, sa.func.count(), sa.func.sum(s.amount), sa.func.sum(s.views))
+                                                    .group_by(s.user_id, s.status)):
+            o = sent.setdefault(uid, {"clips": 0, "views": 0, "owed": 0.0, "paid": 0.0, "pending": 0})
+            if status != "rejected":
+                o["clips"] += n
+                o["views"] += int(views or 0)
+            if status == "approved":
+                o["owed"] += float(amt or 0)
+            if status == "paid":
+                o["paid"] += float(amt or 0)
+            if status == "pending":
+                o["pending"] += n
+    out = []
+    for r in rows:
+        st = sent.get(r.id, {"clips": 0, "views": 0, "owed": 0.0, "paid": 0.0, "pending": 0})
+        handles = {k: getattr(r, k) or "" for k in ("youtube", "instagram", "x", "tiktok")}
+        out.append({"id": r.id, "email": r.email, "name": r.display_name or r.name or "", "joined_site": r.created_at,
+                    "email_confirmed": (not config.VERIFY_EMAIL) or r.id in verified,
+                    "whatsapp": r.whatsapp or "", "upi": r.upi or "", "city": r.city or "", "handles": handles,
+                    "profile_complete": bool(r.whatsapp and r.upi and any(handles.values())),
+                    "campaigns": joined.get(r.id, []), **{k: round(v, 2) if isinstance(v, float) else v for k, v in st.items()}})
+    return out
 
 
 def overview() -> dict:

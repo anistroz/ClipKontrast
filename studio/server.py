@@ -1786,6 +1786,12 @@ def earn_admin_refresh(request: Request, body: dict = Body(default={})):
     return {"updated": _earn(earn.refresh_views, [int(x) for x in (body.get("ids") or [])] or None)}
 
 
+@app.get("/api/admin/earn/clippers")
+def earn_admin_clippers(request: Request):
+    _admin(request)
+    return {"clippers": earn.clippers_admin()}
+
+
 @app.get("/api/admin/earn/owed")
 def earn_admin_owed(request: Request):
     _admin(request)

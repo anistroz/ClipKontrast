@@ -61,7 +61,7 @@ tr:hover td{background:#FCFBFA}
 .meter{height:7px;border-radius:99px;background:var(--muted);overflow:hidden;width:120px;border:1px solid var(--line)}
 .meter i{display:block;height:100%;background:var(--brand)}
 .chip{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;padding:3px 9px;border-radius:999px;white-space:nowrap}
-.chip.live{background:var(--brand);color:var(--ink)}.chip.draft{background:var(--muted);color:var(--dim)}.chip.paused{background:var(--warn-soft);color:var(--warn)}.chip.ended{background:var(--frame);color:#fff}
+.chip.live{background:var(--brand);color:var(--ink)}.chip.soon{background:var(--soft);color:var(--deep)}.chip.draft{background:var(--muted);color:var(--dim)}.chip.paused{background:var(--warn-soft);color:var(--warn)}.chip.ended{background:var(--frame);color:#fff}
 .chip.pending{background:var(--warn-soft);color:var(--warn)}.chip.approved{background:var(--good-soft);color:var(--good)}.chip.rejected{background:var(--bad-soft);color:var(--bad)}.chip.paid{background:var(--frame);color:var(--brand)}
 .chip.ready{background:var(--soft);color:var(--deep)}
 .cks{display:flex;gap:4px;flex-wrap:wrap}
@@ -141,6 +141,7 @@ const PLAT = {youtube: "YouTube", instagram: "Instagram", x: "X", tiktok: "TikTo
 const date = t => t ? new Date(t * 1000).toLocaleString("en-IN", {day: "numeric", month: "short", hour: "2-digit", minute: "2-digit"}) : "—";
 const ago = t => { const s = Date.now() / 1000 - t; return s < 3600 ? Math.max(1, Math.floor(s / 60)) + "m ago" : s < 86400 ? Math.floor(s / 3600) + "h ago" : Math.floor(s / 86400) + "d ago"; };
 const IC = {
+  users: '<path d="M117.25,157.92a60,60,0,1,0-66.5,0A95.83,95.83,0,0,0,3.53,195.63a8,8,0,1,0,13.4,8.74,80,80,0,0,1,134.14,0,8,8,0,0,0,13.4-8.74A95.83,95.83,0,0,0,117.25,157.92ZM40,108a44,44,0,1,1,44,44A44.05,44.05,0,0,1,40,108Zm210.14,98.7a8,8,0,0,1-11.07-2.33A79.83,79.83,0,0,0,172,168a8,8,0,0,1,0-16,44,44,0,1,0-16.34-84.87,8,8,0,1,1-5.94-14.85,60,60,0,0,1,55.53,105.64,95.83,95.83,0,0,1,47.22,37.71A8,8,0,0,1,250.14,206.7Z"/>',
   home: '<path d="M219.31,108.68l-80-80a16,16,0,0,0-22.62,0l-80,80A15.87,15.87,0,0,0,32,120v96a8,8,0,0,0,8,8h64a8,8,0,0,0,8-8V160h32v56a8,8,0,0,0,8,8h64a8,8,0,0,0,8-8V120A15.87,15.87,0,0,0,219.31,108.68ZM208,208H160V152a8,8,0,0,0-8-8H104a8,8,0,0,0-8,8v56H48V120l80-80,80,80Z"/>',
   flag: '<path d="M34.76,42A8,8,0,0,0,32,48V216a8,8,0,0,0,16,0V171.77c26.79-21.16,49.87-9.75,76.45,3.41,16.4,8.11,34.06,16.85,53,16.85,13.93,0,28.54-4.75,43.82-18a8,8,0,0,0,2.76-6V48A8,8,0,0,0,210.76,42c-28,24.23-51.72,12.49-79.21-1.12C103.07,26.76,70.78,10.79,34.76,42ZM208,164.25c-26.79,21.16-49.87,9.74-76.45-3.41-25-12.38-52.81-26.13-83.55-8.4V51.79c26.79-21.16,49.87-9.75,76.45,3.4,25,12.38,52.82,26.14,83.55,8.4Z"/>',
   check: '<path d="M173.66,98.34a8,8,0,0,1,0,11.32l-56,56a8,8,0,0,1-11.32,0l-24-24a8,8,0,0,1,11.32-11.32L112,148.69l50.34-50.35A8,8,0,0,1,173.66,98.34ZM232,128A104,104,0,1,1,128,24,104.11,104.11,0,0,1,232,128Zm-16,0a88,88,0,1,0-88,88A88.1,88.1,0,0,0,216,128Z"/>',
@@ -150,6 +151,7 @@ const ic = n => `<svg viewBox="0 0 256 256">${IC[n]}</svg>`;
 const TABS = {overview: ["Overview", "home", "Campaigns, clips waiting for review, and money owed"],
   campaigns: ["Campaigns", "flag", "Create campaigns, set budgets and rates, and go live"],
   review: ["Review clips", "check", "Check each clip, set its views, then approve or reject it"],
+  clippers: ["Clippers", "users", "Everyone who signed up: payout details, account handles and campaigns"],
   payouts: ["Payouts", "money", "What each clipper is owed, and the record of what was sent"],
   settings: ["Settings", "gear", "The YouTube key that counts views automatically"]};
 const S = {tab: (location.pathname.split("/")[3] || "overview"), sum: null, camps: [], queue: null, qStatus: "pending", qCamp: "", q: "", owed: null, sel: new Set()};
@@ -173,7 +175,13 @@ function nav() {
     S.tab === "review" ? `<button class="btn" data-act="yt-refresh">Refresh YouTube views</button>` :
     S.tab === "payouts" ? `<a class="btn" href="/api/admin/earn/owed.csv">Download CSV</a>` : "";
 }
-const chip = s => `<span class="chip ${esc(s)}">${esc(s[0].toUpperCase() + s.slice(1))}</span>`;
+const STATUS_LABEL = {soon: "Coming soon"};
+const chip = s => `<span class="chip ${esc(s)}">${esc(STATUS_LABEL[s] || s[0].toUpperCase() + s.slice(1))}</span>`;
+const fmtWhen = t => new Date(t * 1000).toLocaleString("en-IN", {day: "numeric", month: "short", hour: "numeric", minute: "2-digit"});
+function whyNotOpen(c) {
+  return c.state === "starts" ? `opens ${fmtWhen(c.starts_at)}. Clippers see it as locked until then`
+    : c.state === "full" ? "the budget is used up" : c.state === "ended" ? "the end date has passed" : "";
+}
 
 // ---------------------------------------------------------------- overview
 function drawOverview() {
@@ -190,7 +198,7 @@ function campTable(cs) {
   if (!cs.length) return `<div class="empty"><b>No campaigns yet</b>Create one, set the budget and rate, and go live.</div>`;
   return `<div class="tw"><table><thead><tr><th>Campaign</th><th>Status</th><th>Rate</th><th>Budget used</th><th>Clippers</th><th>Clips</th><th>To review</th><th></th></tr></thead><tbody>
     ${cs.map(c => `<tr><td><b>${esc(c.title)}</b><div style="color:var(--faint);font-size:12px">${esc(c.creator_name)} · /earn#c=${esc(c.slug)}</div></td>
-      <td>${chip(c.status)}${c.status === "live" && !c.open ? ' <span style="color:var(--faint);font-size:12px">not open</span>' : ""}</td>
+      <td>${chip(c.status)}${c.status === "live" && !c.open ? `<div style="color:var(--warn);font-size:12px;margin-top:4px;max-width:200px">Not open yet: ${esc(whyNotOpen(c))}</div>` : ""}${c.status === "soon" ? '<div style="color:var(--faint);font-size:12px;margin-top:4px">Shown locked on the site</div>' : ""}</td>
       <td class="num">${inr(c.rate_per_1k)}/1K</td>
       <td><div class="meter"><i style="width:${c.used_pct}%"></i></div><div style="font-size:12px;color:var(--dim)">${inr(c.committed)} of ${inr(c.budget)}</div></td>
       <td class="num">${num(c.clippers)}</td><td class="num">${num(c.clips)}</td>
@@ -233,9 +241,10 @@ function openForm(c) {
       <div class="sect">Dates and look</div>
       <div class="g3"><div class="field"><label>Starts</label><input name="starts_at" type="datetime-local" value="${toLocalInput(c.starts_at)}"></div>
         <div class="field"><label>Ends</label><input name="ends_at" type="datetime-local" value="${toLocalInput(c.ends_at)}"></div>
-        <div class="field"><label>Status</label><select name="status">${["draft", "live", "paused", "ended"].map(s => `<option ${c.status === s ? "selected" : ""}>${s}</option>`).join("")}</select></div></div>
+        <div class="field"><label>Status</label><select name="status">${[["draft", "Draft (hidden)"], ["soon", "Coming soon (shown locked)"], ["live", "Live"], ["paused", "Paused"], ["ended", "Ended"]].map(([v, l]) => `<option value="${v}" ${c.status === v ? "selected" : ""}>${l}</option>`).join("")}</select>
+          <div class="hint" style="margin-top:6px">Live opens at the start time. Leave Starts empty to open right away.</div></div></div>
       <div class="g2"><div class="field"><label>Accent colour (used when there's no cover)</label><input name="accent" type="color" value="${esc(c.accent)}" style="padding:4px;height:40px"></div>
-        <div class="field"><label>Cover image (16:9)</label>${c.id ? `<input type="file" accept="image/png,image/jpeg,image/webp" data-cover="${esc(c.id)}" style="padding-top:8px">` : `<div class="hint" style="margin-top:12px">Save the campaign first, then add a cover.</div>`}</div></div>
+        <div class="field"><label>Cover image (16:9)</label>${c.id ? `<input type="file" accept="image/png,image/jpeg,image/webp" data-cover="${esc(c.id)}" style="padding-top:8px">` : `<input type="file" name="cover_new" accept="image/png,image/jpeg,image/webp" style="padding-top:8px"><div class="hint">Uploaded when you press Save.</div>`}</div></div>
       ${c.cover ? `<img class="cover-prev" src="${esc(c.cover)}" alt="">` : ""}
     </form></div></div>`;
   mathPreview();
@@ -244,6 +253,36 @@ function mathPreview() {
   const f = $("#cf"); if (!f) return;
   const b = +f.budget.value || 0, r = +f.rate_per_1k.value || 0, cap = +f.max_per_clip.value || 0;
   $("#mathPrev").innerHTML = r ? `This budget pays for about <b>${num(Math.round(b / r * 1000))}</b> views. A clip with 50,000 views earns <b>${inr(Math.min(50 * r, cap || 1e12))}</b>. The campaign closes by itself when the budget is used up.` : "Set a rate to see what the budget buys.";
+}
+
+
+// ---------------------------------------------------------------- clippers
+const HANDLE_URL = {youtube: h => "https://www.youtube.com/" + (h.startsWith("@") ? h : "@" + h), instagram: h => "https://www.instagram.com/" + h.replace(/^@/, ""),
+  x: h => "https://x.com/" + h.replace(/^@/, ""), tiktok: h => "https://www.tiktok.com/@" + h.replace(/^@/, "")};
+const HANDLE_LABEL = {youtube: "YT", instagram: "IG", x: "X", tiktok: "TT"};
+function drawClippers() {
+  if (!S.clippers) return "Loading…";
+  const q = (S.cq || "").toLowerCase();
+  const list = S.clippers.filter(c => !q || [c.name, c.email, c.upi, c.whatsapp, c.city, ...Object.values(c.handles)].join(" ").toLowerCase().includes(q));
+  const ready = S.clippers.filter(c => c.profile_complete).length;
+  return `<div class="kpis" style="margin-bottom:16px"><div class="kpi"><span>Signed up</span><b>${num(S.clippers.length)}</b></div>
+      <div class="kpi"><span>Email confirmed</span><b>${num(S.clippers.filter(c => c.email_confirmed).length)}</b></div>
+      <div class="kpi hi"><span>Payout profile done</span><b>${num(ready)}</b></div>
+      <div class="kpi"><span>In a campaign</span><b>${num(S.clippers.filter(c => c.campaigns.length).length)}</b></div></div>
+    <div class="card" style="margin-top:0">
+      <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px"><input id="cq" placeholder="Search name, email, UPI, WhatsApp or handle" value="${esc(S.cq || "")}" style="width:100%;max-width:380px;height:40px;border:1px solid var(--line-2);border-radius:10px;padding:0 12px;background:#fff;outline:0"><span style="color:var(--faint);font-size:13px">${list.length} of ${S.clippers.length}</span></div>
+      ${list.length ? `<div class="tw"><table><thead><tr><th>Clipper</th><th>WhatsApp</th><th>UPI</th><th>Accounts</th><th>Campaigns</th><th class="num">Clips</th><th class="num">Views</th><th class="num">Owed</th><th class="num">Paid</th></tr></thead><tbody>
+      ${list.map(c => `<tr>
+        <td><b>${esc(c.name || "—")}</b>${c.email_confirmed ? "" : ' <span class="chip pending">Email not confirmed</span>'}${c.profile_complete ? "" : ' <span class="chip draft">No payout profile</span>'}
+          <div style="color:var(--faint);font-size:12px">${esc(c.email)}${c.city ? " · " + esc(c.city) : ""}</div></td>
+        <td>${c.whatsapp ? `<a href="https://wa.me/${esc(c.whatsapp.replace(/\D/g, ""))}" target="_blank" rel="noopener">${esc(c.whatsapp)}</a>` : "—"}</td>
+        <td>${c.upi ? `<span class="mono">${esc(c.upi)}</span>` : "—"}</td>
+        <td>${Object.entries(c.handles).filter(([, h]) => h).map(([k, h]) => `<a href="${esc(HANDLE_URL[k](h))}" target="_blank" rel="noopener" style="display:block;font-size:13px"><b>${HANDLE_LABEL[k]}</b> ${esc(h)}</a>`).join("") || "—"}</td>
+        <td style="font-size:13px">${c.campaigns.length ? c.campaigns.map(esc).join("<br>") : "—"}</td>
+        <td class="num">${num(c.clips)}${c.pending ? `<div style="font-size:11px;color:var(--warn)">${c.pending} to review</div>` : ""}</td>
+        <td class="num">${num(c.views)}</td><td class="num">${inr(c.owed)}</td><td class="num">${inr(c.paid)}</td></tr>`).join("")}
+      </tbody></table></div>` : `<div class="empty"><b>No one yet</b>People who sign up on the Earn page show up here with their payout details and accounts.</div>`}
+    </div>`;
 }
 
 // ---------------------------------------------------------------- review
@@ -309,13 +348,14 @@ function drawSettings() {
 // ---------------------------------------------------------------- drawing and loading
 function draw() {
   nav();
-  $("#view").innerHTML = !S.sum ? "Loading…" : {overview: drawOverview, campaigns: drawCampaigns, review: drawReview, payouts: drawPayouts, settings: drawSettings}[S.tab]();
+  $("#view").innerHTML = !S.sum ? "Loading…" : {overview: drawOverview, campaigns: drawCampaigns, review: drawReview, clippers: drawClippers, payouts: drawPayouts, settings: drawSettings}[S.tab]();
 }
 async function loadQueue() { S.queue = await api(`/api/admin/earn/submissions?status=${S.qStatus === "all" ? "" : S.qStatus}&campaign=${encodeURIComponent(S.qCamp)}&q=${encodeURIComponent(S.q)}`); }
 async function load() {
   [S.sum, S.camps] = await Promise.all([api("/api/admin/earn/summary"), api("/api/admin/earn/campaigns")]);
   if (S.tab === "review") await loadQueue();
   if (S.tab === "payouts") S.owed = await api("/api/admin/earn/owed");
+  if (S.tab === "clippers") S.clippers = (await api("/api/admin/earn/clippers")).clippers;
   if (S.tab === "settings") { try { S.mail = (await api("/api/public")).mail; } catch {} }
   draw();
 }
@@ -330,7 +370,10 @@ document.addEventListener("click", async e => {
     if (act === "new") openForm();
     else if (act === "edit") openForm(S.camps.find(c => c.id === id));
     else if (act === "close" || (act === "close-bg" && e.target === a)) $("#modal").innerHTML = "";
-    else if (act === "status") { await api("/api/admin/earn/campaigns/" + id, {method: "PUT", body: {status: a.dataset.s}}); toast("Campaign is now " + a.dataset.s + ".", "good"); await load(); }
+    else if (act === "status") {
+      const c = await api("/api/admin/earn/campaigns/" + id, {method: "PUT", body: {status: a.dataset.s}});
+      toast(c && c.state === "open" ? "Live and open. Clippers can join now." : c && c.state === "starts" ? `Live. It opens ${fmtWhen(c.starts_at)}, and shows locked until then.` : "Campaign is now " + (STATUS_LABEL[a.dataset.s] || a.dataset.s).toLowerCase() + ".", c && c.state === "starts" ? "" : "good");
+      await load(); }
     else if (act === "delete") { if (!confirm("Delete this campaign and every clip sent to it? This can't be undone.")) return; await api("/api/admin/earn/campaigns/" + id, {method: "DELETE"}); $("#modal").innerHTML = ""; toast("Deleted."); await load(); }
     else if (act === "review-camp") { S.qCamp = id; S.qStatus = "pending"; go("review"); }
     else if (act === "qstatus") { S.qStatus = a.dataset.s; S.sel.clear(); await loadQueue(); draw(); }
@@ -378,6 +421,11 @@ document.addEventListener("input", e => {
   if (e.target.closest("#cf")) mathPreview();
   if (e.target.id === "qsearch") { clearTimeout(S.qt); S.q = e.target.value; S.qt = setTimeout(async () => { await loadQueue(); draw(); const i = $("#qsearch"); i.focus(); i.setSelectionRange(i.value.length, i.value.length); }, 350); }
 });
+document.addEventListener("input", e => {
+  if (e.target.id !== "cq") return;
+  S.cq = e.target.value; const pos = e.target.selectionStart; draw();
+  const i = $("#cq"); if (i) { i.focus(); i.setSelectionRange(pos, pos); }
+});
 document.addEventListener("submit", async e => {
   e.preventDefault();
   const f = e.target;
@@ -387,8 +435,10 @@ document.addEventListener("submit", async e => {
       d.platforms = $$('input[name="platforms"]:checked', f).map(x => x.value);
       d.starts_at = d.starts_at ? new Date(d.starts_at).getTime() / 1000 : null;
       d.ends_at = d.ends_at ? new Date(d.ends_at).getTime() / 1000 : null;
+      const file = f.cover_new && f.cover_new.files[0]; delete d.cover_new;
       const c = await api("/api/admin/earn/campaigns" + (f.dataset.id ? "/" + f.dataset.id : ""), {method: f.dataset.id ? "PUT" : "POST", body: d});
-      toast(f.dataset.id ? "Saved." : "Campaign created. Add a cover, then go live.", "good");
+      if (file) { const fd = new FormData(); fd.append("file", file); try { await api(`/api/admin/earn/campaigns/${c.id}/cover`, {method: "POST", body: fd}); } catch (err) { toast("Saved, but the cover didn't upload: " + err.message, "bad"); } }
+      toast(f.dataset.id ? "Saved." : (c.status === "live" ? "Campaign created and live." : "Campaign created. Press Go live when it's ready."), "good");
       await load();
       if (!f.dataset.id) openForm(S.camps.find(x => x.id === c.id)); else $("#modal").innerHTML = "";
     }
