@@ -108,6 +108,26 @@ header.nav .btn{height:40px;border-radius:999px}
 .chip .ok{display:inline-flex;align-items:center;gap:6px;color:var(--brand);font-weight:600}
 .chip > span:not(.ok){display:block;font-size:12px;margin-top:2px}
 .stage .ph .credit{position:absolute;left:8px;right:8px;bottom:8px;text-align:center;font-size:11px;font-weight:600;color:#fff;background:rgba(15,11,9,.62);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);border-radius:999px;padding:5px 8px}
+.paths{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:28px;max-width:620px}
+.path{background:var(--frame-2);border:1px solid var(--frame-line);border-radius:18px;padding:18px 18px 16px;display:flex;flex-direction:column;gap:6px}
+.path.earn{border-color:rgba(198,244,50,.55);background:linear-gradient(180deg,rgba(198,244,50,.10),rgba(198,244,50,.02)),var(--frame-2)}
+.path .ptag{font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--brand)}
+.path h3{color:#fff;font-size:20px;line-height:1.2;margin:0;letter-spacing:-.025em;font-weight:650}
+.path p{color:var(--frame-dim);font-size:14px;line-height:1.5;margin:0 0 6px;flex:1}
+.path .btn{height:48px;border-radius:999px;justify-content:center;font-size:15px;gap:8px}
+.path .btn svg{width:18px;height:18px;fill:currentColor}
+.hero-notes{display:flex;flex-wrap:wrap;gap:8px 18px;margin-top:18px;font-size:13px;color:var(--frame-dim)}
+.hero-notes span::before{content:"✓";color:var(--brand);font-weight:700;margin-right:6px}
+.hero h1.two{font-size:clamp(38px,4.3vw,62px)}
+.reel3{position:relative;display:flex;justify-content:center;align-items:flex-end;gap:12px;padding-top:92px}
+.reel3 figure{margin:0;width:30%;max-width:160px}
+.reel3 figure.mid{width:37%;max-width:200px;transform:translateY(-22px)}
+.reel3 .ph{aspect-ratio:9/16;border-radius:22px;overflow:hidden;border:6px solid #0f0b09;background:#0f0b09;box-shadow:0 30px 60px -30px rgba(0,0,0,.8)}
+.reel3 video{width:100%;height:100%;object-fit:cover;display:block}
+.reel3 figcaption{font-size:12px;color:var(--frame-dim);text-align:center;margin-top:10px;line-height:1.35}
+.reel3 figcaption b{display:block;color:#fff;font-weight:600;font-size:13px}
+.reel3 .chip.c2{left:0;top:0;right:auto;bottom:auto}
+.reel3 .reel-note{position:absolute;left:0;right:0;bottom:-30px;text-align:center;font-size:11px;color:#8C7B70;margin:0}
 .dl-link{display:inline-block;margin-top:18px;color:var(--frame-text);font-weight:550;text-decoration:none;border-bottom:1px solid rgba(198,244,50,.5);padding-bottom:2px;transition:color .15s ease,border-color .15s ease}
 .dl-link:hover{color:var(--brand);border-color:var(--brand)}
 .marq{border-top:1px solid var(--frame-line);margin-top:56px;overflow:hidden;padding:16px 0;position:relative;z-index:2}
@@ -281,7 +301,8 @@ footer.site .fnote{font-size:12px;color:#6F6158;margin:14px 0 0;max-width:720px}
 footer.site .fbottom{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:44px;padding-top:20px;border-top:1px solid rgba(255,255,255,.08);font-size:13px;color:#8C7B70}
 
 @media (max-width:980px){
-  .hero-in{grid-template-columns:1fr;gap:28px}.stage{max-width:340px;margin:0 auto}
+  .hero-in{grid-template-columns:1fr;gap:40px}.stage{max-width:340px;margin:0 auto}
+  .reel3{max-width:480px;margin:0 auto;width:100%}
   .menu-btn{display:inline-flex}
   .ticker,.kpis{grid-template-columns:1fr 1fr}
   .checks{grid-template-columns:1fr 1fr}.steps{grid-template-columns:1fr 1fr}
@@ -299,6 +320,9 @@ footer.site .fbottom{display:flex;justify-content:space-between;gap:12px;flex-wr
   header.nav .signin{display:none}
   header.nav .right .btn{display:none}
   .chip.c1,.chip.c3{display:none}.chip.c2{right:-2%;top:52%}
+  .paths{grid-template-columns:1fr}
+  .reel3{gap:8px}.reel3 .ph{border-width:4px;border-radius:16px}.reel3 figure.mid{transform:translateY(-14px)}
+  .reel3{padding-top:24px}.reel3 .chip.c2{display:none}
   .hero .ctas .btn{flex:1 1 auto;justify-content:center}
   .lb-row{grid-template-columns:36px 1fr 90px}.lb-row .hide-xs{display:none}
   .panel{padding:18px}
@@ -330,20 +354,31 @@ footer.site .fbottom{display:flex;justify-content:space-between;gap:12px;flex-wr
     <div class="hero-in">
       <div>
         <a class="pill-live reveal" href="#campaigns" id="heroPill"><b><i></i>LIVE</b><span id="heroPillText">Paid clipping campaigns are open</span></a>
-        <h1 class="reveal" style="--d:.06s">Clip creators.<br>Post shorts.<br><span class="hl">Get paid.</span></h1>
-        <p class="lede reveal" style="--d:.12s">Join a campaign, post clips from your own <b>YouTube, Instagram and X</b> accounts, and earn for every <b>1,000 views</b>. Every clip is checked automatically, and payouts go <b>straight to your UPI</b>.</p>
-        <div class="ctas reveal" style="--d:.18s">
-          <a class="btn primary" id="heroCta" href="/signup?next=%2Fearn%23me">Start earning
-            <svg viewBox="0 0 256 256"><path d="M221.66,133.66l-72,72a8,8,0,0,1-11.32-11.32L196.69,136H40a8,8,0,0,1,0-16H196.69L138.34,61.66a8,8,0,0,1,11.32-11.32l72,72A8,8,0,0,1,221.66,133.66Z"/></svg></a>
-          <a class="btn ghost-d" href="#campaigns">See live campaigns</a>
+        <h1 class="reveal two" style="--d:.06s">Make clips free.<br><span class="hl">Get paid</span> for views.</h1>
+        <p class="lede reveal" style="--d:.12s">Our <b>free app</b> turns long streams into captioned shorts, right on <b>your own PC</b>. Post them on your <b>YouTube, Instagram or X</b>, send us the link, and earn for every <b>1,000 views</b>, paid to your <b>UPI</b>.</p>
+        <div class="paths reveal" style="--d:.18s">
+          <div class="path">
+            <span class="ptag">STEP 1 · FREE</span>
+            <h3>Make the clips</h3>
+            <p>Download the clip maker. Paste a stream link and get ready-to-post shorts with captions.</p>
+            <a class="btn ghost-d" id="heroDl" href="#download"><svg viewBox="0 0 256 256" aria-hidden="true"><path d="M224,144v64a8,8,0,0,1-8,8H40a8,8,0,0,1-8-8V144a8,8,0,0,1,16,0v56H208V144a8,8,0,0,1,16,0Zm-101.66,5.66a8,8,0,0,0,11.32,0l40-40a8,8,0,0,0-11.32-11.32L136,124.69V32a8,8,0,0,0-16,0v92.69L93.66,98.34a8,8,0,0,0-11.32,11.32Z"/></svg>Download free</a>
+          </div>
+          <div class="path earn">
+            <span class="ptag">STEP 2 · EARN</span>
+            <h3>Get paid for views</h3>
+            <p>Join a campaign, post the clips from your accounts and send the link. Money goes to UPI.</p>
+            <a class="btn primary" id="heroCta" href="/signup?next=%2Fearn%23me">Start earning <svg viewBox="0 0 256 256" aria-hidden="true"><path d="M221.66,133.66l-72,72a8,8,0,0,1-11.32-11.32L196.69,136H40a8,8,0,0,1,0-16H196.69L138.34,61.66a8,8,0,0,1,11.32-11.32l72,72A8,8,0,0,1,221.66,133.66Z"/></svg></a>
+          </div>
         </div>
-        <a class="dl-link reveal" style="--d:.22s" href="#download" id="heroDl">No editing skills? Get our free clip maker <span aria-hidden="true">→</span></a>
+        <div class="hero-notes reveal" style="--d:.22s"><span>Windows, Mac and Linux</span><span>No editing skills needed</span><span>No followers needed</span></div>
       </div>
-      <div class="stage reveal" style="--d:.2s" aria-hidden="true">
-        <div class="ph"><video src="/brand/demo-hype.mp4" poster="/brand/demo-hype.jpg" autoplay muted loop playsinline preload="metadata"></video><span class="credit">Example clip · IShowSpeed</span></div>
-        <div class="chip c1">Views checked<b>Automatically</b><span class="ok">● YouTube API</span></div>
-        <div class="chip c2">Example: 50K views<b class="lime">₹1,250</b><span>at ₹25 per 1K views</span></div>
-        <div class="chip c3">Campaign budget<b id="chipBudget">₹45,000</b><div class="bar"><i></i></div></div>
+      <div class="reel3 reveal" style="--d:.2s">
+        <figure><div class="ph"><video src="/brand/demo-bounce.mp4" poster="/brand/demo-bounce.jpg" autoplay muted loop playsinline preload="metadata"></video></div><figcaption><b>Kai Cenat</b>GTA 6 reaction</figcaption></figure>
+        <figure class="mid"><div class="ph"><video src="/brand/demo-hype.mp4" poster="/brand/demo-hype.jpg" autoplay muted loop playsinline preload="metadata"></video></div><figcaption><b>IShowSpeed</b>on GTA 6</figcaption></figure>
+        <figure><div class="ph"><video src="/brand/demo-clean.mp4" poster="/brand/demo-clean.jpg" autoplay muted loop playsinline preload="metadata"></video></div><figcaption><b>GTA 6 trailer</b>stream reaction</figcaption></figure>
+        <div class="chip c2" aria-hidden="true">Example: 50K views<b class="lime">₹1,250</b><span>at ₹25 per 1K views</span></div>
+        <span id="chipBudget" hidden></span>
+        <p class="reel-note">Example clips made with our clip maker, credited to the creators.</p>
       </div>
     </div>
     <div class="ticker reveal" style="--d:.24s">
@@ -366,12 +401,12 @@ footer.site .fbottom{display:flex;justify-content:space-between;gap:12px;flex-wr
 <section id="how">
   <div class="wrap">
     <div class="kicker reveal"><i></i>How it works</div>
-    <h2 class="reveal">From stream to UPI <span>in four steps.</span></h2>
+    <h2 class="reveal">From a stream to money in your UPI. <span>Four steps.</span></h2>
     <div class="steps">
-      <div class="st reveal"><div class="n">1</div><h3>Set up your profile</h3><p>Add your UPI ID, WhatsApp number and your YouTube, Instagram, X or TikTok handles. It takes a minute.</p></div>
-      <div class="st reveal" style="--d:.05s"><div class="n">2</div><h3>Join a campaign</h3><p>Read what the creator wants, then join. You'll see exactly which streams and videos to clip.</p></div>
-      <div class="st reveal" style="--d:.1s"><div class="n">3</div><h3>Clip and post</h3><p>Cut the best moments, add a hook and captions, credit the creator, and post from your own accounts.</p></div>
-      <div class="st reveal" style="--d:.15s"><div class="n">4</div><h3>Send the link, get paid</h3><p>Paste each clip link here. We verify it, count the views, and send the money to your UPI.</p></div>
+      <div class="st reveal"><div class="n">1</div><h3>Get the free clip maker</h3><p>Download it on your PC. Paste a stream link and it hands you vertical clips with captions and a hook. No editing needed.</p></div>
+      <div class="st reveal" style="--d:.05s"><div class="n">2</div><h3>Join a campaign</h3><p>Sign up here, add your UPI ID and your account handles, then pick a campaign. It tells you which streams to clip.</p></div>
+      <div class="st reveal" style="--d:.1s"><div class="n">3</div><h3>Post from your accounts</h3><p>Post the clips on your YouTube, Instagram or X with the campaign's tag in the caption.</p></div>
+      <div class="st reveal" style="--d:.15s"><div class="n">4</div><h3>Send the link, get paid</h3><p>Paste each clip link here. We check it, count the views and send the money to your UPI.</p></div>
     </div>
     <div class="fly reveal" id="download">
       <div><h3>Don't have an editor? ClipKontrast makes the clips for you.</h3>
@@ -700,7 +735,7 @@ async function load() {
   S.user = S.data.user;
   if (S.user) { try { S.me = await api("/api/earn/me"); } catch { S.me = null; S.user = null; } }
   const dl = S.data.download_url;
-  if (S.data.earn_only || S.data.accounts === false) { $("#dlBtn").href = dl; $("#dlBtn").target = "_blank"; $("#dlBtn").rel = "noopener"; }
+  if (S.data.earn_only || S.data.accounts === false) { for (const b of [$("#dlBtn"), $("#heroDl")]) { b.href = dl; b.target = "_blank"; b.rel = "noopener"; } }
   else { $("#dlBtn").textContent = "Open the clip maker"; $("#dlHelp").hidden = true; }
   drawNav(); drawHero(); drawCamps(); drawLb(); drawDash();
 }
