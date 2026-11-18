@@ -40,7 +40,8 @@ OPEN = ("/api/auth/", "/pub/", "/api/public", "/api/earn/public/", "/earn/cover/
 # On an Earn-only website these are the only addresses people other than admins may change things through.
 EARN_ONLY_WRITES = ("/api/auth/", "/api/earn/", "/api/account/delete", "/api/notifications/", "/api/feedback")
 PAGES = {"/": "landing.html", "/login": "auth.html", "/signup": "auth.html", "/reset": "reset.html",
-         "/privacy": "legal.html", "/terms": "legal.html", "/acceptable-use": "legal.html", "/earn": "earn.html"}
+         "/privacy": "legal.html", "/terms": "legal.html", "/acceptable-use": "legal.html", "/earn": "earn.html",
+         "/clip-maker": "landing.html"}
 VIDEO_TYPES = {".mp4", ".mov", ".mkv", ".webm", ".m4v", ".ts", ".flv"}
 CSP = ("default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
        "font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; media-src 'self' blob:; connect-src 'self'; "
@@ -336,6 +337,14 @@ _LANDING: dict = {}
 
 
 @app.get("/")
+def home():
+    # The Earn-only website opens on Earn (campaigns, sign-up, the download); the clip maker's page is at /clip-maker
+    if config.EARN_ONLY:
+        return _page("earn.html", shared=True)
+    return landing()
+
+
+@app.get("/clip-maker")
 def landing():
     f = WEB / "landing.html"
     m = f.stat().st_mtime
@@ -357,7 +366,7 @@ def robots():
 @app.get("/sitemap.xml")
 def sitemap():
     day = time.strftime("%Y-%m-%d")
-    pages = [("/", "1.0", "weekly"), ("/earn", "0.9", "daily"), ("/signup", "0.8", "monthly"), ("/login", "0.4", "monthly"), ("/terms", "0.3", "yearly"),
+    pages = [("/", "1.0", "weekly"), ("/earn", "0.9", "daily"), ("/clip-maker", "0.8", "monthly"), ("/signup", "0.8", "monthly"), ("/login", "0.4", "monthly"), ("/terms", "0.3", "yearly"),
              ("/privacy", "0.3", "yearly"), ("/acceptable-use", "0.2", "yearly")]
     body = "".join(f"<url><loc>{config.PUBLIC_URL}{u}</loc><lastmod>{day}</lastmod><changefreq>{c}</changefreq>"
                    f"<priority>{p}</priority></url>" for u, p, c in pages)
