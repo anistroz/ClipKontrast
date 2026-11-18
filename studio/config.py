@@ -225,6 +225,11 @@ LEGAL_COUNTRY = env("CLIPKONTRAST_LEGAL_COUNTRY", "")      # whose law applies, 
 VERIFY_EMAIL = env("CLIPKONTRAST_VERIFY_EMAIL", "0") == "1"
 
 
+def brevo_api_key() -> str:
+    """Brevo's web API key (starts with xkeysib-). Sends over HTTPS, for servers whose host blocks the mail ports."""
+    return _secret("CLIPKONTRAST_BREVO_API_KEY", "CLIPKONTRAST_BREVO_API_KEY_FILE", r"xkeysib-\S+")
+
+
 def smtp_password() -> str:
     return _secret("CLIPKONTRAST_SMTP_PASSWORD", "CLIPKONTRAST_SMTP_PASSWORD_FILE", r"\S{4,}")
 

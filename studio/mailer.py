@@ -3,7 +3,10 @@
 Works with any provider that offers SMTP: Resend, Postmark, Brevo, Amazon SES, Google Workspace and so on. Set
 CLIPKONTRAST_SMTP_HOST, CLIPKONTRAST_SMTP_PORT (587), CLIPKONTRAST_SMTP_USER, CLIPKONTRAST_SMTP_PASSWORD_FILE (a file holding the
 password or API key) and CLIPKONTRAST_MAIL_FROM ("ClipKontrast <hello@yourdomain.com>"). Without them nothing is sent and the
-link is written to the server log instead, which is enough for running ClipKontrast on your own machine."""
+link is written to the server log instead, which is enough for running ClipKontrast on your own machine.
+
+Some hosts (DigitalOcean, for one) block the mail ports on new servers. With CLIPKONTRAST_BREVO_API_KEY set, mail goes
+through Brevo's web API over HTTPS instead, which no host blocks; it takes priority over SMTP."""
 import html
 import logging
 import smtplib
@@ -18,7 +21,19 @@ log = logging.getLogger("clipkontrast.mail")
 
 
 def ready() -> bool:
-    return bool(config.SMTP_HOST and config.MAIL_FROM)
+    return bool((config.SMTP_HOST or config.brevo_api_key()) and config.MAIL_FROM)
+
+
+def _send_brevo_api(to: str, subject: str, text: str, html_body: str):
+    """One email through Brevo's web API (HTTPS, port 443)."""
+    import httpx
+    name, addr = parseaddr(config.MAIL_FROM)
+    r = httpx.post("https://api.brevo.com/v3/smtp/email", timeout=20,
+                   headers={"api-key": config.brevo_api_key(), "accept": "application/json"},
+                   json={"sender": {"name": name or "ClipKontrast", "email": addr}, "to": [{"email": to}],
+                         "subject": subject, "textContent": text, "htmlContent": html_body})
+    if r.status_code >= 300:
+        raise RuntimeError(f"Brevo API answered {r.status_code}: {r.text[:200]}")
 
 
 LOGO = config.ROOT / "web" / "brand" / "logo-email.png"   # PNG: email apps don't show SVG
@@ -80,13 +95,27 @@ def send(to: str, subject: str, title: str, intro: str, button: str, link: str, 
         else:                 # on your own computer the link is printed so you can use it
             print(f"[ClipKontrast mail] {subject} for {to}: {link}" + (f"  (code {code})" if code else ""), flush=True)
         return False
+    text = f"{title}\n\n{intro}\n\n" + (f"Your code: {code}\n\n" if code else "") + f"{button}: {link}\n\n{outro}\n"
+    if config.brevo_api_key():
+        # the logo is loaded from the website here, because the web API can't carry it inside the email
+        body = _html(title, intro, button, link, outro, logo_src=config.PUBLIC_URL + "/brand/logo-email.png", code=code)
+
+        def work_api():
+            try:
+                _send_brevo_api(to, subject, text, body)
+            except Exception as e:  # noqa: BLE001
+                log.error("Could not send %r to %s: %s", subject, to, e)
+                print(f"[ClipKontrast mail] could not send {subject!r} to {to}: {e}", flush=True)
+
+        threading.Thread(target=work_api, daemon=True).start()
+        return True
     msg = EmailMessage()
     name, addr = parseaddr(config.MAIL_FROM)
     msg["From"] = formataddr((name or "ClipKontrast", addr))
     msg["To"] = to
     msg["Subject"] = subject
     msg["Message-ID"] = make_msgid(domain=addr.split("@")[-1] if "@" in addr else None)
-    msg.set_content(f"{title}\n\n{intro}\n\n" + (f"Your code: {code}\n\n" if code else "") + f"{button}: {link}\n\n{outro}\n")
+    msg.set_content(text)
     msg.add_alternative(_html(title, intro, button, link, outro, code=code), subtype="html")
     if LOGO.is_file():   # the logo travels inside the email, so it shows without loading anything from the web
         msg.get_payload()[1].add_related(LOGO.read_bytes(), maintype="image", subtype="png", cid=f"<{LOGO_CID}>",
