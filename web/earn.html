@@ -460,7 +460,7 @@ footer.site .fbottom{display:flex;justify-content:space-between;gap:12px;flex-wr
         <figure><div class="ph"><video src="/brand/demo-bounce.mp4" poster="/brand/demo-bounce.jpg" autoplay muted loop playsinline preload="metadata"></video></div><figcaption><b>Kai Cenat</b>GTA 6 reaction</figcaption></figure>
         <figure class="mid"><div class="ph"><video src="/brand/demo-hype.mp4" poster="/brand/demo-hype.jpg" autoplay muted loop playsinline preload="metadata"></video></div><figcaption><b>IShowSpeed</b>on GTA 6</figcaption></figure>
         <figure><div class="ph"><video src="/brand/demo-clean.mp4" poster="/brand/demo-clean.jpg" autoplay muted loop playsinline preload="metadata"></video></div><figcaption><b>GTA 6 trailer</b>stream reaction</figcaption></figure>
-        <div class="chip c2" aria-hidden="true">Example: 50K views<b class="lime" id="exAmt">₹1,250</b><span id="exSub">at ₹25 per 1K views</span></div>
+        <div class="chip c2" aria-hidden="true">Example: 100K views<b class="lime" id="exAmt">₹2,500</b><span id="exSub">at ₹25 per 1K views</span></div>
         <span id="chipBudget" hidden></span>
         <p class="reel-note">Example clips made with our clip maker, credited to the creators.</p>
       </div>
@@ -894,13 +894,13 @@ function drawHero() {
   countTo($("#tClippers"), o.clippers, v => num(Math.round(v))); countTo($("#tViews"), o.views, v => short(Math.round(v)));
   const soon = S.data.campaigns.filter(c => c.state === "soon" || c.state === "starts");
   const ex = calcCamp();
-  $("#exAmt").textContent = inr(payFor(50000, ex)); $("#exSub").textContent = `at ${inr2(ex.rate_per_1k)} per 1K views` + (ex.title ? ` · ${ex.title}` : "");
+  $("#exAmt").textContent = inr(payFor(100000, ex)); $("#exSub").textContent = `at ${inr2(ex.rate_per_1k)} per 1K views` + (ex.title ? ` · ${ex.title}` : "");
   drawCalc();
   const c0 = live.filter(c => c.rate_per_1k).sort((a, b) => b.remaining - a.remaining)[0];
   if (c0) {
     // the hook with the real numbers: the rate, what's left to earn and the most one clip can make
     $("#heroH1").innerHTML = `Clip streams.<br><span class="hl">${esc(inr2(c0.rate_per_1k))}</span> per 1K views.`;
-    $("#heroLede").innerHTML = `Our <b>free AI app</b> turns streams into captioned shorts on <b>your PC</b>. Post them, send us the link, get paid to <b>UPI</b>. One clip with <b>50K views = ${esc(inr(payFor(50000, c0)))}</b>.`;
+    $("#heroLede").innerHTML = `Our <b>free AI app</b> turns streams into captioned shorts on <b>your PC</b>. Post them, send us the link, get paid to <b>UPI</b>. One clip with <b>100K views = ${esc(inr(payFor(100000, c0)))}</b>.`;
     if (c0.max_per_clip) { $("#exAmt").parentElement.firstChild.textContent = "One clip can earn up to"; $("#exAmt").textContent = inr(c0.max_per_clip); $("#exSub").textContent = `${inr2(c0.rate_per_1k)} per 1K views · ${c0.title}`; }
     $("#pot").hidden = false;
     countTo($("#potAmt"), o.live_budget, v => inr(v));
