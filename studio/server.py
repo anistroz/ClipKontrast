@@ -1760,6 +1760,13 @@ def earn_admin_queue(request: Request, campaign: str = "", status: str = "pendin
     return earn.review_queue(campaign, status, q)
 
 
+@app.get("/api/admin/earn/submissions.csv")
+def earn_admin_queue_csv(request: Request, campaign: str = "", status: str = "", q: str = ""):
+    _admin(request)
+    return Response(earn.submissions_csv(campaign, status, q), media_type="text/csv",
+                    headers={"Content-Disposition": f'attachment; filename="clipkontrast-clips-{time.strftime("%Y-%m-%d")}.csv"'})
+
+
 @app.post("/api/admin/earn/submissions/bulk")
 def earn_admin_bulk(request: Request, body: dict = Body(...)):
     _admin(request)

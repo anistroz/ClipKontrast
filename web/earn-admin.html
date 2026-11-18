@@ -174,7 +174,7 @@ function nav() {
   $("#nav").innerHTML = Object.entries(TABS).map(([k, [l, i]]) => `<a class="ni ${S.tab === k ? "on" : ""}" href="/admin/earn/${k}" data-tab="${k}">${ic(i)}${l}${k === "review" && pend ? `<span class="cnt">${pend}</span>` : ""}${k === "payouts" && owedN ? `<span class="cnt">${owedN}</span>` : ""}</a>`).join("");
   const [t, , sub] = TABS[S.tab]; $("#title").textContent = t; $("#subtitle").textContent = sub;
   $("#actions").innerHTML = S.tab === "campaigns" || S.tab === "overview" ? `<button class="btn primary" data-act="new">+ New campaign</button>` :
-    S.tab === "review" ? `<button class="btn" data-act="yt-refresh">Refresh YouTube views</button>` :
+    S.tab === "review" ? `<a class="btn" href="/api/admin/earn/submissions.csv" title="Every clip from every campaign, with clipper details, checks and views">Export all clips (CSV)</a><button class="btn" data-act="yt-refresh">Refresh YouTube views</button>` :
     S.tab === "payouts" ? `<a class="btn" href="/api/admin/earn/owed.csv">Download CSV</a>` : "";
 }
 const STATUS_LABEL = {soon: "Coming soon"};

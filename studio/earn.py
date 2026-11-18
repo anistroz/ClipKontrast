@@ -698,7 +698,7 @@ def proof_path(sid: int, uid: str, admin: bool) -> Path:
 
 
 # ================================================================ admins: review, views, payouts
-def review_queue(cid: str = "", status: str = "pending", q: str = "") -> dict:
+def review_queue(cid: str = "", status: str = "pending", q: str = "", limit: int = 1000) -> dict:
     s, p, u = db.earn_submissions.c, db.earn_profiles.c, db.users.c
     query = (sa.select(db.earn_submissions, p.display_name, p.upi, p.whatsapp, p.youtube, p.instagram, p.x, p.tiktok, u.email)
              .select_from(db.earn_submissions.join(db.users, u.id == s.user_id).outerjoin(db.earn_profiles, p.user_id == s.user_id)))
@@ -710,7 +710,7 @@ def review_queue(cid: str = "", status: str = "pending", q: str = "") -> dict:
         like = f"%{q.strip().lower()[:80]}%"
         query = query.where(sa.or_(sa.func.lower(u.email).like(like), sa.func.lower(p.display_name).like(like), sa.func.lower(s.url).like(like)))
     with db.engine.connect() as c:
-        rows = c.execute(query.order_by(s.submitted_at.desc()).limit(1000)).all()
+        rows = c.execute(query.order_by(s.submitted_at.desc()).limit(limit)).all()
         camps = {r.id: r for r in c.execute(sa.select(db.earn_campaigns))}
         counts = dict(c.execute(sa.select(s.status, sa.func.count()).where(s.campaign_id == cid if cid else sa.true()).group_by(s.status)).all())
     items = []
@@ -858,6 +858,38 @@ def owed_csv() -> str:
     for o in owed():
         # WhatsApp is checked to be digits with an optional +, so it is left as it is for the phone column
         w.writerow([_cell(o["name"]), _cell(o["email"]), o["whatsapp"], _cell(o["upi"]), o["clips"], o["views"], f"{o['amount']:.2f}"])
+    return out.getvalue()
+
+
+def _ist(t) -> str:
+    """A time as India reads it (IST is always 5:30 ahead of UTC: no daylight saving), for spreadsheets."""
+    return time.strftime("%Y-%m-%d %H:%M", time.gmtime(t + 19800)) if t else ""
+
+
+def _yes(v) -> str:
+    return "Yes" if v is True else "No" if v is False else "Not checked"
+
+
+def submissions_csv(cid: str = "", status: str = "", q: str = "") -> str:
+    """Every clip sent in (or those matching the filters), one row each, for reports and checking by hand."""
+    out = io.StringIO()
+    out.write("\ufeff")            # tells Excel the file is UTF-8, so names in Hindi or with emoji open correctly
+    w = csv.writer(out)
+    w.writerow(["Clip ID", "Sent (IST)", "Campaign", "Status", "Clipper", "Email", "WhatsApp", "UPI", "Platform",
+                "Handle in profile", "Clip link", "Posted (IST)", "Views", "Views from", "Views updated (IST)",
+                "Estimated earning (INR)", "Approved amount (INR)", "Right account", "Posted after start", "Tag in caption",
+                "Account check detail", "Views screenshot", "Clipper note", "Review note", "Reviewed (IST)", "Hold over"])
+    source = {"api": "YouTube (automatic)", "manual": "Typed by admin"}
+    for x in review_queue(cid, status, q, limit=50000)["items"]:
+        c, ch = x["clipper"], x["checks"]
+        proof = f"{config.PUBLIC_URL}/api/earn/proof/{x['id']}" if x["has_proof"] else ""
+        # WhatsApp is checked to be digits with an optional +, so it is left as it is for the phone column
+        w.writerow([x["id"], _ist(x["submitted_at"]), _cell(x["campaign"]), x["status"].capitalize(), _cell(c["name"]),
+                    _cell(c["email"]), c["whatsapp"], _cell(c["upi"]), x["platform"], _cell(c["handle"]), _cell(x["url"]),
+                    _ist(x["posted_at"]), x["views"] or 0, source.get(x["views_source"], "Not counted yet"), _ist(x["views_at"]),
+                    f"{x['estimate']:.2f}", f"{x['amount']:.2f}" if x["status"] in ("approved", "paid") else "",
+                    _yes(ch.get("owner")), _yes(ch.get("after_start")), _yes(ch.get("tag")), _cell(ch.get("owner_detail", "")),
+                    proof, _cell(x["note"]), _cell(x["review_note"]), _ist(x["reviewed_at"]), "Yes" if x["ready"] else "No"])
     return out.getvalue()
 
 
