@@ -28,6 +28,7 @@ Need ($LASTEXITCODE -eq 0) "every library loads, Deno runs"
 
 # the repository's own tests that use ffmpeg and the downloads, run with the installed Python and ffmpeg
 $env:PATH = "$Dir\ffmpeg\bin;$Dir\python\Scripts;$env:PATH"
+$env:PYTHONUTF8 = "1"        # as the launcher sets it: Hindi in printed text doesn't break on a Windows console
 Push-Location $Root
 foreach ($t in @("tests\test_layouts_styles.py", "tests\test_downloads.py", "tests\test_selfupdate.py", "tests\test_languages.py")) {
     $tp = Start-Process $Py -ArgumentList $t -NoNewWindow -PassThru
