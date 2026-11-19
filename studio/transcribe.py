@@ -18,9 +18,44 @@ _lock = threading.Lock()
 # a big machine busy, and several videos transcribing at once would queue behind each other inside it. On a small
 # machine (under 8 cores) this is still a single copy, as before.
 _CPUS = os.cpu_count() or 4
+
+
+def _ram_gb() -> float:
+    """This computer's memory, in GB (0 if it can't be told)."""
+    try:
+        if os.name == "nt":
+            import ctypes
+
+            class _Mem(ctypes.Structure):
+                _fields_ = [("dwLength", ctypes.c_ulong), ("dwMemoryLoad", ctypes.c_ulong),
+                            ("ullTotalPhys", ctypes.c_ulonglong), ("ullAvailPhys", ctypes.c_ulonglong),
+                            ("ullTotalPageFile", ctypes.c_ulonglong), ("ullAvailPageFile", ctypes.c_ulonglong),
+                            ("ullTotalVirtual", ctypes.c_ulonglong), ("ullAvailVirtual", ctypes.c_ulonglong),
+                            ("ullAvailExtendedVirtual", ctypes.c_ulonglong)]
+            m = _Mem()
+            m.dwLength = ctypes.sizeof(_Mem)
+            ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(m))
+            return m.ullTotalPhys / 2 ** 30
+        if os.path.exists("/proc/meminfo"):
+            with open("/proc/meminfo") as f:
+                for line in f:
+                    if line.startswith("MemTotal:"):
+                        return int(line.split()[1]) / 2 ** 20
+        import subprocess
+        return int(subprocess.run(["sysctl", "-n", "hw.memsize"], capture_output=True, text=True).stdout.strip()) / 2 ** 30
+    except Exception:  # noqa: BLE001
+        return 0.0
+
+
+RAM_GB = _ram_gb()
 PROVIDER = os.environ.get("CLIPKONTRAST_ASR_PROVIDER", "cpu").strip().lower() or "cpu"      # "cuda" on a graphics card
 THREADS = int(os.environ.get("CLIPKONTRAST_ASR_THREADS") or (4 if _CPUS >= 8 else max(2, _CPUS - 2)))
 COPIES = int(os.environ.get("CLIPKONTRAST_ASR_COPIES") or (1 if PROVIDER != "cpu" else max(1, _CPUS // THREADS) if _CPUS >= 8 else 1))
+# Each copy of the model takes about a gigabyte while it works. A computer with many cores but ordinary memory (a
+# 16-thread laptop with 8 GB) ran out of it ("Failed to allocate memory"), so the copies also fit the memory:
+# one up to 11 GB, then one more for every 4 GB.
+if RAM_GB and not os.environ.get("CLIPKONTRAST_ASR_COPIES"):
+    COPIES = max(1, min(COPIES, int((RAM_GB - 8) // 4) + 1))
 _free: "queue.LifoQueue" = queue.LifoQueue()
 _made = 0
 

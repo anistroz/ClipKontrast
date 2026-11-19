@@ -403,6 +403,7 @@ character in the game, not a picture inside a game menu, not someone in a video 
 
 Answer in one line and nothing else:
   CAM x=..% y=..% w=..% h=..%     the webcam picture, as parts of the whole frame; x,y is its top left corner
+  FULL CAM                       the camera fills the whole frame: the streamer talking to the camera, no game
   NO CAM                         there is no webcam on this frame"""
 
 _FACE_BOX = re.compile(r"x\s*=\s*(\d+(?:\.\d+)?)\s*%?\s*,?\s*y\s*=\s*(\d+(?:\.\d+)?)\s*%?\s*"
@@ -421,6 +422,8 @@ def look_for_facecam(jpeg: bytes, timeout=None) -> dict:
         return {"looked": False, "box": None}
     if sent or wrote:
         usage.record(sent, wrote, "Webcam: one frame")
+    if re.search(r"\bfull\s*cam\b", text or "", re.I):
+        return {"looked": True, "box": None, "full": True}
     m = _FACE_BOX.search(text or "")
     if m:
         x, y, w, h = (max(0.0, min(1.0, float(v) / 100.0)) for v in m.groups())

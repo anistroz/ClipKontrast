@@ -57,6 +57,34 @@ try:
     out = render.render_clip(src, work / "out", "nocam", dict(clip, facecam=None), words, 1280, 720)
     check("split with no webcam found still makes a clip, showing the whole picture", (out["layout"], size_of(work / "out" / out["file"])), ("blur", (1080, 1920)))
 
+    # ---- how the camera shows, decided for each clip
+    from unittest.mock import patch
+    from studio import brain, facecam, jobs, ai as _ai
+    with patch.object(_ai, "see", return_value=("FULL CAM", 0, 0)):
+        check("the AI can say the camera fills the picture", brain.look_for_facecam(b"jpeg").get("full"), True)
+    with patch.object(facecam, "_asked", return_value=(True, None, True)):
+        check("a camera filling the picture is reported as such", facecam.detect(src, ask=lambda j: {}), {"full": True, "conf": "high", "score": 1.0})
+    still = work / "room.mp4"          # a person in a room barely moves: a still picture, no box, no AI
+    subprocess.run(["ffmpeg", "-y", "-v", "error", "-f", "lavfi", "-i", "color=c=0x806040:size=640x360:rate=25", "-t", "4",
+                    "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", str(still)], check=True)
+    check("with no AI, a still picture with no webcam box reads as the camera filling it", (facecam.detect(still) or {}).get("full"), True)
+    clip_job = {"source_path": str(src)}
+    with patch.object(facecam, "detect", return_value={"full": True, "conf": "high"}):
+        c = {"start": 0, "end": 2.8, "layout": "split"}
+        jobs._use_camera(clip_job, c)
+        check("a clip where the camera fills the picture is marked so", (c.get("camera"), c.get("facecam")), ("full", None))
+    with patch.object(facecam, "detect", return_value={"x": 0, "y": 0, "w": 320, "h": 180, "conf": "high"}) as det:
+        c = {"start": 10, "end": 40, "layout": "split"}
+        jobs._use_camera(clip_job, c)
+        check("a clip with a webcam box gets it, looked for in its own stretch",
+              (c["camera"], c["facecam"], det.call_args[1]["span"]), ("box", [0, 0, 320, 180], (10, 40)))
+    with patch.object(facecam, "detect", return_value=None):
+        c = {"start": 0, "end": 2.8, "layout": "split", "facecam": [1, 2, 3, 4]}
+        jobs._use_camera(clip_job, c)
+        check("a clip with no camera found shows the whole picture", (c["camera"], c.get("facecam")), ("none", None))
+    out = render.render_clip(src, work / "out", "fullcam", dict(clip, facecam=None, camera="full"), words, 1280, 720)
+    check("the camera filling the picture: the clip is zoomed onto it", out["layout"], "crop")
+
     for name in render.STYLES:
         ass = render.build_ass(words, 0.0, 2.8, "Hook", name, [], 300, 1380)
         check(f"{name}: captions are written", ass.count("Dialogue:") > 5)

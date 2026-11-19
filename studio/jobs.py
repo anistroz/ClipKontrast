@@ -392,8 +392,11 @@ def render_one(job, clip, words):
         out = render.render_clip(src, d / "clips", clip["id"], local, near, job["width"], job["height"])
         # The layout chosen stays the clip's choice; what was really used is kept beside it, with why if they differ.
         used = out.pop("layout", clip.get("layout"))
-        note = ("No webcam was found in this stream, so the whole picture is shown instead."
-                if clip.get("layout") in render.FACECAM_LAYOUTS and used not in render.FACECAM_LAYOUTS else "")
+        note = ""
+        if clip.get("layout") in render.FACECAM_LAYOUTS and used not in render.FACECAM_LAYOUTS:
+            note = ("The camera fills the picture in this part of the stream, so the clip is zoomed onto it."
+                    if clip.get("camera") == "full" else
+                    "No webcam was found in this part of the stream, so the whole picture is shown.")
         clip.update(out, layout_used=used, layout_note=note, status="done", version=clip.get("version", 0) + 1, error=None)
         post = {k: clip[k] for k in ("title", "description", "hashtags", "hook", "start", "end", "score")}
         (d / "clips" / f"{clip['id']}.json").write_text(json.dumps(post, indent=1), encoding="utf-8")
@@ -609,6 +612,37 @@ def _covers(words: list, start: float, end: float) -> bool:
     return len(inside) >= 25 * minutes and inside[-1]["s"] >= start + 0.85 * (end - start)
 
 
+def _camera(job, clip):
+    """How the streamer's camera shows in this clip: [x, y, w, h] of a webcam box (facecam on top), "full" when the
+    camera fills the picture ("just chatting": zoomed onto it), or None (no camera: the whole picture is shown).
+    Decided for each clip, because a stream changes: talking to the camera, then a game with the webcam in a corner."""
+    path, span = clip.get("src"), None
+    if not path:
+        path, span = job.get("source_path"), (clip["start"], clip["end"])
+    if not path or not Path(path).is_file():
+        return None
+    try:
+        box = facecam.detect(path, ask=brain.look_for_facecam, span=span)
+    except Exception:  # noqa: BLE001 - not knowing is not a failure: the whole picture is shown
+        return None
+    if not box or box.get("conf") != "high":
+        return None
+    if box.get("full"):
+        return "full"
+    return [box["x"], box["y"], box["w"], box["h"]]
+
+
+def _use_camera(job, clip):
+    """Find the camera for a clip with a facecam layout, and note what was found on it."""
+    if clip.get("layout") not in render.FACECAM_LAYOUTS:
+        return
+    cam = _camera(job, clip)
+    clip.pop("facecam", None)
+    clip["camera"] = "box" if isinstance(cam, list) else (cam or "none")
+    if isinstance(cam, list):
+        clip["facecam"] = cam
+
+
 def _facecam(job, path=None) -> list | None:
     """Where the webcam is in the source: once for the whole video, for every clip of it.
 
@@ -649,7 +683,6 @@ def _run_job(job):
         job["game"] = game
     t0 = time.time()
     notes = []
-    face = False       # where the webcam is in the source, found once; False means not looked for yet
     usage.set_context(job["creator"], job["title"] or src.get("name"))
     resuming = bool(job.pop("resume", False)) and (d / "words.json").is_file()
     if resuming:   # after a restart: keep the transcript parts, clips and AI answers already made, and carry on
@@ -727,24 +760,12 @@ def _run_job(job):
 
     began = {}      # clip id -> when work on it started
 
-    face_lock = threading.Lock()
-    face_tries = [0]
-
     def make(clip, words_now):
-        nonlocal face
         began[clip["id"]] = time.time()
         if src["type"] == "url" and (pieces or not whole_video()):
             _fetch_piece(job, clip, audio)
-        if clip["status"] != "error" and clip.get("layout") in render.FACECAM_LAYOUTS and not clip.get("facecam"):
-            # A long video is fetched one clip at a time, so there is no whole video to find the webcam in: it is
-            # looked for in the clips' own stretches instead, and once found it is used for every clip. A stretch
-            # may show no webcam (a "just chatting" part with the camera full screen), so up to three are looked at.
-            with face_lock:
-                if not face and face_tries[0] < 3 and (clip.get("src") or job.get("source_path")):
-                    face_tries[0] += 1
-                    face = _facecam(job, clip.get("src") or job.get("source_path")) or (None if face_tries[0] >= 3 else False)
-            if face:
-                clip["facecam"] = face
+        if clip["status"] != "error":
+            _use_camera(job, clip)          # webcam box, camera filling the picture, or none: for this clip
         if clip["status"] != "error" and clip.get("captions", True) and yt and yt[1].lower().startswith("en"):
             # The clip was found with YouTube's transcript. What is shown on screen comes from our own model,
             # run on just this clip: full punctuation, nothing blanked out, timings to the word.
@@ -835,7 +856,6 @@ def _run_job(job):
 
     def take(found, shift):
         """Drop clips in ad breaks or static screens, then queue the rest to be made."""
-        nonlocal face
         if found and statics:
             # A commercial or a "be right back" slate is not a clip. Any clip that sits mostly inside one
             # is dropped.
@@ -854,10 +874,6 @@ def _run_job(job):
                      captions=o.get("captions", True), status="queued", version=0)
             # Only the facecam layouts use a webcam, so it is only looked for then, and only once: a
             # stream with no webcam is not looked for again on every clip of it.
-            if o["layout"] in render.FACECAM_LAYOUTS and face is False and job.get("source_path"):
-                face = _facecam(job) or None
-            if face:
-                c["facecam"] = face
             job["clips"].append(c)
             futures.append((renders.submit(ctx.bind(make), c, list(words)), c))
 
@@ -968,11 +984,8 @@ def _worker(quick_only=False):
                 words = []
                 if clip.get("captions", True):
                     words = json.loads((Path(job["dir"]) / "words.json").read_text(encoding="utf-8"))
-                if clip.get("layout") in render.FACECAM_LAYOUTS and not clip.get("facecam"):
-                    # re-made with a facecam layout: the webcam found for the video, or looked for in this clip
-                    face = job.get("facecam") or _facecam(job, clip.get("src") or job.get("source_path"))
-                    if face:
-                        clip["facecam"] = face
+                if clip.get("layout") in render.FACECAM_LAYOUTS and not clip.get("camera"):
+                    _use_camera(job, clip)    # re-made with a facecam layout: how the camera shows in this clip
                 render_one(job, clip, words)
         except Exception as e:  # noqa: BLE001
             (Path(job["dir"]) / "error.log").write_text(traceback.format_exc(), encoding="utf-8")

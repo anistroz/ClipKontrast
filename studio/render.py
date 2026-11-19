@@ -315,7 +315,9 @@ def render_clip(src: Path, out_dir: Path, name: str, clip: dict, words: list, sr
     start, end = clip["start"], clip["end"]
     face = clip.get("facecam")
     want = clip.get("layout", "blur")
-    if want in FACECAM_LAYOUTS and not (face and len(face) == 4):
+    if want in FACECAM_LAYOUTS and clip.get("camera") == "full":
+        want = "crop"         # the camera fills the picture ("just chatting"): the clip is zoomed onto the streamer
+    elif want in FACECAM_LAYOUTS and not (face and len(face) == 4):
         # No webcam was found: the whole picture is shown, over a blurred fill. Cropping it to fill the screen
         # would cut off most of the game, which is where the action is.
         want = "blur"

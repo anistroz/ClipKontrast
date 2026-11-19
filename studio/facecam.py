@@ -45,13 +45,14 @@ MATCH = 0.35               # how much a box the AI points at must cover a measur
 EDGE = 2.2                 # how much brighter than the average line a border must be
 
 
-def _frames(path: str | Path, count: int = MAX_FRAMES) -> np.ndarray:
-    """The video as a few grey frames, spread through it."""
+def _frames(path: str | Path, count: int = MAX_FRAMES, span=None) -> np.ndarray:
+    """The video (or the stretch `span` = (start, end) seconds of it) as a few grey frames, spread through it."""
     try:
-        dur = _duration(path)
+        dur = (span[1] - span[0]) if span else _duration(path)
         rate = max(count / dur, 0.02) if dur > 0 else 0.2
+        seek = ["-ss", f"{max(0.0, span[0]):.2f}", "-t", f"{max(1.0, dur):.2f}"] if span else []
         proc = subprocess.run(
-            ["ffmpeg", "-v", "error", "-i", str(path),
+            ["ffmpeg", "-v", "error", *seek, "-i", str(path),
              "-vf", f"fps={rate:.4f},scale={W}:{H},format=gray",
              "-frames:v", str(count), "-f", "rawvideo", "-"],
             capture_output=True, timeout=180)
@@ -281,11 +282,12 @@ def _finish(path: str | Path, found: dict, w: int, h: int, still: np.ndarray) ->
             "corner": _corner(x0, y0, x1, y1, w, h), "score": found.get("score", 0.0), "conf": conf}
 
 
-def _frame_jpeg(path: str | Path, width: int = 768) -> bytes:
-    """One frame of the stream, small, as a JPEG: what a model is shown."""
+def _frame_jpeg(path: str | Path, width: int = 768, span=None) -> bytes:
+    """One frame of the stream (from the middle of `span` if given), small, as a JPEG: what a model is shown."""
+    at = (span[0] + span[1]) / 2.0 if span else _duration(path) / 2.0
     try:
         return subprocess.run(
-            ["ffmpeg", "-v", "error", "-ss", f"{max(0.0, _duration(path) / 2.0):.1f}", "-i", str(path),
+            ["ffmpeg", "-v", "error", "-ss", f"{max(0.0, at):.1f}", "-i", str(path),
              "-frames:v", "1", "-vf", f"scale={width}:-2", "-pix_fmt", "yuvj420p", "-q:v", "4",
              "-f", "image2pipe", "-vcodec", "mjpeg", "-"],
             capture_output=True, timeout=120).stdout or b""
@@ -293,16 +295,24 @@ def _frame_jpeg(path: str | Path, width: int = 768) -> bytes:
         return b""
 
 
-def _asked(path: str | Path, ask):
-    """One frame to the model: (did it look, its box as parts of the frame or None)."""
-    jpeg = _frame_jpeg(path)
+def _asked(path: str | Path, ask, span=None):
+    """One frame to the model: (did it look, its box as parts of the frame or None, does the camera fill it)."""
+    jpeg = _frame_jpeg(path, span=span)
     if not jpeg:
-        return False, None
+        return False, None, False
     try:
         answer = ask(jpeg) or {}
     except Exception:  # noqa: BLE001 - a model that cannot look is not a failure
-        return False, None
-    return bool(answer.get("looked")), answer.get("box")
+        return False, None, False
+    return bool(answer.get("looked")), answer.get("box"), bool(answer.get("full"))
+
+
+ROOM_MOVING = 0.22         # with no webcam box: at most this share of the picture moving reads as a camera filling it
+
+
+def _room(still: np.ndarray) -> bool:
+    """Does the whole picture look like a camera on a person in a room (little of it moves) rather than a game?"""
+    return float((still > STILL_MIN * 2).mean()) < ROOM_MOVING
 
 
 def _seen(path: str | Path, box, w: int, h: int, still: np.ndarray, light: np.ndarray) -> dict | None:
@@ -326,7 +336,7 @@ def _seen(path: str | Path, box, w: int, h: int, still: np.ndarray, light: np.nd
     return _finish(path, found, w, h, still)
 
 
-def detect(path: str | Path, ask=None) -> dict | None:
+def detect(path: str | Path, ask=None, span=None) -> dict | None:
     """The facecam's box in the source, in source pixels, or None.
 
     The box is given as x, y, width, height, with the confidence in "score" and
@@ -336,7 +346,7 @@ def detect(path: str | Path, ask=None) -> dict | None:
     answer is measured again on the picture before it is believed, so a model that is wrong costs the
     search an idea, not a broken clip. Without `ask` nothing outside the file is looked at, which is how
     the tests run and how a job with no AI set still works."""
-    frames = _frames(path)
+    frames = _frames(path, span=span)
     if len(frames) < 4:
         return None
     w, h = _size(path)
@@ -344,9 +354,11 @@ def detect(path: str | Path, ask=None) -> dict | None:
         return None
     still = _stillness(frames)
     light = frames.astype(np.float32).mean(axis=0)
-    looked, hinted = (False, None)
+    looked, hinted, full = (False, None, False)
     if ask is not None:
-        looked, hinted = _asked(path, ask)
+        looked, hinted, full = _asked(path, ask, span)
+        if looked and full:
+            return {"full": True, "conf": "high", "score": 1.0}     # the camera fills the frame: no box to cut out
         if looked and not hinted:
             return None                    # it looked, and there is no webcam on this stream
     vx, hy = _profiles(frames)
@@ -363,5 +375,8 @@ def detect(path: str | Path, ask=None) -> dict | None:
         if seen:
             return seen
     if not found:
+        if not looked and _room(still):
+            # No model to ask, no webcam box, and the picture barely moves: a camera on the streamer, filling it
+            return {"full": True, "conf": "high", "score": 0.6}
         return None
     return _finish(path, found[0], w, h, still)
