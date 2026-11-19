@@ -10,7 +10,7 @@ Free hai, koi sign-in nahi chahiye.
 
 ## Windows: sabse aasaan tareeka (installer)
 
-Drive folder se **`ClipKontrast-Setup.exe`** download karo, double-click karo, **Install** dabao. Bas.
+**[clipkontrast.com/download](https://clipkontrast.com/download)** se **`ClipKontrast-Setup.exe`** download karo, double-click karo, **Install** dabao. Bas.
 Python, ffmpeg aur baaki sab isi ke andar hai: kuch alag se install nahi karna. Desktop pe ClipKontrast ka icon aa
 jayega: wo ClipKontrast ko uski apni window mein kholta hai, normal software ki tarah (koi kaali window nahi, browser
 tab nahi). Window band karo toh ClipKontrast band. "Windows protected your PC" aaye toh **More info**, phir **Run anyway**.
@@ -19,7 +19,7 @@ Tumhari clips aur settings har update mein safe rehti hain.
 
 ## Apne PC pe kaise chalaye: ZIP se (Mac, Linux, ya Windows bina installer ke)
 
-**1. Download karo.** [Yahan se download karo](https://drive.google.com/drive/folders/1BMRVHQ7vFiOQhX7m5j6kl7zmDWWRz7eq?usp=drive_link): Google Drive folder khulega, usme ClipKontrast ki ZIP aur setup guide dono hain.
+**1. Download karo.** **[clipkontrast.com/download](https://clipkontrast.com/download)** kholo aur apne computer (Mac ya Linux) ka button dabao: ClipKontrast ki ZIP aa jayegi. Photos ke saath poori setup guide [yahan hai](https://drive.google.com/drive/folders/1BMRVHQ7vFiOQhX7m5j6kl7zmDWWRz7eq?usp=drive_link).
 
 **2. Unzip karo, chhote folder mein.**
 - **Windows:** ZIP pe right-click karo, phir **Extract All**, aur folder ko `C:\ClipKontrast` pe rakho.

@@ -123,6 +123,7 @@ earn_campaigns = sa.Table(                                                    # 
     sa.Column("tagline", sa.String(200), nullable=False, server_default=""),
     sa.Column("brief", sa.Text, nullable=False, server_default=""),
     sa.Column("rules", sa.Text, nullable=False, server_default=""),           # one rule per line
+    sa.Column("notice", sa.Text, nullable=False, server_default=""),          # an important note, shown in a box to clippers
     sa.Column("sources", sa.Text, nullable=False, server_default=""),         # one link per line: streams, VODs, drive folders
     sa.Column("platforms", sa.String(80), nullable=False, server_default="youtube,instagram,x"),
     sa.Column("required_tag", sa.String(80), nullable=False, server_default=""),   # must appear in the caption, e.g. @creator
@@ -198,6 +199,31 @@ earn_payouts = sa.Table(                                                      # 
 
 def init():
     meta.create_all(engine)
+    _add_missing_columns()
+
+
+def _add_missing_columns():
+    """A column added to a table in this file after the table was first made is added to the database too.
+    create_all makes missing tables but never changes one that exists, so a newer ClipKontrast would otherwise
+    ask an older database for a column it doesn't have. Only columns that may be empty or have a default are
+    added (every new column is written that way), on SQLite and PostgreSQL alike."""
+    insp = sa.inspect(engine)
+    for table in meta.sorted_tables:
+        if not insp.has_table(table.name):
+            continue
+        have = {c["name"] for c in insp.get_columns(table.name)}
+        for col in table.columns:
+            if col.name in have or (not col.nullable and col.server_default is None):
+                continue
+            kind = col.type.compile(dialect=engine.dialect)
+            default = ""
+            if col.server_default is not None:
+                arg = col.server_default.arg
+                value = arg.text if hasattr(arg, "text") else str(arg)
+                default = " DEFAULT " + (value if value.replace(".", "", 1).isdigit() else "'" + value.replace("'", "''") + "'")
+            ddl = f'ALTER TABLE {table.name} ADD COLUMN {col.name} {kind}{default}{"" if col.nullable else " NOT NULL"}'
+            with engine.begin() as c:
+                c.execute(sa.text(ddl))
 
 
 def now() -> float:

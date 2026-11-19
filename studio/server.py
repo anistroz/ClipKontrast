@@ -36,12 +36,12 @@ def _quiet(fn):
 
 app = FastAPI(title="ClipKontrast", docs_url=None, redoc_url=None, openapi_url=None)
 WEB = config.ROOT / "web"
-OPEN = ("/api/auth/", "/pub/", "/api/public", "/api/earn/public/", "/earn/cover/", "/auth/google/", "/auth/verify", "/brand/", "/assets/", "/healthz", "/favicon.ico", "/robots.txt", "/sitemap.xml")
+OPEN = ("/api/auth/", "/pub/", "/download/", "/api/public", "/api/earn/public/", "/earn/cover/", "/auth/google/", "/auth/verify", "/brand/", "/assets/", "/healthz", "/favicon.ico", "/robots.txt", "/sitemap.xml")
 # On an Earn-only website these are the only addresses people other than admins may change things through.
 EARN_ONLY_WRITES = ("/api/auth/", "/api/earn/", "/api/account/delete", "/api/notifications/", "/api/feedback")
 PAGES = {"/": "landing.html", "/login": "auth.html", "/signup": "auth.html", "/reset": "reset.html",
          "/privacy": "legal.html", "/terms": "legal.html", "/acceptable-use": "legal.html", "/earn": "earn.html",
-         "/clip-maker": "landing.html"}
+         "/clip-maker": "landing.html", "/download": "download.html"}
 VIDEO_TYPES = {".mp4", ".mov", ".mkv", ".webm", ".m4v", ".ts", ".flv"}
 CSP = ("default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
        "font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; media-src 'self' blob:; connect-src 'self'; "
@@ -436,6 +436,42 @@ def admin_earn_page(request: Request, rest: str = ""):
     return _page("earn-admin.html")
 
 
+@app.get("/download")
+def download_page():
+    return _page("download.html", shared=True)
+
+
+@app.get("/download/{system}")
+def download_app(system: str):
+    """The app for Windows, Mac or Linux: the browser is sent straight to the file of the newest version. Only these
+    three names are known, so this can't be used to send anyone anywhere else."""
+    name = config.APP_FILES.get(system)
+    if not name:
+        raise HTTPException(404, "Not found.")
+    return RedirectResponse(config.RELEASES_URL + name, 302, headers={"Cache-Control": "no-store"})
+
+
+_APP_VERSION: dict = {"at": 0.0, "v": None}
+
+
+@app.get("/api/public/app-version")
+def app_version():
+    """The newest app's version and the SHA-256 of the Windows installer, for the download page. Read from the
+    published latest.json at most once an hour, never per visitor."""
+    if time.time() - _APP_VERSION["at"] > 3600:
+        _APP_VERSION["at"] = time.time()
+        try:
+            import httpx
+            r = httpx.get(config.RELEASES_URL + "latest.json", timeout=8, follow_redirects=True)
+            m = json.loads(r.content.decode("utf-8-sig")) if r.status_code == 200 else {}
+            v, sha = str(m.get("version", ""))[:40], str(m.get("installer_sha256", ""))
+            if re.fullmatch(r"[\d.]+", v) and re.fullmatch(r"[0-9a-f]{64}", sha):
+                _APP_VERSION["v"] = {"version": v, "windows_sha256": sha}
+        except Exception:  # noqa: BLE001 - the page simply leaves the version out
+            pass
+    return _APP_VERSION["v"] or {}
+
+
 @app.get("/earn")
 def earn_page():
     # The downloaded app has no shared database, so its Earn button goes to the public Earn website.
@@ -482,7 +518,7 @@ def favicon():
 def public_config():
     from . import mailer
     return {"google": auth.google_ready(), "mail": mailer.ready(), "verify_email": config.VERIFY_EMAIL,
-            "earn_only": config.EARN_ONLY, "download_url": config.DOWNLOAD_URL}
+            "earn_only": config.EARN_ONLY, "download_url": config.DOWNLOAD_URL, "guide_url": config.GUIDE_URL}
 
 
 def _signed_in(request: Request, user, first: bool, redirect=None):
@@ -1659,7 +1695,7 @@ def earn_overview(request: Request):
             return hit[1]
     out = {"overview": earn.overview(), "campaigns": earn.campaigns(uid=_uid_or_none(request)), "leaderboard": earn.leaderboard(),
            "user": auth.public(me_) if me_ else None, "accounts": config.ACCOUNTS,
-           "earn_only": config.EARN_ONLY, "download_url": config.DOWNLOAD_URL}
+           "earn_only": config.EARN_ONLY, "download_url": config.DOWNLOAD_URL, "guide_url": config.GUIDE_URL}
     if not me_:
         _EARN_PUBLIC["v"] = (time.time(), out)
     return out

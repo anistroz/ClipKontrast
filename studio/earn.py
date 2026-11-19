@@ -204,7 +204,7 @@ def _yt_handle(channel_id: str) -> str:
 
 # ================================================================ campaigns
 _CAMP_FIELDS = {"title": 120, "creator_name": 120, "creator_url": 300, "tagline": 200, "brief": 6000, "rules": 4000,
-                "sources": 4000, "required_tag": 80, "category": 40}
+                "sources": 4000, "required_tag": 80, "category": 40, "notice": 1000}
 
 
 def _slug(title: str, taken: set) -> str:
@@ -327,6 +327,7 @@ def _camp_dict(r, st: dict, admin=False, member=False) -> dict:
     committed = round(st["committed"], 2)
     d = {"id": r.id, "slug": r.slug, "title": r.title, "creator_name": r.creator_name, "creator_url": r.creator_url,
          "tagline": r.tagline, "brief": r.brief, "rules": [x.strip() for x in r.rules.splitlines() if x.strip()],
+         "notice": r.notice,
          "platforms": [p for p in r.platforms.split(",") if p], "required_tag": r.required_tag, "category": r.category,
          "rate_per_1k": r.rate_per_1k, "min_views": r.min_views, "max_per_clip": r.max_per_clip, "budget": r.budget,
          "hold_days": r.hold_days, "status": r.status, "starts_at": r.starts_at, "ends_at": r.ends_at,

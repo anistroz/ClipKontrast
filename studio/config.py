@@ -182,7 +182,13 @@ EARN_URL = (env("CLIPKONTRAST_EARN_URL") or "https://clipkontrast.com").rstrip("
 REPO_URL = env("CLIPKONTRAST_REPO_URL", "").strip()
 FOLLOW_URL = env("CLIPKONTRAST_FOLLOW_URL", "https://www.instagram.com/anistroz.ai/").strip()
 # where every "Download" button goes: the folder with the clip maker's zip and the setup guide
-DOWNLOAD_URL = (env("CLIPKONTRAST_DOWNLOAD_URL") or "https://drive.google.com/drive/folders/1BMRVHQ7vFiOQhX7m5j6kl7zmDWWRz7eq?usp=drive_link").strip()
+DOWNLOAD_URL = (env("CLIPKONTRAST_DOWNLOAD_URL") or EARN_URL + "/download").strip()
+# the setup guide (and older downloads), linked from the download page
+GUIDE_URL = (env("CLIPKONTRAST_GUIDE_URL") or "https://drive.google.com/drive/folders/1BMRVHQ7vFiOQhX7m5j6kl7zmDWWRz7eq?usp=drive_link").strip()
+# Where the apps are published (each new version, built and tested by .github/workflows/windows-app.yml). The
+# download page's buttons go through this site (/download/windows ...), which sends the browser straight to the file.
+RELEASES_URL = (env("CLIPKONTRAST_RELEASES_URL") or "https://github.com/anistroz/ClipKontrast/releases/latest/download/").strip()
+APP_FILES = {"windows": "ClipKontrast-Setup.exe", "mac": "ClipKontrast-Mac-Linux.zip", "linux": "ClipKontrast-Mac-Linux.zip"}
 
 # ---------------------------------------------------------------- limits (per user, and for the whole server)
 # Your own ClipKontrast has no limits unless you set them: 0 (the default) means "none" for every limit below. The

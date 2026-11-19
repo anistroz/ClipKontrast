@@ -277,7 +277,8 @@ header.nav .btn{height:40px;border-radius:999px}
 .detect{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;padding:6px 10px;border-radius:8px}
 .detect.ok{background:var(--good-soft);color:var(--good)}.detect.no{background:var(--bad-soft);color:var(--bad)}
 .note{border-radius:var(--r);padding:12px 14px;font-size:14px;display:flex;gap:10px;align-items:flex-start}
-.note.warn{background:var(--warn-soft);color:#6B4200}.note.info{background:var(--soft);color:var(--deep)}.note.bad{background:var(--bad-soft);color:var(--bad)}
+.note.warn{background:var(--warn-soft);color:#6B4200}
+.camp-notice{margin:12px 0 4px;font-size:15px;white-space:pre-line}.camp-notice b{flex:none}.note.info{background:var(--soft);color:var(--deep)}.note.bad{background:var(--bad-soft);color:var(--bad)}
 .note .btn{margin-left:auto}
 .side-box{border:1px solid var(--line);border-radius:var(--r-lg);padding:20px;background:var(--muted)}
 .side-box h4{font-size:15px;margin-bottom:12px}
@@ -414,13 +415,18 @@ footer.site .fbottom{display:flex;justify-content:space-between;gap:12px;flex-wr
   .panel{padding:18px}
 }
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}.js .reveal{opacity:1;transform:none}}
+.annc{display:block;background:#1E1612;color:#F4EEEA;text-align:center;font-size:14px;font-weight:500;padding:9px 16px;text-decoration:none;line-height:1.4}
+.annc b{background:#C6F432;color:#1A2100;border-radius:999px;padding:1px 8px;font-size:11px;letter-spacing:.04em;margin-right:8px}
+.annc u{text-decoration:none;color:#C6F432;font-weight:600;margin-left:6px;white-space:nowrap}
+.annc:hover u{text-decoration:underline}
 </style>
 </head>
 <body>
+<a class="annc" href="/download"><b>NEW</b>The ClipKontrast app is out: clip streams on your own PC, free. Windows, Mac and Linux.<u>Download →</u></a>
 <header class="nav" id="nav"><div class="wrap">
   <a href="/" aria-label="ClipKontrast home"><img src="/brand/logo.svg" alt="ClipKontrast"></a>
   <nav aria-label="Sections">
-    <a href="#how">How it works</a><a href="#campaigns">Campaigns</a><a href="#leaderboard">Leaderboard</a><a href="#faq">FAQ</a><a href="/clip-maker">Free clip maker</a>
+    <a href="#how">How it works</a><a href="#campaigns">Campaigns</a><a href="#leaderboard">Leaderboard</a><a href="#faq">FAQ</a><a href="/download">Download app</a>
   </nav>
   <div class="right" id="navRight">
     <a class="signin" href="/login?next=%2Fearn">Sign in</a>
@@ -429,7 +435,7 @@ footer.site .fbottom{display:flex;justify-content:space-between;gap:12px;flex-wr
   <button class="menu-btn" type="button" data-act="menu" aria-label="Menu" aria-expanded="false" aria-controls="mnav"><span></span><span></span></button>
 </div>
 <div class="mnav" id="mnav" hidden>
-  <a href="#how">How it works</a><a href="#campaigns">Campaigns</a><a href="#leaderboard">Leaderboard</a><a href="#faq">FAQ</a><a href="/clip-maker">Free clip maker</a>
+  <a href="#how">How it works</a><a href="#campaigns">Campaigns</a><a href="#leaderboard">Leaderboard</a><a href="#faq">FAQ</a><a href="/download">Download app</a>
   <div class="mnav-auth" id="mnavAuth"><a class="btn" href="/login?next=%2Fearn">Sign in</a><a class="btn primary" href="/signup?next=%2Fearn%23me">Start earning</a></div>
 </div></header>
 
@@ -612,6 +618,8 @@ const inr = (n, d = 0) => "₹" + Number(n || 0).toLocaleString("en-IN", {maximu
 const inr2 = n => inr(n, Number(n) % 1 ? 2 : 0);
 const num = n => Number(n || 0).toLocaleString("en-IN");
 const short = n => n >= 1e7 ? (n / 1e7).toFixed(1).replace(/\.0$/, "") + " Cr" : n >= 1e5 ? (n / 1e5).toFixed(n < 1e6 ? 2 : 1).replace(/\.?0+$/, "") + " L" : n >= 1e3 ? (n / 1e3).toFixed(1).replace(/\.0$/, "") + "K" : String(n || 0);
+// a campaign's important note, in a yellow box (the Send a clip form shows the one of the campaign picked)
+const subNotice = n => n ? `<div class="note warn camp-notice" style="margin-bottom:14px"><b>Important</b><span>${esc(n)}</span></div>` : "";
 const PLAT = {youtube: ["YouTube Shorts", "#FF3B30"], instagram: ["Instagram Reels", "#D62976"], x: ["X", "#211813"], tiktok: ["TikTok", "#25F4EE"]};
 const safeUrl = u => /^https?:\/\//i.test(u || "") ? u : "#";
 const S = {data: null, me: null, user: null, tab: "submit", open: null};
@@ -733,6 +741,7 @@ async function openCampaign(slug) {
         <div class="by" style="color:var(--faint);font-size:14px">${c.creator_url ? `<a href="${esc(safeUrl(c.creator_url))}" target="_blank" rel="noopener" style="color:inherit">${esc(c.creator_name)}</a>` : esc(c.creator_name)}</div>
         <h2>${esc(c.title)}</h2>
         ${c.tagline ? `<p class="sub">${esc(c.tagline)}</p>` : ""}
+        ${c.notice ? `<div class="note warn camp-notice"><b>Important</b><span>${esc(c.notice)}</span></div>` : ""}
         ${c.brief ? `<div class="brief">${esc(c.brief)}</div>` : ""}
         ${c.rules.length ? `<h4>Clip rules</h4><ul class="rules">${c.rules.map(r => `<li>${esc(r)}</li>`).join("")}</ul>` : ""}
         ${c.required_tag ? `<h4>Required in your caption</h4><div class="note info"><b>${esc(c.required_tag)}</b><span>Checked automatically on YouTube, and by hand on the others.</span></div>` : ""}
@@ -798,6 +807,7 @@ function drawDash() {
       : !joinedOpen.length ? `<div class="note info"><span>${openNotJoined.length ? "Join a campaign first. Open one below and press Join." : (S.data.campaigns.some(c => c.state === "soon" || c.state === "starts") ? "Campaigns are coming soon. Fill in your payout profile now so you can join the moment one opens. " : "") + "No campaign is open right now. You'll see it here the moment one starts."}</span>${openNotJoined.length ? `<button class="btn sm dark" data-open="${esc(openNotJoined[0].slug)}">See ${esc(openNotJoined[0].title)}</button>` : ""}</div>`
       : `<div class="grid2"><form id="subForm" autocomplete="off">
           <div class="field"><label>Campaign</label><select name="campaign">${joinedOpen.map(c => `<option value="${esc(c.id)}" ${S.submitFor === c.id ? "selected" : ""}>${esc(c.title)} · ${inr2(c.rate_per_1k)}/1K</option>`).join("")}</select></div>
+          <div id="subNotice">${subNotice((joinedOpen.find(c => c.id === S.submitFor) || joinedOpen[0]).notice)}</div>
           <div class="field"><label>Clip link</label><div class="linkbox"><input name="url" value="${esc(S.prefill || "")}" placeholder="https://youtube.com/shorts/…  or an Instagram, X or TikTok link" required><span class="det" id="det"></span></div>
             <div class="hint">Send each clip once, after it's posted and public.</div></div>
           <div class="field"><label>Note for the reviewer (optional)</label><input name="note" maxlength="300" placeholder="e.g. posted within 30 minutes of the moment"></div>
@@ -927,7 +937,7 @@ async function load() {
   S.user = S.data.user;
   if (S.user) { try { S.me = await api("/api/earn/me"); } catch { S.me = null; S.user = null; } }
   const dl = S.data.download_url;
-  if (S.data.earn_only || S.data.accounts === false) { for (const b of [$("#dlBtn"), $("#heroDl"), $("#finalDl"), $("#mbarDl")]) { if (!b) continue; b.href = dl; b.target = "_blank"; b.rel = "noopener"; } }
+  if (S.data.earn_only || S.data.accounts === false) { for (const b of [$("#dlBtn"), $("#heroDl"), $("#finalDl"), $("#mbarDl")]) { if (!b) continue; b.href = dl; if (!dl.startsWith("/") && !dl.startsWith(location.origin)) { b.target = "_blank"; b.rel = "noopener"; } } }
   else { $("#dlBtn").textContent = "Open the clip maker"; $("#dlHelp").hidden = true; }
   drawNav(); drawHero(); drawCamps(); drawLb(); drawDash();
 }
@@ -999,8 +1009,7 @@ document.addEventListener("click", async e => {
   }
   if (act === "dlhelp") {
     e.preventDefault();
-    const dl = S.data?.download_url; if (dl) window.open(dl, "_blank", "noopener");
-    toast("The setup guide is in the same folder as the download. Windows: unzip to C:\\ClipKontrast and double-click Start-ClipKontrast-Windows.bat.");
+    location.href = "/download";          // every system's steps, and the setup guide
     return;
   }
   if (act === "resend") {
@@ -1009,6 +1018,11 @@ document.addEventListener("click", async e => {
 });
 document.addEventListener("keydown", e => { if (e.key === "Escape" && S.open) closeSheet(); });
 document.addEventListener("input", e => {
+  if (e.target.name === "campaign" && e.target.closest("#subForm")) {     // the note of the campaign picked
+    const c = S.data.campaigns.find(x => x.id === e.target.value);
+    $("#subNotice").innerHTML = subNotice(c?.notice);
+    return;
+  }
   if (e.target.name !== "url" || !e.target.closest("#subForm")) return;
   const d = $("#det"), r = parseLink(e.target.value);
   if (!r) { d.innerHTML = ""; return; }

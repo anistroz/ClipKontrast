@@ -53,6 +53,12 @@ jobs:
         shell: pwsh
         run: ./packaging/windows/build.ps1 -Version $env:CK_VERSION
 
+      - name: The Mac and Linux download
+        shell: pwsh
+        run: |
+          git archive --format=zip --prefix=ClipKontrast/ -o dist/ClipKontrast-Mac-Linux.zip HEAD
+          Get-Item dist/ClipKontrast-Mac-Linux.zip | Format-Table Name, Length
+
       - name: Install it on this machine and test it
         shell: pwsh
         timeout-minutes: 25
@@ -70,4 +76,4 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         # makes the tag itself when started by hand
-        run: gh release create "v$env:CK_VERSION" dist/ClipKontrast-Setup.exe dist/ClipKontrast-app.zip dist/latest.json --target "${{ github.sha }}" --title "ClipKontrast $env:CK_VERSION" --notes-file release-notes.txt --latest
+        run: gh release create "v$env:CK_VERSION" dist/ClipKontrast-Setup.exe dist/ClipKontrast-app.zip dist/ClipKontrast-Mac-Linux.zip dist/latest.json --target "${{ github.sha }}" --title "ClipKontrast $env:CK_VERSION" --notes-file release-notes.txt --latest
