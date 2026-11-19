@@ -122,6 +122,26 @@ s.said, s.last_said, s.settings, s.manual, s.last_trigger = None, -999.0, {"trig
 s._triggers([{"w": "क्लिप", "s": 100.0, "e": 100.4}])
 check("live: \"क्लिप\" (clip in Hindi) is heard as clip", bool(s.said))
 
+# ---- English said in Hindi speech: back to English spelling, never "laiph"
+from studio import roman
+check("English words in Devanagari get their English spelling without the AI", roman.to_roman("माय लाइफ"), "my life")
+check("the AI's English spelling of an English word is kept", (brain._sounds_same(roman.to_roman("मैकेनिक"), "mechanic"),
+      brain._sounds_same("eksident", "accident"), brain._sounds_same("proparti", "property")), (True, True, True))
+check("a translation is still refused", (brain._sounds_same("pani", "water"), brain._sounds_same("chuna", "lime")), (False, False))
+with patch.object(brain, "ask_ai", return_value=(["Bhai", "my", "life", "kharab", "kar", "di"], "m", 0)):
+    got = brain.fix_caption_words([{"w": x, "s": i, "e": i + 0.5} for i, x in enumerate(["भाई", "माय", "लाइफ", "खराब", "कर", "दी"])], lang="hi")
+    check("Hinglish captions: Hindi in Roman letters, English as English", [w["w"] for w in got], ["Bhai", "my", "life", "kharab", "kar", "di"])
+
+# ---- the webcam of a long video is looked for in a clip's own stretch (there is no whole video)
+from studio import facecam
+import pathlib
+piece = pathlib.Path(tempfile.mkdtemp()) / "clip01.src.mp4"
+piece.write_bytes(b"x")
+with patch.object(facecam, "detect", return_value={"x": 1, "y": 2, "w": 300, "h": 170, "conf": "high"}) as det:
+    check("the webcam is found in a clip's stretch", (jobs._facecam({"source_path": None}, str(piece)), det.call_args[0][0]), ([1, 2, 300, 170], str(piece)))
+with patch.object(facecam, "detect", return_value={"x": 1, "y": 2, "w": 300, "h": 170, "conf": "low"}):
+    check("an unsure webcam is not used", jobs._facecam({}, str(piece)), None)
+
 if fails:
     print(f"{len(fails)} FAILED"); sys.exit(1)
 print("ALL PASSED")

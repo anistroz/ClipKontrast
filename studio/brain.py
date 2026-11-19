@@ -146,6 +146,25 @@ def _same_word(old, new):
     return (not b) or (any(ch.isdigit() for ch in b) and len(new) <= 12) or difflib.SequenceMatcher(None, a, b).ratio() >= 0.45
 
 
+def _skeleton(word: str) -> str:
+    """The consonants of a word as it sounds, so a Hindi spelling and an English one of the same word match:
+    "laaiph" and "life" are both "lf", "maikenik" and "mechanic" both "mknk"."""
+    w = re.sub(r"[^a-z]", "", word.lower())
+    for a, b in (("ph", "f"), ("bh", "b"), ("kh", "k"), ("gh", "g"), ("th", "t"), ("dh", "d"), ("sh", "s"),
+                 ("jh", "j"), ("ch", "C"), ("ck", "k"), ("c", "k"), ("q", "k"), ("w", "v"), ("z", "j"), ("x", "ks")):
+        w = w.replace(a, b)
+    w = re.sub(r"[aeiouyh]", "", w)
+    return re.sub(r"(.)\1+", r"\1", w)
+
+
+def _sounds_same(hindi_spelling: str, new: str) -> bool:
+    """Is `new` the same word as the Roman spelling of a Hindi-script word, said aloud (not a translation)?"""
+    a, b = _skeleton(hindi_spelling), _skeleton(new)
+    if not a or not b:
+        return False
+    return a == b or (min(len(a), len(b)) >= 3 and difflib.SequenceMatcher(None, a, b).ratio() >= 0.8)
+
+
 def _overlaps(s, e, others):
     return any(min(e, k["end"]) - max(s, k["start"]) > 0.3 * (e - s) for k in others)
 
@@ -563,7 +582,9 @@ def _fix_caption_words(words: list, title: str = "", lang: str = "") -> list:
     hinglish = ("If a word is Hindi or Urdu (in Devanagari or Urdu script, or already "
                 "in Roman letters), write that same word in Roman letters the way people type Hindi in chats (Hinglish): "
                 "'चूना' -> 'choona', 'जो' -> 'jo', 'उसको' -> 'usko', 'یار' -> 'yaar', 'کیا' -> 'kya'. Never translate it into "
-                "English and never leave Devanagari or Urdu script. ") if hindi else ""
+                "English and never leave Devanagari or Urdu script. People in these videos mix in English words, and the "
+                "speech model writes those in Devanagari too: an English word written that way goes back to its normal "
+                "English spelling ('लाइफ' -> 'life', 'गेम' -> 'game', 'मैकेनिक' -> 'mechanic', 'सीरियसली' -> 'seriously'). ") if hindi else ""
     numbered = "\n".join(f"{i}: {_safe(w['w'], 60)}" for i, w in enumerate(words))
     prompt = (
         "These are the words of a short video clip's captions, one per line with its number, written by a speech "
@@ -588,7 +609,9 @@ def _fix_caption_words(words: list, title: str = "", lang: str = "") -> list:
         if roman.needs_roman(w["w"]) and new and not roman.needs_roman(new):
             # Hindi or Urdu spelled in Roman letters. Checked against the rule-made spelling where there is one, so a
             # translation ("lime" for चूना) is not taken for a spelling.
-            if roman.has_hindi(w["w"]) and len(new.split()) <= 2 and not _same_word(roman.to_roman(w["w"]), new):
+            spelled = roman.to_roman(w["w"])
+            if roman.has_hindi(w["w"]) and len(new.split()) <= 2 and not (_same_word(spelled, new)
+                                                                          or _sounds_same(spelled, new)):
                 new = w["w"]
         elif len(new) > max(24, len(w["w"]) * 4) or not _same_word(w["w"], new):   # a rewrite, not a fix: keep what was said
             new = w["w"]

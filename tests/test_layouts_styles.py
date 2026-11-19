@@ -55,7 +55,7 @@ try:
     check("the bottom of the split clip is the game (blue)", bottom[2] > 150 and bottom[0] < 100, True)
 
     out = render.render_clip(src, work / "out", "nocam", dict(clip, facecam=None), words, 1280, 720)
-    check("split with no webcam found still makes a clip, filling the screen", (out["layout"], size_of(work / "out" / out["file"])), ("crop", (1080, 1920)))
+    check("split with no webcam found still makes a clip, showing the whole picture", (out["layout"], size_of(work / "out" / out["file"])), ("blur", (1080, 1920)))
 
     for name in render.STYLES:
         ass = render.build_ass(words, 0.0, 2.8, "Hook", name, [], 300, 1380)

@@ -313,10 +313,13 @@ def render_clip(src: Path, out_dir: Path, name: str, clip: dict, words: list, sr
     """Writes <name>.mp4, <name>.jpg and <name>.ass into out_dir. Returns file names."""
     out_dir.mkdir(parents=True, exist_ok=True)
     start, end = clip["start"], clip["end"]
-    layout, fg_h, hook_y, cap_y = geometry(src_w, src_h, clip.get("layout", "blur"))
     face = clip.get("facecam")
-    if layout in FACECAM_LAYOUTS and not (face and len(face) == 4):
-        layout = "crop"     # no webcam found: the game fills the screen, which is still the right shape
+    want = clip.get("layout", "blur")
+    if want in FACECAM_LAYOUTS and not (face and len(face) == 4):
+        # No webcam was found: the whole picture is shown, over a blurred fill. Cropping it to fill the screen
+        # would cut off most of the game, which is where the action is.
+        want = "blur"
+    layout, fg_h, hook_y, cap_y = geometry(src_w, src_h, want)
     hook_y = _hook_y(layout, hook_y, face)
     ass = build_ass(words if clip.get("captions", True) else [], start, end, clip.get("hook", ""), clip.get("style", "bounce"),
                     clip.get("highlight_words", []), hook_y, cap_y)
