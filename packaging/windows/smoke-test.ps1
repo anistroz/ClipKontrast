@@ -8,9 +8,15 @@ $Base = "http://127.0.0.1:8765"
 function Stop-Mine { Get-Process python -ErrorAction SilentlyContinue | Where-Object { $_.Path -like "$Dir*" } | Stop-Process -Force }
 function Need($cond, $what) { if (-not $cond) { throw "FAILED: $what" } ; Write-Host "PASS $what" }
 
-Start-Process "$Root\dist\ClipKontrast-Setup.exe" -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART" -Wait
+# Waits for the installer alone: Start-Process -Wait would also wait for the ClipKontrast it starts at the end,
+# which keeps running.
+$setup = Start-Process "$Root\dist\ClipKontrast-Setup.exe" -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART" -PassThru
+$null = $setup.Handle        # kept now, or PowerShell can't read the exit code later
+if (-not $setup.WaitForExit(600000)) { throw "FAILED: the installer did not finish in 10 minutes" }
+Need ($setup.ExitCode -eq 0) "the installer finished (code $($setup.ExitCode))"
 Start-Sleep -Seconds 8
 Stop-Mine            # the installer starts ClipKontrast at the end; this test runs its own copy with test settings
+Get-Process cmd -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowTitle -like "*ClipKontrast*" } | Stop-Process -Force -ErrorAction SilentlyContinue
 foreach ($f in @("python\python.exe", "python\DEPS", "ffmpeg\bin\ffmpeg.exe", "ffmpeg\bin\ffprobe.exe", "app\studio\server.py",
                  "app\VERSION", "ClipKontrast.cmd", "clipkontrast.ico", "FFMPEG-LICENSE.txt")) {
     Need (Test-Path "$Dir\$f") "installed: $f"
@@ -24,8 +30,10 @@ Need ($LASTEXITCODE -eq 0) "every library loads, Deno runs"
 $env:PATH = "$Dir\ffmpeg\bin;$Dir\python\Scripts;$env:PATH"
 Push-Location $Root
 foreach ($t in @("tests\test_layouts_styles.py", "tests\test_downloads.py", "tests\test_selfupdate.py", "tests\test_languages.py")) {
-    & $Py $t
-    Need ($LASTEXITCODE -eq 0) "$t on Windows"
+    $tp = Start-Process $Py -ArgumentList $t -NoNewWindow -PassThru
+    $null = $tp.Handle
+    if (-not $tp.WaitForExit(300000)) { $tp.Kill(); throw "FAILED: $t took more than 5 minutes" }
+    Need ($tp.ExitCode -eq 0) "$t on Windows"
 }
 Pop-Location
 

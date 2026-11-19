@@ -50,6 +50,7 @@ jobs:
 
       - name: Install it on this machine and test it
         shell: pwsh
+        timeout-minutes: 25
         run: ./packaging/windows/smoke-test.ps1
 
       - uses: actions/upload-artifact@v4
