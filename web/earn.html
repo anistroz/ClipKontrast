@@ -421,6 +421,54 @@ footer.site .fbottom{display:flex;justify-content:space-between;gap:12px;flex-wr
 .annc:hover u{text-decoration:underline}
 .annc-short{display:none}
 @media (max-width:640px){.annc-long{display:none}.annc-short{display:inline}}
+.done-head{margin-top:64px}
+.done-head h3{font-size:clamp(24px,3vw,34px);letter-spacing:-.03em;margin:8px 0 6px;color:var(--ink)}
+.done-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:18px;margin-top:24px}
+.done{display:flex;flex-direction:column;text-align:left;padding:0;border:0;border-radius:var(--r-lg);overflow:hidden;background:var(--frame);color:var(--frame-text);cursor:pointer;font:inherit}
+.done:hover{background:var(--frame-2)}
+.done-art{position:relative;aspect-ratio:16/7;overflow:hidden;background:var(--frame-2)}
+.done-art img,.done-art .gen{width:100%;height:100%;object-fit:cover;display:block;filter:saturate(.85)}
+.done-art::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(30,22,18,0) 40%,rgba(30,22,18,.95))}
+.tag.done-tag{background:var(--brand);color:var(--ink);font-weight:700}
+.done-art .done-tag{position:absolute;left:12px;top:12px;z-index:1}
+.done-body{padding:4px 20px 20px;display:flex;flex-direction:column;gap:10px;margin-top:-28px;position:relative}
+.done .by{font-size:13px;color:var(--frame-dim)}
+.done h4{font-size:20px;letter-spacing:-.02em;color:var(--frame-text);margin:0}
+.done-big{display:flex;align-items:baseline;gap:10px}
+.done-big b{font-size:44px;letter-spacing:-.04em;line-height:1;color:var(--brand)}
+.done-big span{color:var(--frame-dim);font-size:14px}
+.done-stats{display:flex;gap:18px;flex-wrap:wrap;font-size:13px;color:var(--frame-dim)}
+.done-stats b{display:block;color:var(--frame-text);font-size:16px}
+.split{display:grid;gap:8px}
+.split-bar{display:flex;height:8px;border-radius:99px;overflow:hidden;background:rgba(255,255,255,.08)}
+.split-bar i{display:block;height:100%}
+.split-key{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12.5px;color:var(--frame-dim)}
+.split-key span{display:inline-flex;align-items:center;gap:6px}
+.split-key i{width:8px;height:8px;border-radius:50%;display:inline-block}
+.split-key b{color:var(--frame-text);font-weight:600}
+.show-sheet{background:var(--frame);color:var(--frame-text)}
+.show-sheet .top{background:var(--frame);border-color:var(--frame-line)}
+.show-hero{position:relative;aspect-ratio:16/7;overflow:hidden;background:var(--frame-2)}
+.show-hero img{width:100%;height:100%;object-fit:cover;display:block}
+.show-shade{position:absolute;inset:0;background:linear-gradient(180deg,rgba(30,22,18,.1) 20%,rgba(30,22,18,.96))}
+.show-title{position:absolute;left:28px;right:28px;bottom:22px;display:grid;gap:8px;justify-items:start}
+.show-title .by{color:var(--frame-dim);font-size:14px}
+.show-title h2{font-size:clamp(26px,3.4vw,40px);letter-spacing:-.03em;color:var(--frame-text);margin:0}
+.show-body{padding:24px 28px 32px}
+.show-big b{display:block;font-size:clamp(44px,7vw,76px);letter-spacing:-.05em;line-height:1;color:var(--brand)}
+.show-big span{color:var(--frame-dim);font-size:15px}
+.show-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin:22px 0}
+.show-tiles div{background:var(--frame-2);border-radius:var(--r);padding:14px 16px}
+.show-tiles b{display:block;font-size:22px;letter-spacing:-.02em}
+.show-tiles span{color:var(--frame-dim);font-size:13px}
+.show-cpm{background:rgba(198,244,50,.1);color:var(--frame-text);border-radius:var(--r);padding:12px 16px;font-size:14px;margin-bottom:20px}
+.show-cpm b{color:var(--brand)}
+.show-sheet h4{color:var(--frame-text)}
+.show-note{margin-top:16px;color:var(--frame-dim);font-size:14px}.show-note b{color:var(--frame-text)}
+.show-cta{display:flex;flex-wrap:wrap;gap:10px;margin-top:26px}
+.show-cta .btn:not(.primary){background:transparent;color:var(--frame-text);border-color:var(--frame-line)}
+.srcs a b{font-weight:700}.srcs a span{color:var(--dim);font-size:13px}
+.new-src{font-style:normal;background:var(--brand);color:var(--ink);border-radius:99px;padding:1px 8px;font-size:11px;font-weight:700;margin-left:6px}
 </style>
 </head>
 <body>
@@ -684,6 +732,60 @@ function stateLine(c) {
     : st === "soon" ? "🔒 Coming soon" : st === "starts" ? "🔒 Opens " + esc(date(c.starts_at))
     : st === "paused" ? "Paused" : st === "full" ? "Budget used up" : "Ended";
 }
+// ---------------------------------------------------------------- ended campaigns: a showcase of what was done
+const SHOW_COL = {instagram: "#E1306C", youtube: "#FF3B30", x: "#F4EEEA", tiktok: "#25F4EE"};
+const SHOW_NAME = {instagram: "Instagram", youtube: "YouTube", x: "X", tiktok: "TikTok"};
+function split(sc) {
+  const ps = Object.entries(sc.platforms || {}).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
+  const total = ps.reduce((t, [, v]) => t + v, 0);
+  if (!total) return "";
+  return `<div class="split"><div class="split-bar">${ps.map(([p, v]) => `<i style="width:${(v / total * 100).toFixed(2)}%;background:${SHOW_COL[p] || "#C6F432"}" title="${esc(SHOW_NAME[p] || p)}: ${num(v)} views"></i>`).join("")}</div>
+    <div class="split-key">${ps.map(([p, v]) => `<span><i style="background:${SHOW_COL[p] || "#C6F432"}"></i>${esc(SHOW_NAME[p] || p)} <b>${short(v)}</b></span>`).join("")}</div></div>`;
+}
+function doneCard(c) {
+  const sc = c.showcase || {};
+  return `<button class="done reveal" data-open="${esc(c.slug)}">
+    <div class="done-art">${c.cover ? `<img src="${esc(c.cover)}" alt="">` : `<div class="gen" style="background:${esc(c.accent)}"></div>`}<span class="tag done-tag">✓ Completed</span></div>
+    <div class="done-body">
+      <div class="by">${esc(c.creator_name || "ClipKontrast campaign")}</div>
+      <h4>${esc(c.title)}</h4>
+      <div class="done-big"><b>${short(sc.views)}</b><span>views delivered</span></div>
+      <div class="done-stats"><span><b>${num(sc.clips)}</b>clips</span><span><b>${num(sc.clippers)}</b>clippers</span>${sc.budget ? `<span><b>${inr(sc.budget)}</b>budget</span>` : ""}</div>
+      ${split(sc)}
+    </div>
+  </button>`;
+}
+function drawShowcase(c) {
+  const sc = c.showcase || {};
+  const period = c.starts_at && c.ends_at ? `${esc(date(c.starts_at))} – ${esc(date(c.ends_at))}` : c.ends_at ? "Ended " + esc(date(c.ends_at)) : "";
+  $("#sheet").innerHTML = `<div class="sheet-bg" data-act="close-bg"><div class="sheet show-sheet" role="dialog" aria-label="${esc(c.title)}">
+    <div class="top"><span class="mono" style="color:var(--faint)">Completed campaign</span><button class="btn sm" data-act="close">Close</button></div>
+    <div class="show-hero">${c.cover ? `<img src="${esc(c.cover)}" alt="">` : ""}<div class="show-shade"></div>
+      <div class="show-title"><span class="tag done-tag">✓ Campaign completed</span>
+        <div class="by">${esc(c.creator_name || "ClipKontrast campaign")}${period ? " · " + period : ""}</div><h2>${esc(c.title)}</h2></div></div>
+    <div class="show-body">
+      <div class="show-big"><b>${num(sc.views)}</b><span>views delivered by our clippers</span></div>
+      <div class="show-tiles">
+        <div><b>${short(sc.views)}</b><span>Views</span></div>
+        <div><b>${num(sc.clips)}</b><span>Clips posted</span></div>
+        <div><b>${num(sc.clippers)}</b><span>Clippers</span></div>
+        ${sc.budget ? `<div><b>${inr(sc.budget)}</b><span>Budget</span></div>` : ""}
+      </div>
+      ${sc.per_1k ? `<div class="show-cpm">Every <b>₹1</b> of budget brought <b>${num(Math.round(sc.views / sc.budget))}</b> views: about <b>${inr(sc.per_1k, sc.per_1k < 10 ? 2 : 0)}</b> per 1,000 views.</div>` : ""}
+      ${split(sc) ? `<h4>Where the views came from</h4>${split(sc)}` : ""}
+      ${sc.top_views ? `<div class="show-note"><b>${short(sc.top_views)}</b> views on the best clip alone.</div>` : ""}
+      ${c.tagline ? `<p class="sub" style="margin-top:18px">${esc(c.tagline)}</p>` : ""}
+      <div class="show-cta"><a class="btn primary" href="#campaigns" data-act="close">See live campaigns ${ARROW}</a>
+        <a class="btn" href="mailto:hello@clipkontrast.com?subject=A%20clipping%20campaign">Want a campaign like this? Talk to us</a></div>
+    </div></div></div>`;
+  document.body.style.overflow = "hidden";
+}
+// A line of "Streams and footage" may start with a label: "Day 1 | https://..." (or "Day 1 - https://...").
+function srcLink(line, newest) {
+  const m = String(line).match(/^(.*?)\s*[|:–-]?\s*(https?:\/\/\S+)\s*$/);
+  const label = m && m[1] ? m[1].trim() : "", url = m ? m[2] : line;
+  return `<a href="${esc(safeUrl(url))}" target="_blank" rel="noopener">${label ? `<b>${esc(label)}</b>` : "↗"} <span>${esc(label ? url.replace(/^https?:\/\/(www\.)?/, "") : url)}</span>${newest ? '<em class="new-src">Latest</em>' : ""}</a>`;
+}
 function card(c) {
   const locked = c.state === "soon" || c.state === "starts";
   return `<button class="camp reveal${locked ? " locked" : ""}" data-open="${esc(c.slug)}">
@@ -699,9 +801,13 @@ function card(c) {
   </button>`;
 }
 function drawCamps() {
-  const cs = S.data.campaigns;
-  $("#camps").innerHTML = cs.length ? `<div class="camps">${cs.map(card).join("")}</div>`
-    : `<div class="empty"><b>The next campaign is on its way</b>Create your account now and set up your payout profile, so you can join the moment it opens.</div>`;
+  const cs = S.data.campaigns.filter(c => c.state !== "ended"), done = S.data.campaigns.filter(c => c.state === "ended");
+  $("#camps").innerHTML = (cs.length ? `<div class="camps">${cs.map(card).join("")}</div>`
+    : `<div class="empty"><b>The next campaign is on its way</b>Create your account now and set up your payout profile, so you can join the moment it opens.</div>`)
+    + (done.length ? `<div class="done-head reveal"><div class="kicker"><i></i>Completed campaigns</div>
+        <h3>What our clippers have delivered.</h3>
+        <p class="sub">Campaigns that have ended, and the views their clips brought in.</p></div>
+      <div class="done-grid">${done.map(doneCard).join("")}</div>` : "");
   requestAnimationFrame(() => setTimeout(() => $$("#camps .meter i").forEach(i => i.style.width = Math.max(1.5, i.dataset.w) + "%"), 150));
   watchReveal();
 }
@@ -723,6 +829,7 @@ async function openCampaign(slug) {
   try { c = await api("/api/earn/public/campaigns/" + encodeURIComponent(slug)); } catch (e) { toast(e.message, "bad"); return; }
   S.open = c;
   if (location.hash !== "#c=" + slug) history.replaceState(null, "", "#c=" + slug);
+  if (c.state === "ended") return drawShowcase(c);
   const me = S.user, prof = S.me?.profile;
   let cta;
   const stc = c.state || (c.open ? "open" : c.status);
@@ -748,7 +855,7 @@ async function openCampaign(slug) {
         ${c.rules.length ? `<h4>Clip rules</h4><ul class="rules">${c.rules.map(r => `<li>${esc(r)}</li>`).join("")}</ul>` : ""}
         ${c.required_tag ? `<h4>Required in your caption</h4><div class="note info"><b>${esc(c.required_tag)}</b><span>Checked automatically on YouTube, and by hand on the others.</span></div>` : ""}
         <h4>Streams and footage to clip</h4>
-        ${c.sources ? (c.sources.length ? `<div class="srcs">${c.sources.map(s => `<a href="${esc(safeUrl(s))}" target="_blank" rel="noopener">↗ ${esc(s)}</a>`).join("")}</div>` : `<div class="locked">Links will be posted here.</div>`)
+        ${c.sources ? (c.sources.length ? `<div class="srcs">${c.sources.map((s, i) => srcLink(s, i === c.sources.length - 1 && c.sources.length > 1)).join("")}</div>` : `<div class="locked">Links will be posted here.</div>`)
           : `<div class="locked">🔒 Join the campaign to see which streams and videos to clip.</div>`}
         <h4>Top clippers in this campaign</h4>
         ${c.leaderboard.length ? `<div class="mini-lb">${c.leaderboard.map((r, i) => `<div><span>${i + 1}. ${esc(r.name)}</span><span class="num">${short(r.views)} views · ${inr(r.earned)}</span></div>`).join("")}</div>` : `<div class="locked">No clips yet. Yours could be first.</div>`}

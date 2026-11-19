@@ -124,6 +124,8 @@ earn_campaigns = sa.Table(                                                    # 
     sa.Column("brief", sa.Text, nullable=False, server_default=""),
     sa.Column("rules", sa.Text, nullable=False, server_default=""),           # one rule per line
     sa.Column("notice", sa.Text, nullable=False, server_default=""),          # an important note, shown in a box to clippers
+    sa.Column("sort_order", sa.Integer, nullable=False, server_default="0"),  # where it is shown: the admin drags it into place
+    sa.Column("results", sa.Text, nullable=False, server_default=""),         # an ended campaign's results, as JSON, for the showcase
     sa.Column("sources", sa.Text, nullable=False, server_default=""),         # one link per line: streams, VODs, drive folders
     sa.Column("platforms", sa.String(80), nullable=False, server_default="youtube,instagram,x"),
     sa.Column("required_tag", sa.String(80), nullable=False, server_default=""),   # must appear in the caption, e.g. @creator

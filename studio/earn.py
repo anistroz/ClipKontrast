@@ -225,11 +225,54 @@ def _num(v, name, lo=0.0, hi=1e9, integer=False):
     return int(x) if integer else round(x, 2)
 
 
+RESULT_PLATFORMS = ("instagram", "youtube", "x", "tiktok")
+
+
+def _results(data) -> str:
+    """An ended campaign's results, typed in by the admin, kept as JSON: only whole numbers, only these fields."""
+    if not isinstance(data, dict):
+        return ""
+    out = {}
+    for k in ("views", "clips", "clippers", "top_views"):
+        if str(data.get(k) or "").strip():
+            out[k] = int(_num(data[k], k.replace("_", " ").capitalize(), 0, 5e11, integer=True))
+    plats = data.get("platforms") if isinstance(data.get("platforms"), dict) else {}
+    plats = {p: int(_num(plats[p], p.capitalize() + " views", 0, 5e11, integer=True)) for p in RESULT_PLATFORMS if str(plats.get(p) or "").strip()}
+    if plats:
+        out["platforms"] = plats
+    return json.dumps(out) if out else ""
+
+
+def _showcase(r, st: dict) -> dict:
+    """What an ended campaign shows: its headline numbers. The admin's figures where given (from the campaign's
+    own report), else what was counted here. Never who clipped what."""
+    try:
+        res = json.loads(r.results or "{}")
+    except ValueError:
+        res = {}
+    plats = res.get("platforms") or {}
+    views = res.get("views") or sum(plats.values()) or st["views"]
+    return {"views": views, "clips": res.get("clips") or st["clips"], "clippers": res.get("clippers") or st["clippers"],
+            "budget": r.budget, "top_views": res.get("top_views") or 0, "platforms": plats,
+            "per_1k": round(r.budget / views * 1000, 2) if views and r.budget else 0}
+
+
+def set_order(ids: list) -> list:
+    """The campaigns in the order the admin dragged them into (first = shown first)."""
+    with db.engine.begin() as c:
+        known = {r[0] for r in c.execute(sa.select(db.earn_campaigns.c.id))}
+        for i, cid in enumerate(x for x in ids if x in known):
+            c.execute(db.earn_campaigns.update().where(db.earn_campaigns.c.id == cid).values(sort_order=i))
+    return campaigns(admin=True)
+
+
 def save_campaign(data: dict, cid: str = "") -> dict:
     vals = {}
     for k, n in _CAMP_FIELDS.items():
         if k in data:
             vals[k] = str(data.get(k) or "").strip()[:n]
+    if "results" in data:
+        vals["results"] = _results(data["results"])
     if "title" in vals and len(vals["title"]) < 3:
         raise EarnError("Give the campaign a name of at least 3 letters.")
     if "platforms" in data:
@@ -272,7 +315,9 @@ def save_campaign(data: dict, cid: str = "") -> dict:
                 raise EarnError("Set a budget and a rate before going live.")
             taken = {r[0] for r in c.execute(sa.select(c_.slug))}
             cid = "cm_" + secrets.token_hex(6)
-            c.execute(db.earn_campaigns.insert().values(id=cid, slug=_slug(vals["title"], taken), created_at=_now(), **vals))
+            first = c.execute(sa.select(sa.func.min(c_.sort_order))).scalar() or 0     # a new campaign goes on top
+            c.execute(db.earn_campaigns.insert().values(id=cid, slug=_slug(vals["title"], taken), created_at=_now(),
+                                                        sort_order=min(0, first - 1), **vals))
     return campaign(cid, admin=True)
 
 
@@ -335,11 +380,17 @@ def _camp_dict(r, st: dict, admin=False, member=False) -> dict:
          "committed": committed, "paid": round(st["paid"], 2), "remaining": round(max(0.0, r.budget - committed), 2),
          "used_pct": round(min(100.0, committed / r.budget * 100), 1) if r.budget else 0,
          "clips": st["clips"], "views": st["views"], "clippers": st["clippers"],
-         "open": _is_open(r, committed), "state": _state(r, committed), "member": member}
-    if admin or member:
+         "open": _is_open(r, committed), "state": _state(r, committed), "member": member, "sort_order": r.sort_order}
+    if d["state"] == "ended":
+        d["showcase"] = _showcase(r, st)            # an ended campaign is shown for what it achieved
+    if admin or (member and d["state"] != "ended"):
         d["sources"] = [x.strip() for x in r.sources.splitlines() if x.strip()]
     if admin:
-        d.update(pending=st["pending"], created_at=r.created_at, raw_rules=r.rules, raw_sources=r.sources)
+        try:
+            res = json.loads(r.results or "{}")
+        except ValueError:
+            res = {}
+        d.update(pending=st["pending"], created_at=r.created_at, raw_rules=r.rules, raw_sources=r.sources, results=res)
     return d
 
 
@@ -375,7 +426,8 @@ def campaigns(admin=False, uid: str = "") -> list:
         mine = {r[0] for r in c.execute(sa.select(db.earn_members.c.campaign_id).where(db.earn_members.c.user_id == uid))} if uid else set()
     order = {"live": 0, "soon": 1, "paused": 2, "draft": 3, "ended": 4}
     out = [_camp_dict(r, st[r.id], admin, r.id in mine) for r in rows]
-    out.sort(key=lambda d: (not d["open"], order.get(d["status"], 9), -d["clippers"], -d["clips"], -d["remaining"]))
+    # the order the admin dragged them into; campaigns never placed keep the automatic order among themselves
+    out.sort(key=lambda d: (d["sort_order"], not d["open"], order.get(d["status"], 9), -d["clippers"], -d["clips"], -d["remaining"]))
     return out
 
 
@@ -389,7 +441,8 @@ def campaign(key: str, admin=False, uid: str = "") -> dict:
         member = bool(uid and c.execute(sa.select(db.earn_members.c.user_id).where(
             db.earn_members.c.campaign_id == r.id, db.earn_members.c.user_id == uid)).first())
     d = _camp_dict(r, st, admin, member)
-    d["leaderboard"] = leaderboard(r.id)
+    # an ended campaign is a showcase: its numbers, not who clipped what
+    d["leaderboard"] = leaderboard(r.id) if admin or d["state"] != "ended" else []
     return d
 
 

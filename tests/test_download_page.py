@@ -20,7 +20,8 @@ def check(n, got, want=True):
 # ---- an older database, made before the "notice" column existed, gets it on start
 from studio import config, db
 old = sa.MetaData()                    # the campaigns table as the live server has it: everything but "notice"
-sa.Table("earn_campaigns", old, *[c._copy() for c in db.earn_campaigns.columns if c.name != "notice"])
+NEW = ("notice", "sort_order", "results")
+sa.Table("earn_campaigns", old, *[c._copy() for c in db.earn_campaigns.columns if c.name not in NEW])
 with db.engine.begin() as c:
     c.execute(sa.text("DROP TABLE IF EXISTS earn_campaigns CASCADE" if db.engine.dialect.name == "postgresql" else "DROP TABLE IF EXISTS earn_campaigns"))
 old.create_all(db.engine)
@@ -29,10 +30,10 @@ with db.engine.begin() as c:
 check("the older table really has no note column", "notice" in {c["name"] for c in sa.inspect(db.engine).get_columns("earn_campaigns")}, False)
 db.init()
 cols = {c["name"] for c in sa.inspect(db.engine).get_columns("earn_campaigns")}
-check("an older table gets the new columns", {"notice", "accent", "budget", "status"} <= cols)
+check("an older table gets the new columns", {"notice", "sort_order", "results", "accent", "budget", "status"} <= cols)
 with db.engine.connect() as c:
-    check("its rows keep their data, and the new column starts empty",
-          tuple(c.execute(sa.text("SELECT title, notice FROM earn_campaigns WHERE id = 'old1'")).first()), ("Made before", ""))
+    check("its rows keep their data, and the new columns start empty",
+          tuple(c.execute(sa.text("SELECT title, notice, sort_order, results FROM earn_campaigns WHERE id = 'old1'")).first()), ("Made before", "", 0, ""))
 db.init()
 check("starting again changes nothing", {c["name"] for c in sa.inspect(db.engine).get_columns("earn_campaigns")}, cols)
 with db.engine.begin() as c:

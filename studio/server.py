@@ -1770,6 +1770,13 @@ def earn_admin_create(request: Request, body: dict = Body(...)):
     return _earn(earn.save_campaign, body)
 
 
+@app.post("/api/admin/earn/campaigns/order")
+def earn_admin_order(request: Request, body: dict = Body(...)):
+    _admin(request)
+    ids = [str(x)[:40] for x in (body.get("ids") or [])][:500]
+    return {"campaigns": _earn(earn.set_order, ids)}
+
+
 @app.put("/api/admin/earn/campaigns/{cid}")
 def earn_admin_update(request: Request, cid: str, body: dict = Body(...)):
     _admin(request)

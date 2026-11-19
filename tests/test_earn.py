@@ -158,7 +158,9 @@ check("last approval takes only what's left of the budget", r.json()["amount"], 
 c2 = anon.get(f"/api/earn/public/campaigns/{camp['slug']}").json()
 check("budget used up closes the campaign", (c2["remaining"], c2["status"], c2["open"]), (0, "ended", False))
 check("no clips accepted after it closes", submit(cl, f"https://x.com/RaviClips/status/{x_id(time.time() - 5)}").status_code, 400)
-check("leaderboard shows the clipper", c2["leaderboard"][0]["name"], "Ravi b")
+check("an ended campaign doesn't show who clipped it", c2["leaderboard"], [])
+check("its showcase counts the clips", c2["showcase"]["clips"] >= 1, True)
+check("the site's leaderboard still shows the clipper", anon.get("/api/earn/public/overview").json()["leaderboard"][0]["name"], "Ravi b")
 
 me = cl.get("/api/earn/me").json()
 check("clipper sees what's owed", me["totals"]["owed"], 1000)
