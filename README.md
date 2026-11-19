@@ -12,7 +12,8 @@ Free hai, koi sign-in nahi chahiye.
 
 Drive folder se **`ClipKontrast-Setup.exe`** download karo, double-click karo, **Install** dabao. Bas.
 Python, ffmpeg aur baaki sab isi ke andar hai: kuch alag se install nahi karna. Desktop pe ClipKontrast ka icon aa
-jayega. "Windows protected your PC" aaye toh **More info**, phir **Run anyway**.
+jayega: wo ClipKontrast ko uski apni window mein kholta hai, normal software ki tarah (koi kaali window nahi, browser
+tab nahi). Window band karo toh ClipKontrast band. "Windows protected your PC" aaye toh **More info**, phir **Run anyway**.
 Naya version aane pe app khud batayega: **Update now** dabao, wo khud update hoke dobara khul jayega.
 Tumhari clips aur settings har update mein safe rehti hain.
 

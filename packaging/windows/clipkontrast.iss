@@ -47,11 +47,14 @@ Type: filesandordirs; Name: "{app}\update"
 Source: "..\..\build\ClipKontrast\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{autodesktop}\ClipKontrast"; Filename: "{app}\ClipKontrast.cmd"; WorkingDir: "{app}"; IconFilename: "{app}\clipkontrast.ico"
-Name: "{autoprograms}\ClipKontrast"; Filename: "{app}\ClipKontrast.cmd"; WorkingDir: "{app}"; IconFilename: "{app}\clipkontrast.ico"
+; ClipKontrast in a window of its own, with no console (studio/desktop.py)
+Name: "{autodesktop}\ClipKontrast"; Filename: "{app}\python\pythonw.exe"; Parameters: "-m studio.desktop"; WorkingDir: "{app}"; IconFilename: "{app}\clipkontrast.ico"
+Name: "{autoprograms}\ClipKontrast"; Filename: "{app}\python\pythonw.exe"; Parameters: "-m studio.desktop"; WorkingDir: "{app}"; IconFilename: "{app}\clipkontrast.ico"
+; the same with its log showing, for when something needs looking into
+Name: "{autoprograms}\ClipKontrast (with log window)"; Filename: "{app}\ClipKontrast.cmd"; WorkingDir: "{app}"; IconFilename: "{app}\clipkontrast.ico"
 
 [Run]
-Filename: "{app}\ClipKontrast.cmd"; WorkingDir: "{app}"; Description: "Start ClipKontrast now"; Flags: postinstall nowait shellexec
+Filename: "{app}\python\pythonw.exe"; Parameters: "-m studio.desktop"; WorkingDir: "{app}"; Description: "Start ClipKontrast now"; Flags: postinstall nowait
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}\app"
