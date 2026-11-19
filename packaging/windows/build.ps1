@@ -48,13 +48,25 @@ if ($LASTEXITCODE -ne 0) { throw "pip could not be installed" }
 # ---- the libraries, all of them now, so nothing is installed on the clipper's computer
 $req = Join-Path $Root "requirements.txt"
 $whisper = (Select-String -Path "$Root\studio\whisper.py" -Pattern '^PACKAGE = "(.+)"').Matches[0].Groups[1].Value
-& "$Py\python.exe" -m pip install --no-warn-script-location --disable-pip-version-check -r $req $whisper
+$window = "pywebview==6.2.1"           # ClipKontrast's own window (studio/desktop.py), on Windows only
+& "$Py\python.exe" -m pip install --no-warn-script-location --disable-pip-version-check -r $req $whisper $window
 if ($LASTEXITCODE -ne 0) { throw "the libraries could not be installed" }
 # What these libraries are, so an update knows when it needs the whole installer instead of just the code.
-$depsText = (Get-Content $req -Raw) + "`n" + $whisper + "`n" + $PythonVersion
+$depsText = (Get-Content $req -Raw) + "`n" + $whisper + "`n" + $window + "`n" + $PythonVersion
 $sha = [System.Security.Cryptography.SHA256]::Create()
 $deps = ([BitConverter]::ToString($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($depsText.Replace("`r", ""))))).Replace("-", "").ToLower()
 Set-Content -Path "$Py\DEPS" -Encoding ascii -Value $deps -NoNewline
+# ClipKontrast.exe: pythonw (no console) under ClipKontrast's own name, icon and description, so the taskbar and Task
+# Manager show ClipKontrast. It sits next to pythonw and uses the same Python.
+Copy-Item "$Py\pythonw.exe" "$Py\ClipKontrast.exe"
+$rcedit = Join-Path $Cache "rcedit-x64.exe"
+try {
+    Get-File "https://github.com/electron/rcedit/releases/download/v2.0.0/rcedit-x64.exe" $rcedit
+    & $rcedit "$Py\ClipKontrast.exe" --set-icon "$PSScriptRoot\clipkontrast.ico" --set-version-string "FileDescription" "ClipKontrast" `
+        --set-version-string "ProductName" "ClipKontrast" --set-version-string "CompanyName" "ClipKontrast" `
+        --set-version-string "OriginalFilename" "ClipKontrast.exe" --set-file-version $Version --set-product-version $Version
+    if ($LASTEXITCODE -ne 0) { throw "rcedit failed" }
+} catch { Write-Host "ClipKontrast.exe keeps Python's icon: $_" }
 # Smaller: compiled caches and pip's own download cache are not needed.
 Get-ChildItem $Py -Recurse -Directory -Filter "__pycache__" | Remove-Item -Recurse -Force
 

@@ -1,9 +1,13 @@
 """ClipKontrast as a desktop app on Windows: its own window, and no black console window behind it.
 
-The desktop and Start menu shortcuts run `pythonw -m studio.desktop` (pythonw has no console). This starts the
-ClipKontrast server hidden, with its output in data/logs/clipkontrast.log, and opens ClipKontrast in a window of its
-own: Microsoft Edge's app mode (no address bar or tabs; Edge comes with every Windows 10 and 11), or Chrome's, with a
-separate profile so it never mixes with the person's own browsing. Closing that window stops ClipKontrast.
+The desktop and Start menu shortcuts run `ClipKontrast.exe -m studio.desktop` (a copy of pythonw, which has no
+console, with ClipKontrast's name and icon). This starts the ClipKontrast server hidden, with its output in
+data/logs/clipkontrast.log, and shows ClipKontrast in a window of its own, made with pywebview on Microsoft's WebView2
+(the web engine Windows apps like Teams are built on; it comes with Windows 11 and with Edge on Windows 10). Its title
+bar, taskbar button and icon are ClipKontrast's. Closing the window stops ClipKontrast.
+
+Without WebView2, Edge's or Chrome's app mode is used instead (a window with no address bar), and without either,
+the normal browser.
 
 It also does what the console launcher (ClipKontrast.cmd, kept for troubleshooting) did: swaps in an update that was
 downloaded (app.new) and starts again, or runs the downloaded installer. See studio/selfupdate.py.
@@ -105,6 +109,116 @@ def _open_window(url: str):
                              "--disable-features=Translate"])
 
 
+def _note(text: str):
+    try:
+        LOG.parent.mkdir(parents=True, exist_ok=True)
+        with open(LOG, "a", encoding="utf-8") as f:
+            f.write(f"{time.strftime('%H:%M:%S')} desktop: {text}\n")
+    except OSError:
+        pass
+
+
+def _webview2() -> bool:
+    """Is Microsoft's WebView2 there (and .NET 4.6.2, which pywebview needs)? Without it pywebview would fall back
+    to Internet Explorer's engine, which can't show ClipKontrast, so the app window is used instead."""
+    if sys.platform != "win32":
+        return False
+    try:
+        import winreg
+        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full") as k:
+            if winreg.QueryValueEx(k, "Release")[0] < 394802:
+                return False
+        key = "{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}"            # the WebView2 Runtime
+        for hive, path in ((winreg.HKEY_LOCAL_MACHINE, rf"SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{key}"),
+                           (winreg.HKEY_LOCAL_MACHINE, rf"SOFTWARE\Microsoft\EdgeUpdate\Clients\{key}"),
+                           (winreg.HKEY_CURRENT_USER, rf"SOFTWARE\Microsoft\EdgeUpdate\Clients\{key}")):
+            try:
+                with winreg.OpenKey(hive, path) as k:
+                    v = str(winreg.QueryValueEx(k, "pv")[0])
+                if v and v != "0.0.0.0" and int(v.split(".")[0]) >= 86:
+                    return True
+            except OSError:
+                continue
+    except Exception:  # noqa: BLE001
+        return False
+    return False
+
+
+def _native_ok() -> bool:
+    if os.environ.get("CLIPKONTRAST_WINDOW_CMD") or os.environ.get("CLIPKONTRAST_WINDOW") == "app":
+        return False
+    try:
+        import webview  # noqa: F401
+    except Exception:  # noqa: BLE001
+        return False
+    return _webview2()
+
+
+LOADING = """<!doctype html><html><head><meta charset="utf-8"><style>
+html,body{margin:0;height:100%;background:#1E1612;color:#F4EEEA;font:16px 'Segoe UI',system-ui,sans-serif}
+body{display:flex;align-items:center;justify-content:center;flex-direction:column;gap:18px}
+b{font-size:28px;letter-spacing:-.5px}b i{font-style:normal;background:#C6F432;color:#1A2100;padding:0 6px;border-radius:6px}
+p{margin:0;color:#A99A91;max-width:440px;text-align:center;line-height:1.5}
+.dot{width:10px;height:10px;border-radius:50%;background:#C6F432;animation:p 1s ease-in-out infinite alternate}
+@keyframes p{from{opacity:.25}}</style></head><body><b>Clip<i>Kontrast</i></b><div class="dot"></div>
+<p>MESSAGE</p></body></html>"""
+
+
+def _page(message: str) -> str:
+    import html
+    return LOADING.replace("MESSAGE", html.escape(message).replace("\n", "<br>"))
+
+
+def _run_native():
+    """ClipKontrast in its own pywebview window; the server is looked after on a second thread."""
+    import webview
+    webview.settings["ALLOW_DOWNLOADS"] = True                 # the Download buttons save clips as usual
+    webview.settings["OPEN_EXTERNAL_LINKS_IN_BROWSER"] = True  # Instagram, YouTube, the Earn site: the normal browser
+    ico = INSTALL / "clipkontrast.ico"
+    window = webview.create_window("ClipKontrast", html=_page("Starting ClipKontrast…"), width=1380, height=880,
+                                   min_size=(960, 640), background_color="#1E1612", text_select=True)
+    state = {"server": None, "closing": False}
+
+    def supervise():
+        first = True
+        while not state["closing"]:
+            _swap()
+            server = state["server"] = _start_server()
+            began, shown = time.time(), False
+            while not _up() and server.poll() is None and time.time() - began < 600:
+                if not shown and time.time() - began > 8:
+                    window.load_html(_page("Starting ClipKontrast…\nThe first start downloads the speech model "
+                                           "(about 480 MB, once). This can take a few minutes."))
+                    shown = True
+                time.sleep(0.5)
+            if server.poll() is not None and server.returncode not in (RESTART_CODE, INSTALLER_CODE):
+                window.load_html(_page("ClipKontrast couldn't start.\n\n" + _tail(8)))
+                return
+            if first and server.poll() is None:
+                window.load_url(URL)
+                first = False
+            server.wait()
+            if state["closing"]:
+                return
+            if server.returncode == RESTART_CODE:          # updated: started again with the new code
+                continue
+            if server.returncode == INSTALLER_CODE:
+                subprocess.Popen([str(INSTALL / "update" / "ClipKontrast-Setup.exe"), "/SILENT", "/SUPPRESSMSGBOXES",
+                                  "/NORESTART"])
+                window.destroy()
+                return
+            window.load_html(_page("ClipKontrast stopped unexpectedly. Close this window and open it again.\n\n"
+                                   + _tail(8)))
+            return
+
+    _note("window: native")
+    webview.start(supervise, private_mode=False, storage_path=str(DATA / "window"),
+                  icon=str(ico) if ico.is_file() else None)
+    state["closing"] = True                                      # the window was closed: ClipKontrast closes with it
+    _stop(state["server"])
+    os._exit(0)
+
+
 def _start_server():
     LOG.parent.mkdir(parents=True, exist_ok=True)
     if LOG.is_file() and LOG.stat().st_size > 5_000_000:
@@ -127,10 +241,28 @@ def _stop(p):
 
 
 def main():
+    if sys.platform == "win32":
+        try:                       # the taskbar shows ClipKontrast's own button and icon, not Python's
+            import ctypes
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("ClipKontrast.App")
+        except Exception:  # noqa: BLE001
+            pass
     if _up():                      # already running (the icon was clicked again): just open its window
-        if not _open_window(URL):
+        if _native_ok():
+            import webview
+            webview.create_window("ClipKontrast", URL, width=1380, height=880, min_size=(960, 640))
+            ico = INSTALL / "clipkontrast.ico"
+            webview.start(private_mode=False, storage_path=str(DATA / "window"), icon=str(ico) if ico.is_file() else None)
+        elif not _open_window(URL):
             webbrowser.open(URL)
         return
+    if _native_ok():
+        try:
+            _run_native()
+            return
+        except Exception as e:  # noqa: BLE001 - the app window below instead
+            _note(f"native window failed ({e}), using the app window")
+    _note("window: app" if _browser() or os.environ.get("CLIPKONTRAST_WINDOW_CMD") else "window: browser")
     window = None
     while True:
         _swap()
