@@ -22,7 +22,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Redirect
 from . import admin as admins
 from . import account, load
 from . import (accounts, ai, alerts, auth, config, creators, ctx, db, earn, jobs, live, media, posting,
-               profiles, render, safe, transcribe, usage)
+               profiles, render, safe, transcribe, usage, whisper)
 
 from . import tools as _tools  # noqa: E402
 
@@ -638,7 +638,8 @@ def status(request: Request):
             "tour": not accounts.settings()["tour_done"],
             "earn_url": "/earn" if config.ACCOUNTS else config.EARN_URL + "/earn", "earn_only": config.EARN_ONLY,
             "youtube": accounts.youtube_ready(), "connect": {p: accounts.can_connect(p) for p in accounts.PLATFORM_NAMES}, "max_upload_mb": config.MAX_UPLOAD_MB, "upload_part_mb": config.UPLOAD_PART_MB, "max_batch": config.MAX_ACTIVE_JOBS_PER_USER,
-            "styles": {k: v["label"] for k, v in render.STYLES.items()}, "layouts": render.LAYOUTS}
+            "styles": {k: v["label"] for k, v in render.STYLES.items()}, "layouts": render.LAYOUTS,
+            "languages": whisper.LANGUAGES, "caption_langs": whisper.CAPTION_LANGS}
 
 
 # ================================================================ videos

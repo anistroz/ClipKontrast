@@ -13,7 +13,7 @@ import uuid
 import numpy as np
 from pathlib import Path
 
-from . import brain, config, creators, ctx, facecam, games, load, media, quality, render, roman, safe, transcribe, usage
+from . import brain, config, creators, ctx, facecam, games, load, media, quality, render, roman, safe, transcribe, usage, whisper
 
 class _FairQueue:
     """Whose video is next. Each person has their own line and the lines take turns, so someone who adds ten
@@ -110,7 +110,7 @@ _lock = threading.RLock()
 on_clip_ready: list = []   # callbacks (job, clip), run once when a clip first finishes
 
 DEFAULTS = {"max_clips": 6, "min_len": 15, "max_len": 60, "style": "bounce", "layout": "blur", "quality": 720,
-            "range_start": None, "range_end": None, "captions": True}
+            "range_start": None, "range_end": None, "captions": True, "lang": "auto", "caption_lang": "auto"}
 
 
 LIMITS = {"max_clips": (1, 20), "min_len": (5, 120), "max_len": (10, 180), "quality": (360, 1080)}
@@ -134,6 +134,10 @@ def clean_options(options) -> dict:
             v = v if v in render.STYLES else DEFAULTS["style"]
         elif k == "layout":
             v = v if v in render.LAYOUTS else DEFAULTS["layout"]
+        elif k == "lang":
+            v = v if v in whisper.LANGUAGES else "auto"
+        elif k == "caption_lang":
+            v = v if v in whisper.CAPTION_LANGS else "auto"
         else:                                    # range_start, range_end: seconds into the video
             v = float(v)
             if not math.isfinite(v) or v < 0:
@@ -290,7 +294,7 @@ def create(source: dict, options: dict, enqueue=True, creator=None, kind="video"
     c = creators.get(creator) if creator else None
     if c:
         d = creators.root(c["id"]) / ("live" if kind == "live" else "videos") / jid
-        base = {**DEFAULTS, **{k: c[k] for k in ("max_clips", "min_len", "max_len", "style", "layout", "captions")}}
+        base = {**DEFAULTS, **{k: c[k] for k in ("max_clips", "min_len", "max_len", "style", "layout", "captions", "lang", "caption_lang") if k in c}}
     else:
         d, base, creator = config.user_dir(ctx.uid()) / "jobs" / jid, dict(DEFAULTS), None
     opts = {**base, **clean_options(options)}
@@ -404,8 +408,41 @@ def render_one(job, clip, words):
     save(job)
 
 
+def _pick_language(job, o, yt, audio, resuming=False):
+    """(the language spoken, YouTube's transcript if it is still the one to use). Sets job["lang"]."""
+    want = o.get("lang") or "auto"
+    if want != "auto" and yt and yt[1].split("-")[0].lower() != want:
+        yt = None                                  # YouTube's transcript is in another language: ours is written
+        job["transcript_from"] = "own"
+    if want != "auto":
+        spoken = want
+    elif yt:
+        spoken = yt[1]
+    elif resuming and job.get("lang"):
+        spoken = job["lang"]
+    else:
+        spoken = _detect_language(job, audio)
+    job["lang"] = spoken
+    return spoken, yt
+
+
+def _detect_language(job, audio) -> str:
+    """Which language is spoken, told by Whisper from the liveliest half minute. English if it can't tell."""
+    try:
+        got = whisper.detect(audio, note=lambda t: _set(job, stage=t))
+    except Exception:  # noqa: BLE001 - no Whisper: treated as English, as before
+        got = None
+    if not got:
+        return "en"
+    lang, _sure = got
+    # Spoken Hindi and spoken Urdu sound the same; Whisper often calls Hindi "Urdu" and writes it in Urdu script,
+    # which spells badly in Roman letters. A person who really wants Urdu can pick it.
+    return "hi" if lang == "ur" else lang
+
+
 def _caption_words(job, clip, words, off):
-    span = [round(clip["start"], 2), round(clip["end"], 2), "en2"]      # "en2": captions made always-English
+    always_en = (job.get("options") or {}).get("caption_lang") == "en"
+    span = [round(clip["start"], 2), round(clip["end"], 2), "en3" if always_en else "en2"]      # "en2": captions made always-English
     if clip.get("fixed_for") == span and clip.get("fixed_words") and not any(
             roman.needs_roman(w.get("w", "")) for w in clip["fixed_words"]):
         raw = clip["fixed_words"]          # already tidied for this exact span: no second AI call
@@ -414,7 +451,7 @@ def _caption_words(job, clip, words, off):
         try:
             usage.set_context(job.get("creator"), job.get("title") or "")
             raw = brain.english_captions(raw, job.get("lang") or "", job.get("title") or "",
-                                         youtube_english=lambda: _english_part(job, clip))
+                                         youtube_english=lambda: _english_part(job, clip), always_english=always_en)
             clip.update(fixed_words=raw, fixed_for=span)
         except Exception:  # noqa: BLE001 - captions still render with the words as heard
             pass
@@ -721,6 +758,21 @@ def _run_job(job):
             yt = None
         job["transcript_from"] = "youtube" if yt else "own"
         job["lang"] = yt[1] if yt else ""          # the language spoken, when YouTube says (decides the captions)
+    # The language spoken: the one picked for this video, else what YouTube says, else Whisper listens and tells.
+    # It decides which speech model writes the transcript (English: Parakeet; anything else: Whisper) and how the
+    # captions are written.
+    spoken, yt = _pick_language(job, o, yt, audio[lo:hi], resuming)
+    use_whisper = [not whisper.is_english(spoken)]
+
+    def asr(part, on_progress=None):
+        """The transcript of a part of the audio, by the speech model for the language spoken."""
+        if use_whisper[0]:
+            try:
+                return whisper.transcribe(part, spoken.split("-")[0], on_progress, note=lambda t: _set(job, stage=t))
+            except Exception as e:  # noqa: BLE001 - the English model still gives something to work with
+                use_whisper[0] = False
+                notes.append(f"Hindi speech model unavailable ({str(e)[-100:]}), used the English one")
+        return transcribe.transcribe(part, on_progress)
     # Scan mode (long videos): look over the whole video first, then pick the best clips of all of it at once,
     # instead of clipping each part as it comes. Without YouTube's transcript only the lively parts are
     # transcribed, found from the loudness of every second, which is much quicker than the whole video.
@@ -761,7 +813,7 @@ def _run_job(job):
                 if now_on[0] == i and p - last[0] > 0.05:      # only the part being shown moves the bar
                     last[0] = p
                     _set(job, progress=max(job["progress"], 0.14 + 0.78 * (prog_base[i] + p * (b_ - a_)) / prog_total))
-            heard[i] = ahead.submit(ctx.bind(transcribe.transcribe), audio[a_:b_], tp)
+            heard[i] = ahead.submit(ctx.bind(asr), audio[a_:b_], tp)
 
     def take(found, shift):
         """Drop clips in ad breaks or static screens, then queue the rest to be made."""

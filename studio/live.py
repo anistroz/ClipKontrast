@@ -11,7 +11,7 @@ from pathlib import Path
 
 import numpy as np
 
-from . import alerts, auth, brain, config, creators, ctx, facecam, games, jobs, load, media, render, transcribe, usage
+from . import alerts, auth, brain, config, creators, ctx, facecam, games, jobs, load, media, render, roman, transcribe, usage, whisper
 
 # ":username!user@host PRIVMSG #channel :the message"
 _NICK = re.compile(r"(?m)^:([A-Za-z0-9_]{2,25})!")
@@ -157,6 +157,12 @@ class Session:
         self.facecam_box = None       # where the webcam is, found once the first clip is made
         self.facecam_checked = False  # the look is made once, even when it finds nothing
         self.ai_busy = 0.0            # when the AI check now running was started, 0 when none is
+        # the language spoken: picked for the creator, or told by Whisper from the first stretch of speech
+        want = (settings.get("lang") or "auto") if isinstance(settings, dict) else "auto"
+        self.spoken = None if want == "auto" else want
+        if self.spoken:
+            job["lang"] = self.spoken
+        self.whisper_ok = True        # turned off if Whisper can't be installed: the English model is used instead
 
     def _ask_ai(self, window=None, why=None):
         """Ask the AI on its own thread, so a slow answer never stops the recording.
@@ -392,7 +398,7 @@ class Session:
         if not hurry or n > SR * 24:
             # cut at the quietest moment between 4 and 6.5 s, so no word is split; the rest waits for the next pass
             _, cut = next(transcribe._chunks(audio, 4.0, 6.5))
-        words = transcribe.transcribe(audio[:cut])
+        words = self._hear(audio[:cut])
         off = base / SR
         for w in words:
             w["s"], w["e"] = round(w["s"] + off, 2), round(w["e"] + off, 2)
@@ -526,14 +532,16 @@ class Session:
         self.verdicts.append(dict(v, result=result))
         del self.verdicts[:-6]
 
-    CLIP_WORDS = re.compile(r"\bclip(\s+(it|that|this))?\b", re.I)
+    CLIP_WORDS = re.compile(r"\b[ck]lip(\s+(it|that|this))?\b", re.I)     # "klip": क्लिप in Roman letters
     SAID_BEFORE, SAID_AFTER, SAID_GAP = 60, 15, 45
 
     def _triggers(self, new_words):
         """Built in: when someone says "clip" ("clip it", "clip that"), the AI looks at that moment as soon as its
         transcript is ready; people say it right after something worth clipping. Then the creator's own trigger
         phrases from Setup, which clip straight away with no AI check."""
-        for w in new_words or []:
+        # Whisper writes Hindi in Devanagari: words are read in Roman letters, so "क्लिप" is heard as "clip" too
+        new_words = [dict(w, w=roman.to_roman(w["w"])) if roman.needs_roman(w["w"]) else w for w in new_words or []]
+        for w in new_words:
             if self.CLIP_WORDS.search(re.sub(r"[^a-z' ]", "", w["w"].lower())) and w["s"] - self.last_said > self.SAID_GAP \
                     and not self.said:
                 self.said = {"t": w["s"], "why": 'Someone said "clip"'}
@@ -623,6 +631,27 @@ class Session:
         clip["end"] = min(clip["end"], clip["src_end"])
         jobs.render_one(self.job, clip, list(self.words))
 
+    def _hear(self, audio):
+        """The words in this audio, by the speech model for the language spoken (English: Parakeet; else Whisper)."""
+        if self.spoken is None and self.whisper_ok and len(audio) >= SR * 4:
+            got = None
+            try:
+                got = whisper.detect(audio)
+            except Exception:  # noqa: BLE001
+                got = None
+            if got:
+                self.spoken = "hi" if got[0] == "ur" else got[0]
+                with self.lock:
+                    self.job["lang"] = self.spoken
+            else:
+                self.whisper_ok, self.spoken = False, "en"
+        if self.spoken and not whisper.is_english(self.spoken) and self.whisper_ok:
+            try:
+                return whisper.transcribe(audio, self.spoken)
+            except Exception:  # noqa: BLE001 - the English model still hears names, numbers and "clip that"
+                self.whisper_ok = False
+        return transcribe.transcribe(audio)
+
     def _align(self, src, guess, dur):
         """Where `src` really starts on the transcript clock. The video pieces and the audio feed keep separate
         clocks that drift apart, so transcribe the clip's own audio and line its words up with the live words.
@@ -631,7 +660,7 @@ class Session:
         try:
             wav = src.with_suffix(".wav")
             media.extract_audio(src, wav)
-            heard = transcribe.transcribe(media.load_audio(wav))
+            heard = self._hear(media.load_audio(wav))
             wav.unlink(missing_ok=True)
             with self.lock:
                 near = [w for w in self.words if guess - 15 <= w["s"] <= guess + dur + 15]

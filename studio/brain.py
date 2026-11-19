@@ -520,12 +520,13 @@ def translate_caption_words(words: list, lang: str = "", title: str = "") -> lis
     return done or words
 
 
-def english_captions(words: list, lang: str, title: str = "", youtube_english=None) -> list:
+def english_captions(words: list, lang: str, title: str = "", youtube_english=None, always_english=False) -> list:
     """Captions for a clip, always in English letters:
     English stays as it was said, Hindi and Urdu become Roman letters (the same words, tidied by the AI), and any
     other language is translated into English: YouTube's own English captions first, then the AI. With neither,
     the words as heard (Arabic and similar scripts still spelled in Roman letters)."""
-    if not needs_translation(lang):
+    english = (lang or "en").lower().startswith("en")
+    if not needs_translation(lang) and not (always_english and not english):
         return fix_caption_words(words, title, lang)
     if youtube_english:
         try:

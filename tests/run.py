@@ -27,6 +27,7 @@ def main() -> int:
            "CLIPKONTRAST_SMTP_HOST": "", "CLIPKONTRAST_VERIFY_EMAIL": "1",   # the tests cover the confirm-your-email rule
            "GOOGLE_CLIENT_ID": "", "GOOGLE_CLIENT_SECRET": "", "GOOGLE_CLIENT_FILE": "", "PYTHONUNBUFFERED": "1",
            "CLIPKONTRAST_AI_KEY": "", "CLIPKONTRAST_AI_KEY_FILE": "", "CLIPKONTRAST_AI_MODELS": "",
+           "CLIPKONTRAST_WHISPER": "0",                                      # Whisper is never installed from the internet here
            "CLIPKONTRAST_UPLOAD_PART_MB": "5", "CLIPKONTRAST_MAX_UPLOAD_MB": "64"}
     log = data / "server.log"
     failed = []
@@ -69,6 +70,7 @@ def main() -> int:
                 ("knowing which game a stream is", ["tests/test_games.py"]),
                 ("finding the facecam in a gaming stream", ["tests/test_facecam.py"]),
                 ("facecam-on-top layout and caption styles, rendered", ["tests/test_layouts_styles.py"]),
+                ("Hindi and other languages: Whisper, detection, captions", ["tests/test_languages.py"]),
                 ("fresh installs: ffmpeg, the speech model, AI errors", ["tests/test_tools.py"]),
                 ("the storage folder: full drive, open, move", ["tests/test_storage.py"]),
                 ("security: visitor address, email addresses, Google sign-in, prompts", ["tests/test_hardening.py"]),
