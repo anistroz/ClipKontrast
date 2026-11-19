@@ -56,6 +56,18 @@ def _read_secret(var: str, file_var: str, pattern: str) -> str:
 # owner chose in Settings, Storage (kept in storage.json); otherwise "data" inside ClipKontrast's own folder.
 STORAGE_FILE = Path(env("CLIPKONTRAST_STORAGE_FILE") or ROOT / "storage.json")
 
+# ---------------------------------------------------------------- the Windows app (ClipKontrast-Setup.exe)
+# Its launcher (packaging/windows/ClipKontrast.cmd) says so, and where it is installed. The version is written by
+# the build into the code folder; updates replace that folder (studio/selfupdate.py).
+INSTALLED = env("CLIPKONTRAST_INSTALLED") == "1"
+INSTALL_DIR = Path(env("CLIPKONTRAST_INSTALL_DIR") or ROOT.parent)
+try:
+    APP_VERSION = (ROOT / "VERSION").read_text(encoding="utf-8").strip()[:40]
+except OSError:
+    APP_VERSION = ""
+UPDATE_MANIFEST = (env("CLIPKONTRAST_UPDATE_MANIFEST")
+                   or "https://github.com/anistroz/clipkontrast/releases/latest/download/latest.json").strip()
+
 
 def _move_folder(old: Path, new: Path) -> bool:
     """Move everything from the old folder into the new one. Done at start, before anything is open. True when
@@ -102,7 +114,8 @@ def _data_folder():
     except (OSError, ValueError):
         chosen = {}
     if not chosen.get("path"):
-        return ROOT / "data", "default"
+        # The Windows app keeps its data next to its code, not inside it, so an update can replace the code folder
+        return Path(env("CLIPKONTRAST_DEFAULT_DATA") or ROOT / "data"), "default"
     new = Path(chosen["path"])
     try:
         new.mkdir(parents=True, exist_ok=True)

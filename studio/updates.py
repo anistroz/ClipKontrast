@@ -114,12 +114,19 @@ def check(force: bool = False):
 
 def latest():
     """For the pages: what the last look found. Never waits on GitHub."""
+    if config.INSTALLED:                     # the Windows app updates itself (studio/selfupdate.py)
+        from . import selfupdate
+        return selfupdate.latest()
     return _state["result"] if ON else None
 
 
 def start():
     """Look every minute, in the background, for as long as ClipKontrast runs."""
     global _started
+    if config.INSTALLED:
+        from . import selfupdate
+        selfupdate.start()
+        return
     if not ON or _started:
         return
     _started = True

@@ -8,7 +8,15 @@
 Lambi videos aur live streams se **captions wale vertical clips** (Reels / Shorts / TikTok) banao, apne hi computer pe.
 Free hai, koi sign-in nahi chahiye.
 
-## Apne PC pe kaise chalaye (3 steps)
+## Windows: sabse aasaan tareeka (installer)
+
+Drive folder se **`ClipKontrast-Setup.exe`** download karo, double-click karo, **Install** dabao. Bas.
+Python, ffmpeg aur baaki sab isi ke andar hai: kuch alag se install nahi karna. Desktop pe ClipKontrast ka icon aa
+jayega. "Windows protected your PC" aaye toh **More info**, phir **Run anyway**.
+Naya version aane pe app khud batayega: **Update now** dabao, wo khud update hoke dobara khul jayega.
+Tumhari clips aur settings har update mein safe rehti hain.
+
+## Apne PC pe kaise chalaye: ZIP se (Mac, Linux, ya Windows bina installer ke)
 
 **1. Download karo.** [Yahan se download karo](https://drive.google.com/drive/folders/1BMRVHQ7vFiOQhX7m5j6kl7zmDWWRz7eq?usp=drive_link): Google Drive folder khulega, usme ClipKontrast ki ZIP aur setup guide dono hain.
 

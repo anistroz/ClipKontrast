@@ -1755,6 +1755,27 @@ async def earn_admin_cover(request: Request, cid: str, file: UploadFile = File(.
     return _earn(earn.campaign, cid, admin=True)
 
 
+@app.post("/api/update/apply")
+def update_apply(request: Request):
+    u = getattr(request.state, "user", None)
+    if not u or not u.is_admin:
+        raise HTTPException(404, "Not found.")
+    from . import selfupdate
+    try:
+        return selfupdate.apply()
+    except RuntimeError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.get("/api/update/progress")
+def update_progress(request: Request):
+    u = getattr(request.state, "user", None)
+    if not u or not u.is_admin:
+        raise HTTPException(404, "Not found.")
+    from . import selfupdate
+    return {**selfupdate.progress(), "version": config.APP_VERSION}
+
+
 @app.get("/api/admin/earn/submissions")
 def earn_admin_queue(request: Request, campaign: str = "", status: str = "pending", q: str = ""):
     _admin(request)

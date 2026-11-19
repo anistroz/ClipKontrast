@@ -1224,8 +1224,32 @@ async function openFeedback(kind = "bug", context = "") {
   if (context) { try { await navigator.clipboard.writeText(context); toast("The problem is copied. Paste it in your message.", "ok"); } catch {} }
   window.open(url, "_blank", "noopener");
 }
+// The Windows app updates itself: download, check, restart. The page follows it and reloads when it's back.
+async function updateNow(btn) {
+  if (btn) { btn.disabled = true; btn.textContent = "Updating…"; }
+  try { await api("/api/update/apply", {method: "POST"}); } catch (e) { toast(e.message || "Couldn't start the update.", "bad"); if (btn) { btn.disabled = false; btn.textContent = "Update now"; } return; }
+  toast("Downloading the update. ClipKontrast restarts by itself in a moment, your clips stay as they are.", "good");
+  const before = S.status?.update?.current;
+  for (let i = 0; i < 600; i++) {
+    await new Promise(r => setTimeout(r, 1500));
+    try {
+      const p = await (await fetch("/api/update/progress", {cache: "no-store"})).json();
+      if (p.phase === "error") { toast(p.error || "The update didn't work. Nothing was changed.", "bad"); if (btn) { btn.disabled = false; btn.textContent = "Update now"; } return; }
+      if (p.version && p.version !== before && p.phase === "idle") { location.reload(); return; }
+      if (btn && p.phase === "downloading") btn.textContent = `Updating… ${Math.round((p.progress || 0) * 100)}%`;
+    } catch { /* restarting: not answering for a moment */ }
+  }
+}
 function updateHow() {
   const up = S.status?.update, d = $("#formdlg"); if (!up || d.open) return;
+  if (up.installed) {
+    d.innerHTML = `<form method="dialog" class="dlg upd"><h2>A new version of ClipKontrast is out</h2>
+      <p class="help">You're on <b>${esc(up.current)}</b>, the newest is <b>${esc(up.latest)}</b>. ${up.full ? "This one brings new parts, so the installer is downloaded and runs by itself (about 400 MB)." : "It's a small download."} ClipKontrast restarts by itself. Your settings, keys and clips stay as they are.</p>
+      ${up.notes.length ? `<ul>${up.notes.map(n => `<li>${esc(n.title)}</li>`).join("")}</ul>` : ""}
+      <div class="dlg-foot"><button class="btn" value="later">Remind me next version</button><button class="btn primary" type="button" data-act="updnow" autofocus>Update now</button></div></form>`;
+    d.onclose = () => { if (d.returnValue === "later") { try { localStorage.setItem("clipkontrast_update_seen", up.latest); } catch {} drawShell(); } };
+    d.returnValue = "ok"; d.showModal(); return;
+  }
   const ai = "Update this ClipKontrast folder to the latest version from GitHub (git pull), keep my .env and data folder as they are, install any new requirements, and restart ClipKontrast. Read AGENTS.md first: if this folder's path is long or inside a temporary or assistant workspace, ask me before moving it to a short folder like C:\\clipkontrast, and never delete anything without asking.";
   const cmd = (label, text) => `<h3>${label}</h3><div class="cmd"><code>${esc(text)}</code><button class="btn sm" type="button" data-act="copytext" data-t="${esc(text)}">${ic("copy")}Copy</button></div>`;
   d.innerHTML = `<form method="dialog" class="dlg upd"><h2>${up.restart ? "The new version is ready" : "A new version of ClipKontrast is out"}</h2>
@@ -1300,7 +1324,7 @@ function drawShell() {  const nav = (v, icon, label, extra = "") => `<button cla
   let upSeen = "";
   try { upSeen = localStorage.getItem("clipkontrast_update_seen") || ""; } catch {}
   const upBar = up && up.latest !== upSeen ? `<div class="vb" role="status">${ic("up")}<span>${up.restart ? "<b>The new version is downloaded.</b> Close ClipKontrast and start it again to use it." : `A new version of ClipKontrast is out${up.behind ? `: <b>${up.behind} update${up.behind === 1 ? "" : "s"}</b> since yours` : ""}.`}</span>
-    <button class="btn sm primary" data-act="updhow">${up.restart ? "What's new" : "How to update"}</button><button class="btn sm ghost" data-act="updlater" aria-label="Hide until the next version">Later</button></div>` : "";
+    <button class="btn sm primary" data-act="updhow">${up.installed ? "Update now" : up.restart ? "What's new" : "How to update"}</button><button class="btn sm ghost" data-act="updlater" aria-label="Hide until the next version">Later</button></div>` : "";
   const toolBar = S.status.no_ffmpeg ? `<div class="vb" role="alert">${ic("warn")}<span><b>ClipKontrast can't make clips yet: ffmpeg isn't installed on this computer.</b> Open a terminal, run <code>winget install Gyan.FFmpeg</code> (Mac: <code>brew install ffmpeg</code>, Linux: <code>sudo apt install ffmpeg</code>), then close ClipKontrast and start it again.</span></div>` : "";
   const aiBar = !toolBar && S.status.ai?.problem && me?.is_admin && S.view !== "settings" ? `<div class="vb" role="status">${ic("warn")}<span><b>The AI isn't answering.</b> ${esc(S.status.ai.problem)} Until then, clips are picked by loudness.</span><button class="btn sm primary" data-act="go" data-v="settings" data-tab="ai">Open AI settings</button></div>` : "";
   const diskBar = !toolBar && S.status.disk_full && S.view !== "settings" ? `<div class="vb" role="alert">${ic("warn")}<span><b>The drive ClipKontrast saves to is almost full, so it can't take new videos.</b> Free up space on it, or move ClipKontrast's folder to a bigger drive.</span>${me?.is_admin ? `<button class="btn sm primary" data-act="go" data-v="settings" data-tab="storage">Open Storage</button>` : ""}</div>` : "";
@@ -2455,6 +2479,7 @@ document.addEventListener("click", async e => {
     if (a === "tour") return startTour();
     if (a === "settab") { e.preventDefault(); S.stab = d.k; remember("settings", d.k); return drawSettings(); }
     if (a === "updhow") return updateHow();
+    if (a === "updnow") return updateNow(b);
     if (a === "updlater") { try { localStorage.setItem("clipkontrast_update_seen", S.status.update?.latest || ""); } catch {} return drawShell(); }
     if (a === "storopen") { await send("/api/storage/open"); return; }
     if (a === "storchange") { S.storOpen = !S.storOpen; S.storNew = ""; return drawSettings(); }

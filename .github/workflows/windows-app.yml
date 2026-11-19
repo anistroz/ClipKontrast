@@ -1,0 +1,65 @@
+# Builds the Windows app (ClipKontrast-Setup.exe), installs it on a fresh Windows machine and tests it, including
+# "Update now". A tag like v2026.11.19.1 also publishes it: the installed apps see the new version within hours.
+#
+#   Publish a new version:   git tag v2026.11.19.1 && git push origin v2026.11.19.1
+#   Just build and test it:  Actions -> Windows app -> Run workflow (the installer is kept as a download for 14 days)
+name: Windows app
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version number for this test build (not published)"
+        required: false
+        default: "0.0.1"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: windows-app-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Version and what's new
+        shell: pwsh
+        run: |
+          if ("${{ github.ref_type }}" -eq "tag") { $v = "${{ github.ref_name }}".TrimStart("v") } else { $v = "${{ inputs.version }}" }
+          if ($v -notmatch '^\d+(\.\d+){1,5}$') { throw "The version must be numbers with dots, like 2026.11.19.1 (got '$v')" }
+          "CK_VERSION=$v" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          # What's new: the first line of each change since the last published version, shown in the app.
+          $prev = git describe --tags --abbrev=0 --match "v*" HEAD^ 2>$null
+          $range = if ($LASTEXITCODE -eq 0 -and $prev) { "$prev..HEAD" } else { "-n15" }
+          git log --no-merges --pretty=format:%s $range | Select-Object -First 15 | Set-Content -Encoding utf8 release-notes.txt
+          Get-Content release-notes.txt
+
+      - name: Build the installer
+        shell: pwsh
+        run: ./packaging/windows/build.ps1 -Version $env:CK_VERSION
+
+      - name: Install it on this machine and test it
+        shell: pwsh
+        run: ./packaging/windows/smoke-test.ps1
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ClipKontrast-${{ env.CK_VERSION }}
+          path: dist/*
+          retention-days: 14
+
+      - name: Publish
+        if: github.ref_type == 'tag'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${{ github.ref_name }}" dist/ClipKontrast-Setup.exe dist/ClipKontrast-app.zip dist/latest.json --title "ClipKontrast ${{ env.CK_VERSION }}" --notes-file release-notes.txt --latest

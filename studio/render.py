@@ -296,7 +296,16 @@ def _hook_y(layout, hook_y, facecam=None):
     return hook_y
 
 
-_qsv_ok = None
+# Graphics-card encoders, fastest first, each tried once: one that fails (no such card, an old driver) is not tried
+# again until ClipKontrast restarts, and the processor (libx264) always remains. NVIDIA, AMD and Intel on Windows and
+# Linux; Apple's on a Mac. Each is set to a quality close to libx264's crf 21.
+HW_ENCODERS = [
+    ("nvenc", ["yuv420p", "-c:v", "h264_nvenc", "-preset", "p4", "-rc", "vbr", "-cq", "23", "-b:v", "0"]),
+    ("amf", ["yuv420p", "-c:v", "h264_amf", "-quality", "balanced", "-rc", "cqp", "-qp_i", "22", "-qp_p", "24"]),
+    ("qsv", ["nv12", "-c:v", "h264_qsv", "-global_quality", "23", "-preset", "fast"]),
+    ("videotoolbox", ["yuv420p", "-c:v", "h264_videotoolbox", "-q:v", "62"]),
+]
+_hw_ok: dict = {}            # encoder -> True (works) / False (failed once)
 RENDER_SECONDS = 600      # one clip's video encode; far beyond normal, so a frozen encoder is stopped, not waited on
 
 
@@ -323,7 +332,6 @@ def render_clip(src: Path, out_dir: Path, name: str, clip: dict, words: list, sr
 
 
 def _render_in(work: Path, src: Path, out_dir: Path, name: str, start, end, layout, fg_h, ass: str, face=None) -> dict:
-    global _qsv_ok
     (work / f"{name}.ass").write_text(ass, encoding="utf-8")
     (work / "f").mkdir()
     for f in config.FONTS_DIR.glob("*.ttf"):
@@ -332,21 +340,28 @@ def _render_in(work: Path, src: Path, out_dir: Path, name: str, start, end, layo
     base = ["ffmpeg", "-y", "-v", "error", "-ss", f"{start:.2f}", "-t", f"{end - start:.2f}", "-i", str(src),
             "-filter_complex", fc, "-map", "[v]", "-map", "0:a:0", "-af", "loudnorm=I=-14:TP=-1.5:LRA=11",
             "-c:a", "aac", "-b:a", "160k", "-ar", "48000", "-movflags", "+faststart", "-pix_fmt"]
-    encoders = []
-    if _qsv_ok is not False:
-        encoders.append(("qsv", ["nv12", "-c:v", "h264_qsv", "-global_quality", "23", "-preset", "fast"]))
+    working = [e for e in HW_ENCODERS if _hw_ok.get(e[0]) is True]
+    encoders = working[:1] or [e for e in HW_ENCODERS if _hw_ok.get(e[0]) is None]
     encoders.append(("x264", ["yuv420p", "-c:v", "libx264", "-crf", "21", "-preset", "veryfast"]))
     err = None
     for label, enc in encoders:
-        p = subprocess.run(base + enc + [f"{name}.mp4"], cwd=work, capture_output=True, text=True,
-                           encoding="utf-8", errors="replace", creationflags=NO_WINDOW, timeout=RENDER_SECONDS)
+        try:
+            p = subprocess.run(base + enc + [f"{name}.mp4"], cwd=work, capture_output=True, text=True,
+                               encoding="utf-8", errors="replace", creationflags=NO_WINDOW,
+                               timeout=RENDER_SECONDS if label == "x264" else 180)
+        except subprocess.TimeoutExpired:
+            if label == "x264":
+                raise RuntimeError("Making the clip took too long and was stopped.")
+            _hw_ok[label] = False          # a graphics-card encoder that hangs is not used again
+            err = f"{label} took too long"
+            continue
         if p.returncode == 0:
-            if label == "qsv":
-                _qsv_ok = True
+            if label != "x264":
+                _hw_ok[label] = True
             break
         err = p.stderr[-1200:]
-        if label == "qsv":
-            _qsv_ok = False
+        if label != "x264":
+            _hw_ok[label] = False
     else:
         raise RuntimeError(f"Render failed: {err}")
     cover_t = min(1.2, (end - start) / 2)
