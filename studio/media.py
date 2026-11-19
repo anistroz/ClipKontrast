@@ -2,6 +2,7 @@
 import contextlib
 import json
 import re
+import shutil
 import subprocess
 import time
 from pathlib import Path
@@ -89,18 +90,52 @@ def run(cmd, cwd=None, timeout=3600):
 
 
 class _Quiet:
+    """Says nothing, but keeps the last few problems, so a failed download can say why."""
+    def __init__(self):
+        self.problems = []
+
     def debug(self, m): pass
     def info(self, m): pass
-    def warning(self, m): pass
-    def error(self, m): pass
+
+    def warning(self, m):
+        self._keep(m)
+
+    def error(self, m):
+        self._keep(m)
+
+    def _keep(self, m):
+        m = re.sub(r"\x1b\[[0-9;]*m", "", str(m)).strip()      # no terminal colour codes in messages people read
+        if m:
+            self.problems = (self.problems + [m[:300]])[-4:]
+
+
+_js = {}
+
+
+def _js_runtimes() -> dict:
+    """YouTube's pages can only be read with a JavaScript runtime. Without one, yt-dlp gets links that YouTube
+    refuses part-way, and fetching one stretch of a long video fails ("ffmpeg exited with code ..."). Deno comes
+    with ClipKontrast (the `deno` package in requirements.txt); one already on the computer is used first."""
+    if "v" not in _js:
+        path = shutil.which("deno")
+        if not path:
+            try:
+                from deno import find_deno_bin
+                path = find_deno_bin()
+            except Exception:  # noqa: BLE001 - not installed: yt-dlp does what it can without one
+                path = None
+        _js["v"] = {"deno": {"path": str(path)}} if path else {}
+    return _js["v"]
 
 
 def _ydl(opts):
     import yt_dlp
     # a channel or playlist link is answered as "a list" straight away, never walked video by video
-    return yt_dlp.YoutubeDL({"noplaylist": True, "quiet": True, "no_warnings": True, "logger": _Quiet(),
-                             "extract_flat": "in_playlist", "playlistend": 1, "socket_timeout": 20,
-                             "concurrent_fragment_downloads": 4, **opts})
+    base = {"noplaylist": True, "quiet": True, "no_warnings": True, "logger": _Quiet(),
+            "extract_flat": "in_playlist", "playlistend": 1, "socket_timeout": 20, "concurrent_fragment_downloads": 4}
+    if _js_runtimes():
+        base["js_runtimes"] = _js_runtimes()
+    return yt_dlp.YoutubeDL({**base, **opts})
 
 
 def _video_format(height):
@@ -268,13 +303,29 @@ def download_section(url: str, out_dir: Path, stem: str, start: float, end: floa
     exact=True the cut is made at exactly `start` instead (slower), for when there is nothing to match against."""
     from yt_dlp.utils import download_range_func
     out_dir.mkdir(parents=True, exist_ok=True)
-    opts = {"format": _video_format(height), "merge_output_format": "mp4", "outtmpl": str(out_dir / (stem + ".%(ext)s")),
-            "download_ranges": download_range_func(None, [(max(0.0, start), end)])}
-    if exact:
-        opts["force_keyframes_at_cuts"] = True
-    with _youtube_guard(url), _ydl(opts) as ydl:
-        ydl.download([url])
-    return _biggest(out_dir, stem)
+    last, why = None, []
+    # The usual video and sound files first; if fetching a stretch of those fails, the streaming (HLS) version,
+    # which is cut differently; then the single small file YouTube keeps for old players.
+    for fmt in (_video_format(height),
+                f"b[height<={height}][protocol^=m3u8]/bv*[height<={height}][protocol^=m3u8]+ba/b[protocol^=m3u8]",
+                "18/b[ext=mp4][vcodec!=none][acodec!=none]"):
+        for p in out_dir.glob(stem + ".*"):
+            p.unlink(missing_ok=True)                      # nothing half-written from the try before
+        log = _Quiet()
+        opts = {"format": fmt, "merge_output_format": "mp4", "outtmpl": str(out_dir / (stem + ".%(ext)s")),
+                "download_ranges": download_range_func(None, [(max(0.0, start), end)]), "logger": log}
+        if exact:
+            opts["force_keyframes_at_cuts"] = True
+        try:
+            with _youtube_guard(url), _ydl(opts) as ydl:
+                ydl.download([url])
+            return _biggest(out_dir, stem)
+        except YouTubeBlocked:
+            raise
+        except Exception as e:  # noqa: BLE001 - the next way of fetching it is tried
+            last, why = e, log.problems
+    extra = [w for w in why if w not in str(last)][-2:]
+    raise RuntimeError(re.sub(r"\x1b\[[0-9;]*m", "", str(last)) + (" (" + " | ".join(extra) + ")" if extra else ""))
 
 
 def find_offset(full: np.ndarray, part: np.ndarray, expected: float, search=20.0) -> float:
