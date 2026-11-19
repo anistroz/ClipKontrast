@@ -12,6 +12,8 @@ param(
     [Parameter(Mandatory = $true)][string]$Version,
     [string]$PythonVersion = "3.12.10",
     [string]$FfmpegUrl = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip",
+    # the same kind of build (GPL, with the graphics-card encoders), used when gyan.dev is busy
+    [string]$FfmpegMirror = "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip",
     [string]$ReleaseBase = "https://github.com/anistroz/clipkontrast/releases/download"
 )
 $ErrorActionPreference = "Stop"
@@ -24,11 +26,24 @@ $Cache = Join-Path $Build "cache"
 foreach ($d in @($Out, $Dist)) { if (Test-Path $d) { Remove-Item -Recurse -Force $d } }
 foreach ($d in @($Out, $Dist, $Cache)) { New-Item -ItemType Directory -Force -Path $d | Out-Null }
 
-function Get-File($Url, $Path) {
-    if (-not (Test-Path $Path)) {
-        Write-Host "Downloading $Url"
-        Invoke-WebRequest -UseBasicParsing -Uri $Url -OutFile $Path
+# Downloads one file, trying each address in turn, three times each: a site that is busy for a minute (it happens)
+# doesn't stop the build.
+function Get-File($Urls, $Path) {
+    if (Test-Path $Path) { return }
+    foreach ($url in @($Urls)) {
+        for ($i = 1; $i -le 3; $i++) {
+            try {
+                Write-Host "Downloading $url (try $i)"
+                Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile $Path -TimeoutSec 600
+                return
+            } catch {
+                Write-Host "  failed: $($_.Exception.Message.Split([Environment]::NewLine)[0])"
+                if (Test-Path $Path) { Remove-Item -Force $Path }
+                Start-Sleep -Seconds (10 * $i)
+            }
+        }
     }
+    throw "Could not download $Path from any of: $($Urls -join ', ')"
 }
 
 # ---- Python, the embeddable build, made able to install libraries and to find ClipKontrast's code
@@ -76,7 +91,7 @@ Get-ChildItem $Py -Recurse -Directory -Filter "__pycache__" | Remove-Item -Recur
 
 # ---- ffmpeg
 $ffZip = Join-Path $Cache "ffmpeg.zip"
-Get-File $FfmpegUrl $ffZip
+Get-File @($FfmpegUrl, $FfmpegMirror) $ffZip
 $ffTmp = Join-Path $Build "ffmpeg-tmp"
 if (Test-Path $ffTmp) { Remove-Item -Recurse -Force $ffTmp }
 Expand-Archive -Path $ffZip -DestinationPath $ffTmp
@@ -86,9 +101,9 @@ Copy-Item "$($ffBin.FullName)\ffmpeg.exe", "$($ffBin.FullName)\ffprobe.exe" "$Ou
 $ffLicense = Get-ChildItem $ffTmp -Recurse -Filter "LICENSE*" | Select-Object -First 1
 $ffVersion = (& "$Out\ffmpeg\bin\ffmpeg.exe" -version | Select-Object -First 1)
 @(
-    "ClipKontrast includes ffmpeg ($ffVersion), from $FfmpegUrl (built by gyan.dev).",
-    "ffmpeg is free software licensed under the GNU GPL version 3. Its source code is at https://ffmpeg.org/download.html",
-    "and the build's at https://www.gyan.dev/ffmpeg/builds/ ; ask hello@clipkontrast.com for a copy if it is unavailable.",
+    "ClipKontrast includes ffmpeg ($ffVersion), a build by gyan.dev (https://www.gyan.dev/ffmpeg/builds/) or by BtbN",
+    "(https://github.com/BtbN/FFmpeg-Builds). ffmpeg is free software licensed under the GNU GPL version 3. Its source",
+    "code is at https://ffmpeg.org/download.html ; ask hello@clipkontrast.com for a copy if it is unavailable.",
     ""
 ) | Set-Content -Path "$Out\FFMPEG-LICENSE.txt" -Encoding utf8
 if ($ffLicense) { Get-Content $ffLicense.FullName | Add-Content -Path "$Out\FFMPEG-LICENSE.txt" -Encoding utf8 }
