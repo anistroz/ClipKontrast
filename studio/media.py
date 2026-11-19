@@ -277,6 +277,52 @@ def save_thumb(job_dir: Path, url: str = "", video: Path = None) -> bool:
     return False
 
 
+# YouTube answers differently depending on which of its apps asks ("clients"). Some give links that come back
+# empty or are refused part-way for some videos ("The downloaded file is empty"), and which ones changes from
+# month to month. So a download that fails is tried again as the other apps, and the one that worked is used first
+# for that video's next downloads (every clip of a long stream).
+YT_CLIENTS = [None, ["android_vr"], ["tv"], ["web_safari"], ["mweb"]]     # None: yt-dlp's own choice
+_client_ok: dict = {}
+
+
+def _plain(e) -> str:
+    return re.sub(r"\x1b\[[0-9;]*m", "", str(e)).strip()
+
+
+def _with_client(opts: dict, client) -> dict:
+    return {**opts, "extractor_args": {"youtube": {"player_client": client}}} if client else dict(opts)
+
+
+def _each_client(url: str, out_dir: Path, stem: str, fetch):
+    """fetch(client, logger) for each way of asking YouTube until one gives a real file; the file's path."""
+    clients = YT_CLIENTS if is_youtube(url) else [None]
+    if url in _client_ok:                                    # the one that worked for this video, first
+        clients = [_client_ok[url]] + [c for c in clients if c != _client_ok[url]]
+    last, why, tried = None, [], 0
+    for client in clients:
+        for p in out_dir.glob(stem + ".*"):
+            p.unlink(missing_ok=True)                        # nothing half-written from the try before
+        log = _Quiet()
+        tried += 1
+        try:
+            fetch(client, log)
+            got = _biggest(out_dir, stem)
+            if got.stat().st_size < 1024:
+                raise RuntimeError("The downloaded file is empty")
+            if is_youtube(url):
+                _client_ok[url] = client
+                if len(_client_ok) > 200:
+                    _client_ok.pop(next(iter(_client_ok)))
+            return got
+        except YouTubeBlocked:
+            raise
+        except Exception as e:  # noqa: BLE001 - asked again as another of YouTube's apps
+            last, why = e, log.problems
+    extra = [w for w in why if w not in str(last)][-2:]
+    more = f" (tried {tried} ways)" if tried > 1 else ""
+    raise RuntimeError(_plain(last) + more + (" (" + " | ".join(extra) + ")" if extra else ""))
+
+
 def download_audio(url: str, job_dir: Path, on_progress=None) -> Path:
     """Audio only: a few seconds even for long videos, and all the AI needs to pick clips."""
     def hook(d):
@@ -284,18 +330,22 @@ def download_audio(url: str, job_dir: Path, on_progress=None) -> Path:
         if on_progress and d.get("status") == "downloading" and total:
             on_progress(d.get("downloaded_bytes", 0) / total)
 
-    with _youtube_guard(url), _ydl({"format": "ba[ext=m4a]/ba/worst", "outtmpl": str(job_dir / "audio_src.%(ext)s"),
-               "progress_hooks": [hook]}) as ydl:
-        ydl.download([url])
-    return _biggest(job_dir, "audio_src")
+    def fetch(client, log):
+        opts = {"format": "ba[ext=m4a]/ba/worst", "outtmpl": str(job_dir / "audio_src.%(ext)s"),
+                "progress_hooks": [hook], "logger": log}
+        with _youtube_guard(url), _ydl(_with_client(opts, client)) as ydl:
+            ydl.download([url])
+    return _each_client(url, job_dir, "audio_src", fetch)
 
 
 def download(url: str, job_dir: Path, height=720) -> Path:
     """The whole video. Used for shorter videos, where this is quicker than fetching pieces."""
-    with _youtube_guard(url), _ydl({"format": _video_format(height), "merge_output_format": "mp4",
-                                    "outtmpl": str(job_dir / "source.%(ext)s")}) as ydl:
-        ydl.download([url])
-    return _biggest(job_dir, "source")
+    def fetch(client, log):
+        opts = {"format": _video_format(height), "merge_output_format": "mp4",
+                "outtmpl": str(job_dir / "source.%(ext)s"), "logger": log}
+        with _youtube_guard(url), _ydl(_with_client(opts, client)) as ydl:
+            ydl.download([url])
+    return _each_client(url, job_dir, "source", fetch)
 
 
 def download_section(url: str, out_dir: Path, stem: str, start: float, end: float, height=720, exact=False) -> Path:
@@ -303,29 +353,33 @@ def download_section(url: str, out_dir: Path, stem: str, start: float, end: floa
     exact=True the cut is made at exactly `start` instead (slower), for when there is nothing to match against."""
     from yt_dlp.utils import download_range_func
     out_dir.mkdir(parents=True, exist_ok=True)
-    last, why = None, []
-    # The usual video and sound files first; if fetching a stretch of those fails, the streaming (HLS) version,
-    # which is cut differently; then the single small file YouTube keeps for old players.
-    for fmt in (_video_format(height),
-                f"b[height<={height}][protocol^=m3u8]/bv*[height<={height}][protocol^=m3u8]+ba/b[protocol^=m3u8]",
-                "18/b[ext=mp4][vcodec!=none][acodec!=none]"):
-        for p in out_dir.glob(stem + ".*"):
-            p.unlink(missing_ok=True)                      # nothing half-written from the try before
-        log = _Quiet()
-        opts = {"format": fmt, "merge_output_format": "mp4", "outtmpl": str(out_dir / (stem + ".%(ext)s")),
-                "download_ranges": download_range_func(None, [(max(0.0, start), end)]), "logger": log}
-        if exact:
-            opts["force_keyframes_at_cuts"] = True
-        try:
-            with _youtube_guard(url), _ydl(opts) as ydl:
-                ydl.download([url])
-            return _biggest(out_dir, stem)
-        except YouTubeBlocked:
-            raise
-        except Exception as e:  # noqa: BLE001 - the next way of fetching it is tried
-            last, why = e, log.problems
-    extra = [w for w in why if w not in str(last)][-2:]
-    raise RuntimeError(re.sub(r"\x1b\[[0-9;]*m", "", str(last)) + (" (" + " | ".join(extra) + ")" if extra else ""))
+    # For each way of asking YouTube: the usual video and sound files first; if fetching a stretch of those fails,
+    # the streaming (HLS) version, which is cut differently; then the single small file YouTube keeps for old players.
+    formats = (_video_format(height),
+               f"b[height<={height}][protocol^=m3u8]/bv*[height<={height}][protocol^=m3u8]+ba/b[protocol^=m3u8]",
+               "18/b[ext=mp4][vcodec!=none][acodec!=none]")
+
+    def fetch(client, log):
+        err = None
+        for fmt in formats:
+            for p in out_dir.glob(stem + ".*"):
+                p.unlink(missing_ok=True)
+            opts = {"format": fmt, "merge_output_format": "mp4", "outtmpl": str(out_dir / (stem + ".%(ext)s")),
+                    "download_ranges": download_range_func(None, [(max(0.0, start), end)]), "logger": log}
+            if exact:
+                opts["force_keyframes_at_cuts"] = True
+            try:
+                with _youtube_guard(url), _ydl(_with_client(opts, client)) as ydl:
+                    ydl.download([url])
+                if _biggest(out_dir, stem).stat().st_size >= 1024:
+                    return
+                err = RuntimeError("The downloaded file is empty")
+            except YouTubeBlocked:
+                raise
+            except Exception as e:  # noqa: BLE001 - the next kind of file
+                err = e
+        raise err
+    return _each_client(url, out_dir, stem, fetch)
 
 
 def find_offset(full: np.ndarray, part: np.ndarray, expected: float, search=20.0) -> float:

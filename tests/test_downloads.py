@@ -39,7 +39,7 @@ class FakeYDL:
             out.with_suffix(".mp4.part").write_bytes(b"half")
             self.opts["logger"].warning("\x1b[0;33mWARNING:\x1b[0m fragment 3 not found")
             raise yt_dlp.utils.DownloadError("\x1b[0;31mERROR:\x1b[0m ffmpeg exited with code 3199971767")
-        out.write_bytes(b"video")
+        out.write_bytes(b"v" * 4096)
 
 
 rt = media._js_runtimes()
@@ -52,7 +52,7 @@ with patch.object(yt_dlp, "YoutubeDL", FakeYDL):
     check("the streaming (HLS) version is the second try", "m3u8" in seen[1]["format"])
     check("Deno is handed to yt-dlp every time", all(o.get("js_runtimes") == rt for o in seen))
     check("nothing half-written is left", sorted(p.name for p in d.iterdir()), ["clip01.src.mp4"])
-    seen.clear(); FakeYDL.fail_first = 9
+    seen.clear(); FakeYDL.fail_first = 99
     try:
         media.download_section("https://www.youtube.com/watch?v=abcdefghijk", d, "clip02.src", 0, 30)
         check("when every way fails, it says so", False)
@@ -60,6 +60,40 @@ with patch.object(yt_dlp, "YoutubeDL", FakeYDL):
         msg = str(e)
         check("when every way fails, the reason is kept, without colour codes",
               ("3199971767" in msg, "\x1b" not in msg, "fragment 3 not found" in msg), (True, True, True))
+        check("every one of YouTube's apps was asked, each for every kind of file", len(seen), len(media.YT_CLIENTS) * 3)
+
+
+class AudioYDL:
+    """YouTube's default answer gives an empty file; asked as the Android VR app, it gives the sound."""
+    def __init__(self, opts):
+        self.opts = opts
+        seen.append(opts)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+    def download(self, urls):
+        out = Path(self.opts["outtmpl"].replace("%(ext)s", "m4a"))
+        client = (self.opts.get("extractor_args") or {}).get("youtube", {}).get("player_client")
+        out.write_bytes(b"x" * 4096 if client == ["android_vr"] else b"")
+
+
+url = "https://www.youtube.com/watch?v=zzzzzzzzzzz"
+with patch.object(yt_dlp, "YoutubeDL", AudioYDL):
+    seen.clear()
+    got = media.download_audio(url, d)
+    check("an empty download is tried again as another of YouTube's apps", (got.stat().st_size, len(seen)), (4096, 2))
+    seen.clear()
+    media.download_audio(url, d)
+    check("the app that worked is asked first next time", (len(seen), seen[0]["extractor_args"]["youtube"]["player_client"]), (1, ["android_vr"]))
+    seen.clear()
+    try:
+        media.download_audio("https://www.twitch.tv/videos/123", d)
+    except RuntimeError as e:
+        check("other sites are asked once, and an empty file says so", (len(seen), "empty" in str(e)), (1, True))
 
 if fails:
     print(f"{len(fails)} FAILED"); sys.exit(1)
