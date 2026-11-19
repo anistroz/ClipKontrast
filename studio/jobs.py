@@ -383,13 +383,13 @@ def render_one(job, clip, words):
     try:
         if not clip.get("src") and not job.get("source_path"):
             _piece_again(job, clip)
-        off = clip.get("src_offset", 0.0)
-        src = Path(clip["src"]) if clip.get("src") else Path(job["source_path"])
-        if not clip.get("src"):
-            clip["end"] = min(clip["end"], job["duration"])
+        src, meta = _clip_source(job, clip)
+        off = clip.get("src_offset", 0.0) if clip.get("src") else 0.0
         local = dict(clip, start=clip["start"] - off, end=clip["end"] - off, hook=roman.to_roman(clip.get("hook") or ""))
         near = _caption_words(job, clip, words, off) if clip.get("captions", True) else []
-        out = render.render_clip(src, d / "clips", clip["id"], local, near, job["width"], job["height"])
+        # the size of the file this clip is really cut from (a piece can come in another size than the first one)
+        out = render.render_clip(src, d / "clips", clip["id"], local, near, meta["width"] or job["width"],
+                                 meta["height"] or job["height"])
         # The layout chosen stays the clip's choice; what was really used is kept beside it, with why if they differ.
         used = out.pop("layout", clip.get("layout"))
         note = ""
@@ -512,6 +512,33 @@ def _english_part(job, clip):
 
 LONG_VIDEO = 40 * 60   # above this, fetch only the pieces that become clips
 PAD = 8                # seconds kept either side of a fetched piece, so clips can be re-trimmed
+
+
+def _clip_source(job, clip):
+    """The file this clip is cut from, and its size. A fetched piece that doesn't hold the clip's moment (YouTube sent
+    another stretch, or a short one) used to reach the encoder with nothing to cut ("received no packets"): it is
+    fetched again, cut exactly at the clip's time, and only if that still fails does the clip say so."""
+    for attempt in (1, 2):
+        src = Path(clip["src"]) if clip.get("src") else Path(job["source_path"])
+        try:
+            meta = media.probe(src)
+        except Exception:  # noqa: BLE001 - an unreadable piece is fetched again below; the whole video, as known
+            meta = ({"duration": 0, "width": 0, "height": 0} if clip.get("src") else
+                    {"duration": job.get("duration") or clip["end"], "width": job.get("width") or 0,
+                     "height": job.get("height") or 0})
+        off = clip.get("src_offset", 0.0) if clip.get("src") else 0.0
+        start, end = clip["start"] - off, min(clip["end"] - off, meta["duration"] or 0)
+        if end - start >= 1.0 and start >= -0.5:
+            clip["end"] = round(end + off, 2)
+            return src, meta
+        print(f"  Clip {clip['id']}: its piece doesn't hold its moment (piece {off:.1f}s + {meta['duration']:.1f}s, "
+              f"clip {clip['start']:.1f}-{clip['end']:.1f}s); fetching it again", flush=True)
+        if attempt == 2 or not clip.get("src"):
+            break
+        clip.pop("src", None)
+        _piece_again(job, clip)
+    raise RuntimeError("The part of the video downloaded for this clip doesn't hold its moment. "
+                       "Press Save and re-make clip to try again.")
 
 
 def _piece_again(job, clip):

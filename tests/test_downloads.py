@@ -95,6 +95,35 @@ with patch.object(yt_dlp, "YoutubeDL", AudioYDL):
     except RuntimeError as e:
         check("other sites are asked once, and an empty file says so", (len(seen), "empty" in str(e)), (1, True))
 
+# ---- a fetched piece that doesn't hold its clip's moment is fetched again, never sent to the encoder empty
+from studio import jobs
+job = {"source": {"type": "url", "url": "https://www.youtube.com/watch?v=abcdefghijk"}, "dir": str(d), "duration": 9000,
+       "options": {"quality": 720}, "width": 1280, "height": 720}
+ok_clip = {"id": "c1", "start": 7210.0, "end": 7240.0, "src": str(d / "c1.mp4"), "src_offset": 7200.0}
+with patch.object(media, "probe", return_value={"duration": 48.0, "width": 1280, "height": 720}):
+    src_, meta = jobs._clip_source(job, dict(ok_clip))
+    check("a piece that holds the clip is used as it is", (src_.name, meta["width"]), ("c1.mp4", 1280))
+bad = dict(ok_clip, src_offset=7300.0)          # the piece starts after the clip ends
+refetched = []
+
+
+def again(job_, clip_):
+    refetched.append(clip_["id"])
+    clip_.update(src=str(d / "c1b.mp4"), src_offset=7202.0)
+
+
+with patch.object(media, "probe", return_value={"duration": 48.0, "width": 640, "height": 360}), \
+        patch.object(jobs, "_piece_again", side_effect=again):
+    src_, meta = jobs._clip_source(job, bad)
+    check("a piece that misses the clip is fetched again, cut at the clip's time", (refetched, src_.name, meta["width"]), (["c1"], "c1b.mp4", 640))
+with patch.object(media, "probe", return_value={"duration": 2.0, "width": 640, "height": 360}), \
+        patch.object(jobs, "_piece_again", side_effect=lambda j, c: c.update(src=str(d / "c1c.mp4"), src_offset=7300.0)):
+    try:
+        jobs._clip_source(job, dict(bad))
+        check("still missing: the clip says so plainly", False)
+    except RuntimeError as e:
+        check("still missing: the clip says so plainly", "re-make" in str(e))
+
 if fails:
     print(f"{len(fails)} FAILED"); sys.exit(1)
 print("ALL PASSED")
