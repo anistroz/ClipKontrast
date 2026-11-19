@@ -42,6 +42,7 @@ jobs:
           $range = if ($LASTEXITCODE -eq 0 -and $prev) { "$prev..HEAD" } else { "-n15" }
           git log --no-merges --pretty=format:%s $range | Select-Object -First 15 | Set-Content -Encoding utf8 release-notes.txt
           Get-Content release-notes.txt
+          exit 0      # "no earlier version" from git describe is not a failure
 
       - name: Build the installer
         shell: pwsh
