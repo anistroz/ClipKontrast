@@ -18,6 +18,15 @@ STYLES = {
              "strong": "00D7FF", "outline": 7, "pop": 114, "upper": True, "per": 2},
     "clean": {"label": "Clean", "font": "Poppins ExtraBold", "size": 100, "base": "FFFFFF", "active": "6BD7FF",
               "strong": "FFFFFF", "outline": 5, "pop": 106, "upper": False, "per": 4},
+    # the word being said sits on a bright yellow box, in dark letters
+    "box": {"label": "Box", "font": "Poppins ExtraBold", "size": 116, "base": "FFFFFF", "active": "14100E",
+            "strong": "FFFFFF", "outline": 6, "pop": 100, "upper": True, "per": 3, "box": "00E5FF"},
+    # one big word at a time, the way gaming and podcast clips often do it
+    "one": {"label": "One word", "font": "Anton", "size": 200, "base": "FFFFFF", "active": "32F0B4",
+            "strong": "00D7FF", "outline": 9, "pop": 112, "upper": True, "per": 1},
+    # white letters with a purple glow-like outline, the word being said in lime
+    "neon": {"label": "Neon", "font": "Archivo Black", "size": 118, "base": "FFFFFF", "active": "5AFAD4",
+             "strong": "5AFAD4", "outline": 8, "pop": 110, "upper": True, "per": 3, "outline_colour": "FF3CC8"},
 }
 HOOK = {"font": "Poppins ExtraBold", "size": 96, "ink": "14100E", "box": "FFFFFF", "pad_x": 36, "pad_y": 22, "radius": 26,
         "max_w": 900}
@@ -79,7 +88,10 @@ def install_fonts():
 
 
 LAYOUTS = {"blur": "Full frame + blurred fill", "zoom": "Zoomed in + blurred fill", "crop": "Fill the screen (centre crop)",
-           "gameplay": "Gameplay fills the screen, facecam in the corner"}
+           "gameplay": "Gameplay fills the screen, facecam in the corner",
+           "split": "Facecam on top, gameplay below"}
+FACECAM_LAYOUTS = ("gameplay", "split")     # the layouts that need the webcam to be found first
+SPLIT_TOP = 720        # how tall the webcam part of the split layout is; the game takes the 1200 below it
 
 
 def _ts(t):
@@ -120,9 +132,21 @@ def geometry(src_w, src_h, layout):
     else:
         fg_h = H
     top = (H - fg_h) // 2
+    if layout == "split":
+        # the heading sits on the line between face and game, the captions low on the game
+        return layout, fg_h, SPLIT_TOP, 1480
     if layout in ("crop", "gameplay"):
         return layout, fg_h, 300, 1380
     return layout, fg_h, max(230, top - 190), min(1640, top + fg_h + 180)
+
+
+def _rounded(x0, y0, x1, y1, r):
+    """A rounded rectangle as an ASS drawing."""
+    n = lambda v: f"{v:.0f}"                                                         # noqa: E731
+    return (f"m {n(x0 + r)} {n(y0)} l {n(x1 - r)} {n(y0)} b {n(x1)} {n(y0)} {n(x1)} {n(y0)} {n(x1)} {n(y0 + r)} "
+            f"l {n(x1)} {n(y1 - r)} b {n(x1)} {n(y1)} {n(x1)} {n(y1)} {n(x1 - r)} {n(y1)} "
+            f"l {n(x0 + r)} {n(y1)} b {n(x0)} {n(y1)} {n(x0)} {n(y1)} {n(x0)} {n(y1 - r)} "
+            f"l {n(x0)} {n(y0 + r)} b {n(x0)} {n(y0)} {n(x0)} {n(y0)} {n(x0 + r)} {n(y0)}")
 
 
 def _hook_events(hook, dur, y):
@@ -141,13 +165,8 @@ def _hook_events(hook, dur, y):
         widest = max(f.width(l, size) for l in lines)
     line_h = f.em(size) * 1.16
     bw, bh = widest + 2 * HOOK["pad_x"], line_h * len(lines) + 2 * HOOK["pad_y"]
-    x0, y0, r = (W - bw) / 2, y - bh / 2, min(HOOK["radius"], bh / 2)
-    x1, y1 = x0 + bw, y0 + bh
-    n = lambda v: f"{v:.0f}"                                                         # noqa: E731
-    box = (f"m {n(x0 + r)} {n(y0)} l {n(x1 - r)} {n(y0)} b {n(x1)} {n(y0)} {n(x1)} {n(y0)} {n(x1)} {n(y0 + r)} "
-           f"l {n(x1)} {n(y1 - r)} b {n(x1)} {n(y1)} {n(x1)} {n(y1)} {n(x1 - r)} {n(y1)} "
-           f"l {n(x0 + r)} {n(y1)} b {n(x0)} {n(y1)} {n(x0)} {n(y1)} {n(x0)} {n(y1 - r)} "
-           f"l {n(x0)} {n(y0 + r)} b {n(x0)} {n(y0)} {n(x0)} {n(y0)} {n(x0 + r)} {n(y0)}")
+    x0, y0 = (W - bw) / 2, y - bh / 2
+    box = _rounded(x0, y0, x0 + bw, y0 + bh, min(HOOK["radius"], bh / 2))
     span = f"{_ts(0)},{_ts(dur)}"
     ev = [f"Dialogue: 3,{span},Hook,,0,0,0,,{{\\an7\\pos(0,0)\\fad(160,0)\\c&H{HOOK['box']}&\\p1}}{box}{{\\p0}}"]
     for i, line in enumerate(lines):
@@ -169,7 +188,7 @@ ScaledBorderAndShadow: yes
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Cap,{st['font']},{st['size']},&H00{st['base']},&H00{st['base']},&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,{st['outline']},0,5,0,0,0,1
+Style: Cap,{st['font']},{st['size']},&H00{st['base']},&H00{st['base']},&H00{st.get('outline_colour', '000000')},&H00000000,0,0,0,0,100,100,0,0,1,{st['outline']},0,5,0,0,0,1
 Style: Hook,{HOOK['font']},{HOOK['size']},&H00{HOOK['ink']},&H00{HOOK['ink']},&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,5,0,0,0,1
 
 [Events]
@@ -219,7 +238,13 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             base = st["strong"] if _key(w["w"]) in strong else st["base"]
             if a - g_start >= 0.02:                                                   # waiting to be said
                 ev.append(f"Dialogue: 1,{_ts(g_start)},{_ts(a)},Cap,,0,0,0,,{{{pos}\\c&H{base}&}}{t}")
-            if b - a >= 0.02:                                                         # being said: colour and a quick pop, in front
+            if b - a >= 0.02 and st.get("box"):                                       # being said: on a bright box, in dark letters
+                bw, bh = wd + 0.26 * size, f.em(size) * 1.08
+                bx, by = x - gap - wd / 2, cap_y          # x has already moved past this word
+                path = _rounded(bx - bw / 2, by - bh / 2, bx + bw / 2, by + bh / 2, min(22, bh / 3))
+                ev.append(f"Dialogue: 2,{_ts(a)},{_ts(b)},Cap,,0,0,0,,{{\\an7\\pos(0,0)\\c&H{st['box']}&\\bord0\\p1}}{path}{{\\p0}}")
+                ev.append(f"Dialogue: 3,{_ts(a)},{_ts(b)},Cap,,0,0,0,,{{{pos}\\c&H{st['active']}&\\bord0}}{t}")
+            elif b - a >= 0.02:                                                       # being said: colour and a quick pop, in front
                 ev.append(f"Dialogue: 2,{_ts(a)},{_ts(b)},Cap,,0,0,0,,{{{pos}\\c&H{st['active']}&\\fscx94\\fscy94"
                           f"\\t(0,90,\\fscx{p}\\fscy{p})\\t(90,200,\\fscx{p - 5}\\fscy{p - 5})}}{t}")
             if g_end - b >= 0.02:                                                     # said
@@ -233,6 +258,17 @@ PIP_MARGIN = 26
 
 
 def _filter(layout, fg_h, facecam=None):
+    if layout == "split" and facecam:
+        # The webcam is cut out and fills the top of the frame; the game, cropped around its middle, fills the rest.
+        # The webcam is cut to the shape of its band first, so the face is never stretched.
+        fx, fy, fw, fh = (int(v) for v in facecam)
+        if fw > 8 and fh > 8:
+            bottom = H - SPLIT_TOP
+            return (f"[0:v]fps={config.OUT_FPS},split=2[g][c];"
+                    f"[c]crop={fw}:{fh}:{fx}:{fy},scale={W}:{SPLIT_TOP}:force_original_aspect_ratio=increase,"
+                    f"crop={W}:{SPLIT_TOP},setsar=1[top];"
+                    f"[g]scale={W}:{bottom}:force_original_aspect_ratio=increase,crop={W}:{bottom},setsar=1[bot];"
+                    f"[top][bot]vstack=inputs=2[v0];")
     if layout == "gameplay" and facecam:
         # The game fills the screen, and the webcam sits in the top corner of it, so a viewer sees
         # the play and the face at the same time.
@@ -243,7 +279,7 @@ def _filter(layout, fg_h, facecam=None):
                     f"[base]scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},setsar=1[b];"
                     f"[fc]crop={fw}:{fh}:{fx}:{fy},scale={PIP_W}:{pip_h},setsar=1[p];"
                     f"[b][p]overlay={W - PIP_W - PIP_MARGIN}:{PIP_MARGIN}[v0];")
-    if layout == "crop" or (layout == "gameplay" and not facecam):
+    if layout == "crop" or (layout in FACECAM_LAYOUTS and not facecam):
         return f"[0:v]fps={config.OUT_FPS},scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},setsar=1[v0];"
     return (f"[0:v]fps={config.OUT_FPS},split=2[a][b];"
             f"[a]scale=270:480:force_original_aspect_ratio=increase,crop=270:480,boxblur=6:2,"
@@ -270,7 +306,7 @@ def render_clip(src: Path, out_dir: Path, name: str, clip: dict, words: list, sr
     start, end = clip["start"], clip["end"]
     layout, fg_h, hook_y, cap_y = geometry(src_w, src_h, clip.get("layout", "blur"))
     face = clip.get("facecam")
-    if layout == "gameplay" and not (face and len(face) == 4):
+    if layout in FACECAM_LAYOUTS and not (face and len(face) == 4):
         layout = "crop"     # no webcam found: the game fills the screen, which is still the right shape
     hook_y = _hook_y(layout, hook_y, face)
     ass = build_ass(words if clip.get("captions", True) else [], start, end, clip.get("hook", ""), clip.get("style", "bounce"),

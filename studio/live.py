@@ -11,7 +11,7 @@ from pathlib import Path
 
 import numpy as np
 
-from . import alerts, auth, brain, config, creators, ctx, facecam, games, jobs, load, media, transcribe, usage
+from . import alerts, auth, brain, config, creators, ctx, facecam, games, jobs, load, media, render, transcribe, usage
 
 # ":username!user@host PRIVMSG #channel :the message"
 _NICK = re.compile(r"(?m)^:([A-Za-z0-9_]{2,25})!")
@@ -607,9 +607,9 @@ class Session:
             return
         finally:
             lst.unlink(missing_ok=True)
-        # Only the gameplay layout uses a webcam, and only once the clip's own file is written: the
+        # Only the facecam layouts use a webcam, and only once the clip's own file is written: the
         # webcam is looked for in it, once per stream.
-        if clip.get("layout") == "gameplay":
+        if clip.get("layout") in render.FACECAM_LAYOUTS:
             if not self.facecam_checked:
                 self.facecam_box = self._find_facecam(src)
                 self.facecam_checked = True
