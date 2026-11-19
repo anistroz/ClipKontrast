@@ -419,10 +419,12 @@ footer.site .fbottom{display:flex;justify-content:space-between;gap:12px;flex-wr
 .annc b{background:#C6F432;color:#1A2100;border-radius:999px;padding:1px 8px;font-size:11px;letter-spacing:.04em;margin-right:8px}
 .annc u{text-decoration:none;color:#C6F432;font-weight:600;margin-left:6px;white-space:nowrap}
 .annc:hover u{text-decoration:underline}
+.annc-short{display:none}
+@media (max-width:640px){.annc-long{display:none}.annc-short{display:inline}}
 </style>
 </head>
 <body>
-<a class="annc" href="/download"><b>NEW</b>The ClipKontrast app is out: clip streams on your own PC, free. Windows, Mac and Linux.<u>Download →</u></a>
+<a class="annc" href="/download"><b>NEW</b>The ClipKontrast app is out<span class="annc-long">: clip streams on your own PC, free. Windows, Mac and Linux.</span><span class="annc-short">.</span><u>Download →</u></a>
 <header class="nav" id="nav"><div class="wrap">
   <a href="/" aria-label="ClipKontrast home"><img src="/brand/logo.svg" alt="ClipKontrast"></a>
   <nav aria-label="Sections">
