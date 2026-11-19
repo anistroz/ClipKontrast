@@ -469,6 +469,8 @@ footer.site .fbottom{display:flex;justify-content:space-between;gap:12px;flex-wr
 .show-cta .btn:not(.primary){background:transparent;color:var(--frame-text);border-color:var(--frame-line)}
 .srcs a b{font-weight:700}.srcs a span{color:var(--dim);font-size:13px}
 .new-src{font-style:normal;background:var(--brand);color:var(--ink);border-radius:99px;padding:1px 8px;font-size:11px;font-weight:700;margin-left:6px}
+.done-big b.soon-num{font-size:32px;color:var(--frame-text)}
+.show-big b.soon-num{font-size:clamp(30px,4vw,44px);color:var(--frame-text)}
 </style>
 </head>
 <body>
@@ -749,9 +751,9 @@ function doneCard(c) {
     <div class="done-body">
       <div class="by">${esc(c.creator_name || "ClipKontrast campaign")}</div>
       <h4>${esc(c.title)}</h4>
-      <div class="done-big"><b>${short(sc.views)}</b><span>views delivered</span></div>
-      <div class="done-stats"><span><b>${num(sc.clips)}</b>clips</span><span><b>${num(sc.clippers)}</b>clippers</span>${sc.budget ? `<span><b>${inr(sc.budget)}</b>budget</span>` : ""}</div>
-      ${split(sc)}
+      ${sc.views ? `<div class="done-big"><b>${short(sc.views)}</b><span>views delivered</span></div>
+      <div class="done-stats">${sc.clips ? `<span><b>${num(sc.clips)}</b>clips</span>` : ""}${sc.clippers ? `<span><b>${num(sc.clippers)}</b>clippers</span>` : ""}${sc.budget ? `<span><b>${inr(sc.budget)}</b>budget</span>` : ""}</div>
+      ${split(sc)}` : `<div class="done-big"><b class="soon-num">Results</b><span>coming soon</span></div>${sc.budget ? `<div class="done-stats"><span><b>${inr(sc.budget)}</b>budget</span></div>` : ""}`}
     </div>
   </button>`;
 }
@@ -764,11 +766,11 @@ function drawShowcase(c) {
       <div class="show-title"><span class="tag done-tag">✓ Campaign completed</span>
         <div class="by">${esc(c.creator_name || "ClipKontrast campaign")}${period ? " · " + period : ""}</div><h2>${esc(c.title)}</h2></div></div>
     <div class="show-body">
-      <div class="show-big"><b>${num(sc.views)}</b><span>views delivered by our clippers</span></div>
+      ${sc.views ? `<div class="show-big"><b>${num(sc.views)}</b><span>views delivered by our clippers</span></div>` : `<div class="show-big"><b class="soon-num">Results coming soon</b><span>The numbers from this campaign are being counted.</span></div>`}
       <div class="show-tiles">
-        <div><b>${short(sc.views)}</b><span>Views</span></div>
-        <div><b>${num(sc.clips)}</b><span>Clips posted</span></div>
-        <div><b>${num(sc.clippers)}</b><span>Clippers</span></div>
+        ${sc.views ? `<div><b>${short(sc.views)}</b><span>Views</span></div>` : ""}
+        ${sc.clips ? `<div><b>${num(sc.clips)}</b><span>Clips posted</span></div>` : ""}
+        ${sc.clippers ? `<div><b>${num(sc.clippers)}</b><span>Clippers</span></div>` : ""}
         ${sc.budget ? `<div><b>${inr(sc.budget)}</b><span>Budget</span></div>` : ""}
       </div>
       ${sc.per_1k ? `<div class="show-cpm">Every <b>₹1</b> of budget brought <b>${num(Math.round(sc.views / sc.budget))}</b> views: about <b>${inr(sc.per_1k, sc.per_1k < 10 ? 2 : 0)}</b> per 1,000 views.</div>` : ""}
