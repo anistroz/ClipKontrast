@@ -49,7 +49,11 @@ if ($LASTEXITCODE -ne 0) { throw "pip could not be installed" }
 $req = Join-Path $Root "requirements.txt"
 $whisper = (Select-String -Path "$Root\studio\whisper.py" -Pattern '^PACKAGE = "(.+)"').Matches[0].Groups[1].Value
 $window = "pywebview==6.2.1"           # ClipKontrast's own window (studio/desktop.py), on Windows only
-& "$Py\python.exe" -m pip install --no-warn-script-location --disable-pip-version-check -r $req $whisper $window
+# A few small libraries come only as source and are built while installing. The embeddable Python can't see pip's
+# separate build folder, so the build tools are installed into it first and used directly.
+& "$Py\python.exe" -m pip install --no-warn-script-location --disable-pip-version-check setuptools wheel
+if ($LASTEXITCODE -ne 0) { throw "the build tools could not be installed" }
+& "$Py\python.exe" -m pip install --no-warn-script-location --disable-pip-version-check --no-build-isolation -r $req $whisper $window
 if ($LASTEXITCODE -ne 0) { throw "the libraries could not be installed" }
 # What these libraries are, so an update knows when it needs the whole installer instead of just the code.
 $depsText = (Get-Content $req -Raw) + "`n" + $whisper + "`n" + $window + "`n" + $PythonVersion
