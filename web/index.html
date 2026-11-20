@@ -386,8 +386,6 @@ img.av{object-fit:cover}
 .composer.compact .tile-o{background:var(--muted)}
 .tile-o:enabled:hover,.tile-o:focus-visible{background:#EDE3DB;color:var(--text)}
 .tile-o[aria-pressed=true]{background:var(--brand-soft);color:var(--brand-ink)}
-.cap-prev{height:54px;border-radius:7px;background:#1E1612;display:flex;align-items:center;justify-content:center;white-space:nowrap;overflow:hidden;font-size:14px;line-height:1;color:#fff;letter-spacing:0;-webkit-text-stroke:1px #000;paint-order:stroke fill}
-.cap-prev b{font-weight:inherit}
 .lay-prev{height:54px;border-radius:7px;background:#1E1612;display:grid;place-items:center}
 .lay-prev .ph{position:relative;width:28px;height:48px;border-radius:4px;overflow:hidden;background:#4A3428}
 .lay-prev .ph::before{content:"";position:absolute;inset:0;background:linear-gradient(160deg,#B4643A,#5E3A2A);filter:blur(3px);opacity:.75}
@@ -608,6 +606,31 @@ a.lnk{color:var(--brand-ink);text-decoration:none;font-weight:600}
 .rep-dlg label.sw{align-items:flex-start}
 .rep-dlg label.sw input{margin-top:2px}
 .rep-dlg .lnk{border:0;background:none;padding:0;color:var(--brand-deep);font:inherit;font-weight:600;text-decoration:underline;cursor:pointer}
+/* ---------- the look of the clips, in the composer */
+.look{border-top:1px solid var(--line);padding:14px 16px 12px;display:flex;flex-direction:column;gap:8px}
+.look-h{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.look-h b{font-size:13px;font-weight:700;color:var(--text)}
+.look-h .sub{font-size:12px}
+.look-h .grow{flex:1}
+.mini-sw{display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:600;color:var(--dim);cursor:pointer}
+.mini-sw input{accent-color:var(--brand-deep);width:15px;height:15px;margin:0}
+.styles{display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:8px}
+.sty{border:2px solid var(--line-2);background:#17110E;border-radius:12px;padding:0;overflow:hidden;cursor:pointer;display:flex;flex-direction:column;text-align:left;font:inherit}
+.sty video{width:100%;aspect-ratio:10/3;object-fit:cover;display:block;background:#17110E}
+.sty span{display:block;background:#fff;color:var(--text);font-size:12px;font-weight:600;padding:6px 9px}
+.sty:hover{border-color:#D4CAC3}
+.sty[aria-pressed=true]{border-color:var(--brand-deep);box-shadow:0 0 0 3px var(--brand-line)}
+.sty[aria-pressed=true] span{background:var(--brand-soft);color:var(--brand-ink)}
+.sty[aria-pressed=true] span::after{content:" ✓";font-weight:800}
+.sty:disabled{opacity:.4;cursor:default}
+.composer.compact .styles{grid-template-columns:repeat(auto-fill,minmax(120px,1fr))}
+.styles{grid-template-columns:repeat(auto-fill,minmax(112px,1fr))}
+.look .tiles3{grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
+.look .tile-o{background:#F7F4F1;padding:5px 5px 7px;gap:5px;font-size:11.5px;line-height:1.25}
+.look .lay-prev{height:44px}
+.look .tile-o[aria-pressed=true]{background:var(--brand-soft);color:var(--brand-ink);box-shadow:inset 0 0 0 2px var(--brand-deep)}
+.look .lay-prev .ph{width:22px;height:38px}
+@media (max-width:760px){.look .tiles3{grid-template-columns:repeat(3,minmax(0,1fr))}}
 /* ---------- dialogs + toasts */
 dialog{border:1px solid var(--line);background:#fff;color:var(--text);border-radius:var(--r-lg);padding:0;max-width:calc(100vw - 32px)}
 dialog::backdrop{background:rgba(14,12,11,.42);animation:fadein .16s ease}
@@ -1465,6 +1488,7 @@ function drawAdd(variant) {
   $("#add").innerHTML = `<form class="composer ${variant === "hero" ? "big" : "compact"}" id="addform">
     <div class="composer-input">${ic("link")}<input id="url" placeholder="Paste a YouTube, Twitch or Kick video link" autocomplete="off" aria-label="Video link"></div>
     <div class="att" id="att"><div><div class="att-in" id="attIn"></div></div></div>
+    ${lookPanel(c)}
     <div class="composer-bar">
       <button type="button" class="chip" data-act="pickfile">${ic("up")}Upload video</button>
       ${c ? "" : picker("o_creator", "File under creator", [{v:"", label:"No creator", icon:"user"}, ...S.creators.map(x => ({v:x.id, label:x.name, img:x.profile?.pic && x.profile.channel === x.channel ? avatarUrl(x) : ""}))], "")}
@@ -1478,10 +1502,9 @@ function drawAdd(variant) {
         ${stepper("o_min", "Shortest", c?.min_len ?? 15, 5, 120, 5, "s")}
         ${stepper("o_maxlen", "Longest", c?.max_len ?? 60, 10, 180, 5, "s")}
       </div></div>
-      <div class="ob"><div class="ot cap-head"><span id="o_style_label">Caption style</span>
-        <label><input type="checkbox" id="o_captions" data-caption-toggle ${c?.captions === false ? "" : "checked"}>Generate captions</label></div>
-        ${choice("o_style", Object.entries(S.status.styles).map(([k, v]) => ({v:k, label:v, prev:capPrev(k)})), c?.style ?? "bounce", c?.captions === false)}</div>
-      <div class="ob"><div class="ot">Layout</div>${choice("o_layout", Object.entries(S.status.layouts).map(([k, v]) => ({v:k, label:LAYOUT_SHORT[k] || v, title:v, prev:`<span class="lay-prev ${esc(k)}"><span class="ph"><i></i></span></span>`})), c?.layout ?? "blur")}</div>
+      <div class="ob"><div class="ot">Your watermark</div>
+        <label class="f">Your @handle on every clip<input id="o_wm" maxlength="40" placeholder="@yourname" value="${esc(c ? (c.watermark || "") : lsGet("ck_wm"))}"></label>
+        <small class="sub">Small and see-through, under the captions. Leave empty for none.</small></div>
       <div class="ob"><div class="ot">Language spoken</div><div class="langs">
         <label class="f">Spoken<select id="o_lang" title="Hindi and other languages use Whisper, installed the first time it's needed">${opts(S.status.languages || {auto:"Auto-detect"}, c?.lang ?? "auto")}</select></label>
         <label class="f">Captions in<select id="o_caplang">${opts(S.status.caption_langs || {auto:"As spoken"}, c?.caption_lang ?? "auto")}</select></label></div>
@@ -1494,16 +1517,34 @@ function drawAdd(variant) {
         <label>To<input id="o_to" type="number" min="0" placeholder="end" aria-label="Up to minute">min</label></div></div>
     </div></div></form>`;
   drawAtt();
+  setTimeout(playLooks, 50);
 }
+const lsGet = k => { try { return localStorage.getItem(k) || ""; } catch { return ""; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch {} };
+/* The look of the clips: caption style (a moving preview of each), layout, auto zoom. In view under the link box,
+   not hidden in Options: most people never opened Options, and never knew there was a choice. */
+function lookPanel(c) {
+  const style = c?.style ?? (lsGet("ck_style") in (S.status.styles || {}) ? lsGet("ck_style") : "bounce");
+  const layout = c?.layout ?? (lsGet("ck_layout") in (S.status.layouts || {}) ? lsGet("ck_layout") : "blur");
+  const caps = c ? c.captions !== false : lsGet("ck_caps") !== "0";
+  const zoom = c ? c.zoom !== false : lsGet("ck_zoom") !== "0";
+  return `<div class="look">
+    <div class="look-h"><b id="o_style_label">Caption style</b><span class="sub">Tap one to choose. You can change it later on any clip.</span><span class="grow"></span>
+      <label class="mini-sw"><input type="checkbox" id="o_captions" data-caption-toggle ${caps ? "checked" : ""}>Captions</label></div>
+    <input type="hidden" id="o_style" value="${esc(style)}">
+    <div class="styles" role="group" aria-labelledby="o_style_label">${Object.entries(S.status.styles).map(([k, v]) =>
+      `<button type="button" class="sty" data-seg="o_style" data-v="${esc(k)}" aria-pressed="${k === style}" data-caption-style${caps ? "" : " disabled"} title="${esc(v)}">
+        <video src="/brand/styles/${esc(k)}.webm" poster="/brand/styles/${esc(k)}.jpg" muted loop playsinline preload="none" aria-hidden="true"></video><span>${esc(v)}</span></button>`).join("")}</div>
+    <div class="look-h" style="margin-top:12px"><b>Layout</b><span class="sub">Gaming stream with a webcam? Pick <b>Facecam top</b>.</span><span class="grow"></span>
+      <label class="mini-sw" title="The picture punches in on the loudest moments: a shout, a laugh, the big reaction"><input type="checkbox" id="o_zoom" ${zoom ? "checked" : ""}>Auto zoom</label></div>
+    ${choice("o_layout", Object.entries(S.status.layouts).map(([k, v]) => ({v:k, label:LAYOUT_SHORT[k] || v, title:v, prev:`<span class="lay-prev ${esc(k)}"><span class="ph"><i></i></span></span>`})), layout)}
+  </div>`;
+}
+// The previews play while the pointer is over them (or the chosen one, always), so a page of them costs nothing.
+function playLooks() { $$(".sty video").forEach(v => { const on = v.parentElement.matches(":hover, [aria-pressed=true]"); if (on && v.paused) { v.play().catch(() => {}); } else if (!on && !v.paused) v.pause(); }); }
+document.addEventListener("pointerover", e => { if (e.target.closest?.(".sty")) playLooks(); });
+document.addEventListener("pointerout", e => { if (e.target.closest?.(".sty")) setTimeout(playLooks, 0); });
 const LAYOUT_SHORT = {blur:"Blurred fill", zoom:"Zoomed in", crop:"Fill screen", gameplay:"Gameplay + facecam", split:"Facecam top, game below"};
-const CAP_LOOK = {bounce:{font:"'Archivo Black'", hl:"#FFFF00", up:true}, hype:{font:"Anton", hl:"#FF3C3C", up:true}, clean:{font:"Poppins", hl:"#6BD7FF", up:false, w:800},
-  box:{font:"Poppins", hl:"#14100E", up:true, w:800, bg:"#FFE500"}, one:{font:"Anton", hl:"#B4F032", up:true, one:true}, neon:{font:"'Archivo Black'", hl:"#D4FA5A", up:true, stroke:"#C83CFF"}};
-function capPrev(k) {
-  const s = CAP_LOOK[k] || {font:"inherit", hl:"#C6F432", up:true};
-  const t = s.up ? ["CLIP", "THIS"] : ["Clip", "this"];
-  const word = `<b style="color:${s.hl}${s.bg ? `;background:${s.bg};padding:2px 4px;border-radius:4px;-webkit-text-stroke:0` : ""}">${t[1]}</b>`;
-  return `<span class="cap-prev" style="font-family:${s.font},sans-serif;font-weight:${s.w || 400}${s.stroke ? `;-webkit-text-stroke:1px ${s.stroke}` : ""}${s.one ? ";font-size:20px" : ""}">${s.one ? "" : t[0] + "&nbsp;"}${word}</span>`;
-}
 function picker(id, aria, items, val) {
   const cur = items.find(x => String(x.v) === String(val)) || items[0];
   const av = x => x.img ? `<img class="av" src="${x.img}" alt="">` : `<span class="av">${x.icon ? ic(x.icon) : esc((x.label || "?").trim().slice(0, 1).toUpperCase())}</span>`;
@@ -1536,7 +1577,9 @@ document.addEventListener("click", e => {
   if (!e.target.closest(".pick") || e.target.closest(".pick-new")) closePicks();
   const sg = e.target.closest("[data-seg]");
   if (sg && !sg.disabled) { $("#" + sg.dataset.seg).value = sg.dataset.v;
-    sg.parentElement.querySelectorAll("[data-seg]").forEach(b => b.setAttribute("aria-pressed", String(b === sg))); return; }
+    sg.parentElement.querySelectorAll("[data-seg]").forEach(b => b.setAttribute("aria-pressed", String(b === sg)));
+    if (sg.classList.contains("sty")) playLooks();
+    return; }
   const st = e.target.closest("[data-step]");
   if (st) { const i = $("#" + st.dataset.step), s = Number(i.step) || 1, d = Number(st.dataset.d);
     const v = Math.min(Number(i.max), Math.max(Number(i.min), (Number(i.value) || 0) + d * s)); i.value = v; }
@@ -1554,7 +1597,9 @@ const targetCreator = () => creatorId() || $("#o_creator")?.value || "";
 function jobOptions() {
   const n = id => { const v = $(id).value; return v === "" ? null : Number(v); };
   const o = {max_clips:n("#o_max"), min_len:n("#o_min"), max_len:n("#o_maxlen"), captions:$("#o_captions").checked, style:$("#o_style").value, layout:$("#o_layout").value, quality:n("#o_quality"),
-             lang:$("#o_lang")?.value || "auto", caption_lang:$("#o_caplang")?.value || "auto"};
+             lang:$("#o_lang")?.value || "auto", caption_lang:$("#o_caplang")?.value || "auto",
+             zoom:$("#o_zoom") ? $("#o_zoom").checked : true, watermark:($("#o_wm")?.value || "").trim()};
+  lsSet("ck_style", o.style); lsSet("ck_layout", o.layout); lsSet("ck_caps", o.captions ? "1" : "0"); lsSet("ck_zoom", o.zoom ? "1" : "0"); lsSet("ck_wm", o.watermark);
   if (n("#o_from") !== null) o.range_start = n("#o_from") * 60;
   if (n("#o_to") !== null) o.range_end = n("#o_to") * 60;
   return o;
@@ -1970,6 +2015,8 @@ function drawCreatorForm() {
       <div class="fields"><label class="sw span"><input type="checkbox" data-k="captions" data-caption-toggle ${c.captions === false ? "" : "checked"}>Generate captions</label>
         <label class="f">Caption style<select data-k="style" data-caption-style ${c.captions === false ? "disabled" : ""}>${opts(S.status.styles, c.style)}</select></label>
         <label class="f">Layout<select data-k="layout">${opts(S.status.layouts, c.layout)}</select></label>
+        <label class="sw span"><input type="checkbox" data-k="zoom" ${c.zoom === false ? "" : "checked"}><span>Auto zoom<small>The picture punches in on the loudest moments: a shout, a laugh, the big reaction.</small></span></label>
+        <label class="f">Your watermark<input data-k="watermark" maxlength="40" value="${esc(c.watermark || "")}" placeholder="@yourname"><small class="sub" style="font-weight:400">Your @handle, small and see-through on every clip. Empty for none.</small></label>
         <label class="f">Language spoken<select data-k="lang">${opts(S.status.languages || {auto:"Auto-detect"}, c.lang || "auto")}</select></label>
         <label class="f">Captions in<select data-k="caption_lang">${opts(S.status.caption_langs || {auto:"As spoken"}, c.caption_lang || "auto")}</select></label>
         <label class="f">Game<input data-k="game" value="${esc(c.game || "")}" placeholder="Read from the title"><small class="sub" style="font-weight:400">Left empty, the game is read from the stream's title. Set it for a streamer whose title says nothing: GTA 6, Fortnite, Elden Ring.</small></label>
@@ -2258,6 +2305,8 @@ function drawClipDlg(full) {
         <label class="sw"><input type="checkbox" data-f="captions" data-caption-toggle ${c.captions === false ? "" : "checked"}>Generate captions</label>
         <div class="two"><label class="f">Caption style<select data-f="style" data-caption-style ${c.captions === false ? "disabled" : ""}>${opts(S.status.styles, c.style)}</select></label>
           <label class="f">Layout<select data-f="layout">${opts(S.status.layouts, c.layout)}</select></label></div>
+        <div class="two"><label class="sw"><input type="checkbox" data-f="zoom" ${c.zoom ? "checked" : ""}>Auto zoom</label>
+          <label class="f">Watermark<input data-f="watermark" maxlength="40" value="${esc(c.watermark || "")}" placeholder="@yourname"></label></div>
         ${c.layout_note ? `<p class="sub" style="margin-top:-4px">${esc(c.layout_note)}</p>` : ""}
         <div class="two"><label class="f">Start (seconds)<input data-f="start" type="number" step="0.5" value="${c.start}"></label>
           <label class="f">End (seconds)<input data-f="end" type="number" step="0.5" value="${c.end}"></label></div>

@@ -28,7 +28,7 @@ LANGUAGES = {"auto": "Auto-detect", "en": "English", "hi": "Hindi / Hinglish", "
              "mr": "Marathi", "gu": "Gujarati", "pa": "Punjabi", "ta": "Tamil", "te": "Telugu", "kn": "Kannada",
              "ml": "Malayalam"}
 # What the captions are written in.
-CAPTION_LANGS = {"auto": "As spoken (Hinglish)", "en": "Always English"}
+CAPTION_LANGS = {"auto": "As spoken (Hinglish)", "deva": "Hindi script (हिंदी)", "en": "Always English"}
 
 PACKAGE = "faster-whisper==1.2.1"
 # "small" is quick on an ordinary computer and good at Hindi; "large-v3-turbo" is better and slower.

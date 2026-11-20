@@ -110,7 +110,15 @@ _lock = threading.RLock()
 on_clip_ready: list = []   # callbacks (job, clip), run once when a clip first finishes
 
 DEFAULTS = {"max_clips": 6, "min_len": 15, "max_len": 60, "style": "bounce", "layout": "blur", "quality": 720,
-            "range_start": None, "range_end": None, "captions": True, "lang": "auto", "caption_lang": "auto"}
+            "range_start": None, "range_end": None, "captions": True, "lang": "auto", "caption_lang": "auto",
+            "zoom": True, "watermark": ""}
+CLIP_LOOK = ("style", "layout", "captions", "zoom", "watermark")     # what each clip carries from its video's settings
+
+
+def clean_watermark(v) -> str:
+    """The clipper's @handle drawn on their clips: plain text, short, nothing that could change the captions."""
+    import re as _re
+    return _re.sub(r"[\x00-\x1f\x7f{}\\]", "", str(v or "")).strip()[:40]
 
 
 LIMITS = {"max_clips": (1, 20), "min_len": (5, 120), "max_len": (10, 180), "quality": (360, 1080)}
@@ -120,10 +128,13 @@ def clean_options(options) -> dict:
     """Only known settings, each inside its allowed range. Raises ValueError on nonsense."""
     out = {}
     for k, v in (options if isinstance(options, dict) else {}).items():
-        if k == "captions":
+        if k in ("captions", "zoom"):
             if not isinstance(v, bool):
-                raise ValueError("Captions must be on or off.")
+                raise ValueError("Captions must be on or off." if k == "captions" else "Auto zoom must be on or off.")
             out[k] = v
+            continue
+        if k == "watermark":
+            out[k] = clean_watermark(v)
             continue
         if k not in DEFAULTS or v in ("", None):
             continue
@@ -294,7 +305,8 @@ def create(source: dict, options: dict, enqueue=True, creator=None, kind="video"
     c = creators.get(creator) if creator else None
     if c:
         d = creators.root(c["id"]) / ("live" if kind == "live" else "videos") / jid
-        base = {**DEFAULTS, **{k: c[k] for k in ("max_clips", "min_len", "max_len", "style", "layout", "captions", "lang", "caption_lang") if k in c}}
+        base = {**DEFAULTS, **{k: c[k] for k in ("max_clips", "min_len", "max_len", "style", "layout", "captions", "lang", "caption_lang",
+                                                 "zoom", "watermark") if k in c}}
     else:
         d, base, creator = config.user_dir(ctx.uid()) / "jobs" / jid, dict(DEFAULTS), None
     opts = {**base, **clean_options(options)}
@@ -352,8 +364,9 @@ def request_render(jid, cid, changes: dict):
     job = _jobs[jid]
     clip = next(c for c in job["clips"] if c["id"] == cid)
     new = dict(clip)
-    if "captions" in changes:
-        new.update(clean_options({"captions": changes["captions"]}))
+    for k in ("captions", "zoom", "watermark"):
+        if k in changes:
+            new.update(clean_options({k: changes[k]}))
     for k in ("start", "end"):
         if k in changes:
             new[k] = round(float(changes[k]), 2)
@@ -448,7 +461,12 @@ def _detect_language(job, audio) -> str:
 
 
 def _caption_words(job, clip, words, off):
-    always_en = (job.get("options") or {}).get("caption_lang") == "en"
+    want = (job.get("options") or {}).get("caption_lang")
+    if want == "deva":
+        # Hindi in its own script, as it was heard: no English fixing and no Roman letters. English words said in
+        # it stay in English letters.
+        return [dict(w, s=w["s"] - off, e=w["e"] - off) for w in words if clip["start"] - 1 <= w["s"] <= clip["end"] + 1]
+    always_en = want == "en"
     span = [round(clip["start"], 2), round(clip["end"], 2), "en3" if always_en else "en2"]      # "en2": captions made always-English
     if clip.get("fixed_for") == span and clip.get("fixed_words") and not any(
             roman.needs_roman(w.get("w", "")) for w in clip["fixed_words"]):
@@ -898,7 +916,8 @@ def _run_job(job):
         for c in found:
             c.update(id=f"clip{len(job['clips']) + 1:02d}", start=round(c["start"] + shift, 2),
                      end=round(c["end"] + shift, 2), style=o["style"], layout=o["layout"],
-                     captions=o.get("captions", True), status="queued", version=0)
+                     captions=o.get("captions", True), zoom=o.get("zoom", True), watermark=o.get("watermark", ""),
+                     status="queued", version=0)
             # Only the facecam layouts use a webcam, so it is only looked for then, and only once: a
             # stream with no webcam is not looked for again on every clip of it.
             job["clips"].append(c)

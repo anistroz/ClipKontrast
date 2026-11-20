@@ -27,10 +27,29 @@ STYLES = {
     # white letters with a purple glow-like outline, the word being said in lime
     "neon": {"label": "Neon", "font": "Archivo Black", "size": 118, "base": "FFFFFF", "active": "5AFAD4",
              "strong": "5AFAD4", "outline": 8, "pop": 110, "upper": True, "per": 3, "outline_colour": "FF3CC8"},
+    # comic-book letters, two words at a time, the word being said in yellow
+    "comic": {"label": "Comic", "font": "Bangers", "size": 156, "base": "FFFFFF", "active": "00E1FF",
+              "strong": "00E1FF", "outline": 9, "pop": 116, "upper": True, "per": 2},
+    # round, chunky letters with a thick outline, the word being said in lime
+    "pop": {"label": "Pop", "font": "Luckiest Guy", "size": 124, "base": "FFFFFF", "active": "32F4C6",
+            "strong": "32F4C6", "outline": 9, "pop": 114, "upper": True, "per": 2},
+    # tall, narrow letters, the word being said in orange-red
+    "tall": {"label": "Tall", "font": "Bebas Neue", "size": 176, "base": "FFFFFF", "active": "3C5AFF",
+             "strong": "00D7FF", "outline": 7, "pop": 110, "upper": True, "per": 3},
+    # each word turns yellow as it is said, and stays yellow: the line fills up like karaoke
+    "karaoke": {"label": "Karaoke", "font": "Poppins ExtraBold", "size": 104, "base": "FFFFFF", "active": "00DCFF",
+                "strong": "00DCFF", "outline": 6, "pop": 104, "upper": False, "per": 4, "keep": True},
+    # calm, for podcasts and talking: grey words turn white as they are said, on a soft dark band
+    "podcast": {"label": "Podcast", "font": "Poppins ExtraBold", "size": 86, "base": "B9B9B9", "active": "FFFFFF",
+                "strong": "FFFFFF", "outline": 0, "pop": 100, "upper": False, "per": 4, "keep": True, "band": "000000"},
 }
 HOOK = {"font": "Poppins ExtraBold", "size": 96, "ink": "14100E", "box": "FFFFFF", "pad_x": 36, "pad_y": 22, "radius": 26,
         "max_w": 900}
-FONT_FILES = {"Poppins ExtraBold": "Poppins-ExtraBold.ttf", "Anton": "Anton-Regular.ttf", "Archivo Black": "ArchivoBlack-Regular.ttf"}
+FONT_FILES = {"Poppins ExtraBold": "Poppins-ExtraBold.ttf", "Anton": "Anton-Regular.ttf", "Archivo Black": "ArchivoBlack-Regular.ttf",
+              "Bangers": "Bangers-Regular.ttf", "Luckiest Guy": "LuckiestGuy-Regular.ttf", "Bebas Neue": "BebasNeue-Regular.ttf",
+              "Mukta ExtraBold": "Mukta-ExtraBold.ttf"}
+DEVA_FONT = "Mukta ExtraBold"      # Hindi in its own script (Devanagari): every style draws it in this font
+MARK = {"font": "Poppins ExtraBold", "size": 46}      # the clipper's own @handle, small and see-through
 CAP_MAX_W = 960   # captions never run wider than this, whatever is said
 
 
@@ -175,7 +194,13 @@ def _hook_events(hook, dur, y):
     return ev
 
 
-def build_ass(words, start, end, hook, style_name, highlight, hook_y, cap_y) -> str:
+def _mark_y(cap_y):
+    """Where the @handle goes: just under the captions, or just above them when that would be too low (the bottom
+    of the screen is covered by the app's buttons and the post's text)."""
+    return cap_y + 128 if cap_y + 128 <= 1660 else cap_y - 140
+
+
+def build_ass(words, start, end, hook, style_name, highlight, hook_y, cap_y, watermark="") -> str:
     st = STYLES.get(style_name, STYLES["bounce"])
     words = [dict(w, s=w["s"] - CAPTION_LEAD, e=w["e"] - CAPTION_LEAD) for w in words]
     strong = {_key(h) for h in highlight if _key(h)}
@@ -190,13 +215,17 @@ ScaledBorderAndShadow: yes
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
 Style: Cap,{st['font']},{st['size']},&H00{st['base']},&H00{st['base']},&H00{st.get('outline_colour', '000000')},&H00000000,0,0,0,0,100,100,0,0,1,{st['outline']},0,5,0,0,0,1
 Style: Hook,{HOOK['font']},{HOOK['size']},&H00{HOOK['ink']},&H00{HOOK['ink']},&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,5,0,0,0,1
+Style: Mark,{MARK['font']},{MARK['size']},&H60FFFFFF,&H60FFFFFF,&H90000000,&H00000000,0,0,0,0,100,100,0,0,1,2,0,5,0,0,0,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
     dur = end - start
     ev = _hook_events(_clean(hook), dur, hook_y)
-    f = _Font.get(st["font"])
+    mark = _clean(watermark)[:40]
+    if mark:
+        ev.append(f"Dialogue: 5,{_ts(0)},{_ts(dur)},Mark,,0,0,0,,{{\\an5\\pos({W // 2},{_mark_y(cap_y)})\\q2}}{mark}")
+    font_main = _Font.get(st["font"])
     inside = [dict(w, w=_clean(w["w"])) for w in words if w["s"] >= start - 0.05 and w["s"] < end]
     inside = sorted((w for w in inside if w["w"]), key=lambda w: w["s"])
     for i, w in enumerate(inside[:-1]):
@@ -211,14 +240,17 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         for x in g:
             t = re.sub(r"[.,;:]+$", "", x["w"])
             texts.append(t.upper() if st["upper"] else t)
-        if not all(roman.drawable(t) for t in texts):
+        deva = any(roman.DEVANAGARI.search(t) for t in texts)
+        f = _Font.get(DEVA_FONT) if deva else font_main
+        fn = f"\\fn{DEVA_FONT}" if deva else ""          # Hindi script: the style's look, in a font that has it
+        if not deva and not all(roman.drawable(t) for t in texts):
             # A script the caption font cannot draw (Japanese, Thai, Chinese...): its words cannot be measured, so
             # they are not placed one by one. The line is drawn whole and centred, in a font the system has for it.
             line = " ".join(texts)
             fs = max(44, min(int(st["size"] * 0.7), int(1500 / max(1, len(line)) * 1.6)))
             ev.append(f"Dialogue: 1,{_ts(g_start)},{_ts(g_end)},Cap,,60,60,0,,{{\\an5\\pos({W // 2},{cap_y:.0f})\\q0\\fs{fs}}}{line}")
             continue
-        size = st["size"]
+        size = int(st["size"] * 0.86) if deva else st["size"]
         gap = f.width("n n", size) - 2 * f.width("n", size) + (2 * st["outline"] + 6) * size / st["size"]   # a space, plus room for both outlines
         total = sum(f.width(t, size) for t in texts) + gap * (len(texts) - 1)
         if total > CAP_MAX_W:                                  # a long phrase: shrink it to fit, never run off the frame
@@ -228,10 +260,14 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         cy = cap_y - f.cap_shift(size)
         x = (W - total) / 2
         p = st["pop"]
+        if st.get("band"):                                     # a soft dark band behind the whole line
+            bw, bh = total + 0.7 * size, f.em(size) * 1.32
+            path = _rounded((W - bw) / 2, cap_y - bh / 2, (W + bw) / 2, cap_y + bh / 2, min(28, bh / 3))
+            ev.append(f"Dialogue: 0,{_ts(g_start)},{_ts(g_end)},Cap,,0,0,0,,{{\\an7\\pos(0,0)\\c&H{st['band']}&\\1a&H5A&\\bord0\\p1}}{path}{{\\p0}}")
         for i, (w, t) in enumerate(zip(g, texts)):
             wd = f.width(t, size)
             p = max(104, min(st["pop"], 100 + int(2200 / max(wd, 1))))   # long words grow less, so they never touch their neighbours
-            pos = f"\\an5\\pos({x + wd / 2:.0f},{cy:.0f})\\fs{size}"
+            pos = f"\\an5\\pos({x + wd / 2:.0f},{cy:.0f})\\fs{size}{fn}"
             x += wd + gap
             a = max(g_start, w["s"] - start)
             b = (g[i + 1]["s"] - start) if i + 1 < len(g) else g_end
@@ -248,7 +284,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                 ev.append(f"Dialogue: 2,{_ts(a)},{_ts(b)},Cap,,0,0,0,,{{{pos}\\c&H{st['active']}&\\fscx94\\fscy94"
                           f"\\t(0,90,\\fscx{p}\\fscy{p})\\t(90,200,\\fscx{p - 5}\\fscy{p - 5})}}{t}")
             if g_end - b >= 0.02:                                                     # said
-                ev.append(f"Dialogue: 1,{_ts(b)},{_ts(g_end)},Cap,,0,0,0,,{{{pos}\\c&H{base}&\\fscx{p - 5}\\fscy{p - 5}"
+                done = st["active"] if st.get("keep") and not st.get("box") else base   # karaoke: it stays lit
+                ev.append(f"Dialogue: 1,{_ts(b)},{_ts(g_end)},Cap,,0,0,0,,{{{pos}\\c&H{done}&\\fscx{p - 5}\\fscy{p - 5}"
                           f"\\t(0,90,\\fscx100\\fscy100)}}{t}")
     return head + "\n".join(ev) + "\n"
 
@@ -257,7 +294,64 @@ PIP_W = 380            # how wide the facecam is in the 1080-wide frame
 PIP_MARGIN = 26
 
 
-def _filter(layout, fg_h, facecam=None):
+ZOOM = 0.12           # how far a punch-in goes (12% closer)
+ZOOM_MAX = 4          # at most this many in one clip
+
+
+def zoom_moments(src, start, end) -> list:
+    """The loudest moments of a clip (a shout, a laugh, the big reaction), in seconds from its start: where the
+    picture punches in. At most one every few seconds, none in the first moment or the last."""
+    import numpy as np
+    dur = end - start
+    if dur < 6:
+        return []
+    try:
+        p = subprocess.run(["ffmpeg", "-v", "error", "-ss", f"{start:.2f}", "-t", f"{dur:.2f}", "-i", str(src), "-vn",
+                            "-ac", "1", "-ar", "8000", "-f", "s16le", "-"], capture_output=True, timeout=90,
+                           creationflags=NO_WINDOW)
+    except (OSError, subprocess.TimeoutExpired):
+        return []
+    a = np.frombuffer(p.stdout[: len(p.stdout) // 2 * 2], np.int16).astype(np.float32)
+    step = 400                                          # 50 ms
+    n = len(a) // step
+    if n < 40:
+        return []
+    rms = np.sqrt((a[: n * step].reshape(n, step) ** 2).mean(axis=1))
+    rms = np.convolve(rms, np.ones(5) / 5, mode="same")  # a quarter of a second, so one click is not a moment
+    floor = float(np.median(rms))
+    if floor <= 1:
+        return []                                       # silence: nothing to react to
+    thr = max(floor * 1.8, float(np.percentile(rms, 90)))
+    want = min(ZOOM_MAX, max(1, int(dur // 12)))
+    picked = []
+    for i in np.argsort(rms)[::-1]:
+        t = i * step / 8000
+        if rms[i] < thr or len(picked) >= want:
+            break
+        if t < 0.8 or t > dur - 2.0 or any(abs(t - q) < 6 for q in picked):
+            continue
+        if rms[i] < rms[max(0, i - 10): i + 11].max():   # not the top of its own half second
+            continue
+        picked.append(round(float(t), 2))
+    return sorted(picked)
+
+
+def zoom_expr(moments) -> str:
+    """zoompan's zoom for these moments: a quick push in, held, then eased back out."""
+    if not moments:
+        return ""
+    parts = [f"{ZOOM}*clip((it-{t - 0.15:.2f})/0.18\\,0\\,1)*clip(({t + 1.6:.2f}-it)/0.4\\,0\\,1)" for t in moments]
+    return "1+" + "+".join(parts)
+
+
+def _zp(z, w, h):
+    """Punch in on the middle of a picture that is w x h, following zoom_expr."""
+    if not z:
+        return ""
+    return f",zoompan=z='{z}':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s={w}x{h}:fps={config.OUT_FPS}"
+
+
+def _filter(layout, fg_h, facecam=None, z=""):
     if layout == "split" and facecam:
         # The webcam is cut out and fills the top of the frame; the game, cropped around its middle, fills the rest.
         # The webcam is cut to the shape of its band first, so the face is never stretched.
@@ -266,7 +360,7 @@ def _filter(layout, fg_h, facecam=None):
             bottom = H - SPLIT_TOP
             return (f"[0:v]fps={config.OUT_FPS},split=2[g][c];"
                     f"[c]crop={fw}:{fh}:{fx}:{fy},scale={W}:{SPLIT_TOP}:force_original_aspect_ratio=increase,"
-                    f"crop={W}:{SPLIT_TOP},setsar=1[top];"
+                    f"crop={W}:{SPLIT_TOP}{_zp(z, W, SPLIT_TOP)},setsar=1[top];"
                     f"[g]scale={W}:{bottom}:force_original_aspect_ratio=increase,crop={W}:{bottom},setsar=1[bot];"
                     f"[top][bot]vstack=inputs=2[v0];")
     if layout == "gameplay" and facecam:
@@ -276,16 +370,16 @@ def _filter(layout, fg_h, facecam=None):
         if fw > 8 and fh > 8:
             pip_h = max(2, int(round(PIP_W * fh / fw)))
             return (f"[0:v]fps={config.OUT_FPS},split=2[base][fc];"
-                    f"[base]scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},setsar=1[b];"
+                    f"[base]scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H}{_zp(z, W, H)},setsar=1[b];"
                     f"[fc]crop={fw}:{fh}:{fx}:{fy},scale={PIP_W}:{pip_h},setsar=1[p];"
                     f"[b][p]overlay={W - PIP_W - PIP_MARGIN}:{PIP_MARGIN}[v0];")
     if layout == "crop" or (layout in FACECAM_LAYOUTS and not facecam):
-        return f"[0:v]fps={config.OUT_FPS},scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},setsar=1[v0];"
+        return f"[0:v]fps={config.OUT_FPS},scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H}{_zp(z, W, H)},setsar=1[v0];"
     return (f"[0:v]fps={config.OUT_FPS},split=2[a][b];"
             f"[a]scale=270:480:force_original_aspect_ratio=increase,crop=270:480,boxblur=6:2,"
             f"scale={W}:{H},eq=brightness=-0.14:saturation=1.15[bg];"
             f"[b]scale={W}:{fg_h}:force_original_aspect_ratio=increase,crop={W}:{fg_h}[fg];"
-            f"[bg][fg]overlay=0:(H-h)/2,setsar=1[v0];")
+            f"[bg][fg]overlay=0:(H-h)/2{_zp(z, W, H)},setsar=1[v0];")
 
 
 def _hook_y(layout, hook_y, facecam=None):
@@ -324,24 +418,31 @@ def render_clip(src: Path, out_dir: Path, name: str, clip: dict, words: list, sr
     layout, fg_h, hook_y, cap_y = geometry(src_w, src_h, want)
     hook_y = _hook_y(layout, hook_y, face)
     ass = build_ass(words if clip.get("captions", True) else [], start, end, clip.get("hook", ""), clip.get("style", "bounce"),
-                    clip.get("highlight_words", []), hook_y, cap_y)
+                    clip.get("highlight_words", []), hook_y, cap_y, watermark=clip.get("watermark", ""))
+    z = zoom_expr(zoom_moments(src, start, end)) if clip.get("zoom") else ""
     # The clip is made in a short work folder and moved into place afterwards. The caption step of ffmpeg cannot
     # open files whose full path is longer than 260 characters on Windows, which a data folder deep inside other
     # folders easily reaches. Inside the work folder every name is short and relative (a drive colon would also
     # break the filter syntax).
     work = Path(tempfile.mkdtemp(prefix="pk"))
     try:
-        return _render_in(work, src, out_dir, name, start, end, layout, fg_h, ass, face=face)
+        try:
+            return _render_in(work, src, out_dir, name, start, end, layout, fg_h, ass, face=face, z=z)
+        except RuntimeError:
+            if not z:
+                raise
+            # an older ffmpeg that can't zoom this way: the clip is made without the punch-ins, never not at all
+            return _render_in(work, src, out_dir, name, start, end, layout, fg_h, ass, face=face)
     finally:
         shutil.rmtree(work, ignore_errors=True)
 
 
-def _render_in(work: Path, src: Path, out_dir: Path, name: str, start, end, layout, fg_h, ass: str, face=None) -> dict:
+def _render_in(work: Path, src: Path, out_dir: Path, name: str, start, end, layout, fg_h, ass: str, face=None, z="") -> dict:
     (work / f"{name}.ass").write_text(ass, encoding="utf-8")
-    (work / "f").mkdir()
+    (work / "f").mkdir(exist_ok=True)
     for f in config.FONTS_DIR.glob("*.ttf"):
         shutil.copyfile(f, work / "f" / f.name)
-    fc = _filter(layout, fg_h, face) + f"[v0]ass={name}.ass:fontsdir=f[v]"
+    fc = _filter(layout, fg_h, face, z) + f"[v0]ass={name}.ass:fontsdir=f[v]"
     base = ["ffmpeg", "-y", "-v", "error", "-ss", f"{start:.2f}", "-t", f"{end - start:.2f}", "-i", str(src),
             "-filter_complex", fc, "-map", "[v]", "-map", "0:a:0", "-af", "loudnorm=I=-14:TP=-1.5:LRA=11",
             "-c:a", "aac", "-b:a", "160k", "-ar", "48000", "-movflags", "+faststart", "-pix_fmt"]
