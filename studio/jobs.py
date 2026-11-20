@@ -113,7 +113,9 @@ on_clip_ready: list = []   # callbacks (job, clip), run once when a clip first f
 
 DEFAULTS = {"max_clips": 6, "min_len": 15, "max_len": 60, "style": "bounce", "layout": "blur", "quality": 720,
             "range_start": None, "range_end": None, "captions": True, "lang": "auto", "caption_lang": "auto",
-            "zoom": True, "watermark": "", "tighten": True}
+            "zoom": True, "watermark": "", "tighten": True, "cam_hint": "auto"}
+CAM_PRESETS = {"tl": [0.0, 0.0, 0.28, 0.28], "tr": [0.72, 0.0, 0.28, 0.28], "bl": [0.0, 0.72, 0.28, 0.28],
+               "br": [0.72, 0.72, 0.28, 0.28], "bc": [0.36, 0.72, 0.28, 0.28]}
 CLIP_LOOK = ("style", "layout", "captions", "zoom", "watermark", "tighten")     # what each clip carries from its video's settings
 
 
@@ -137,6 +139,9 @@ def clean_options(options) -> dict:
             continue
         if k == "watermark":
             out[k] = clean_watermark(v)
+            continue
+        if k == "cam_hint":
+            out[k] = v if v in CAM_PRESETS or v == "none" else "auto"
             continue
         if k not in DEFAULTS or v in ("", None):
             continue
@@ -308,7 +313,7 @@ def create(source: dict, options: dict, enqueue=True, creator=None, kind="video"
     if c:
         d = creators.root(c["id"]) / ("live" if kind == "live" else "videos") / jid
         base = {**DEFAULTS, **{k: c[k] for k in ("max_clips", "min_len", "max_len", "style", "layout", "captions", "lang", "caption_lang",
-                                                 "zoom", "watermark", "tighten") if k in c}}
+                                                 "zoom", "watermark", "tighten", "cam_hint") if k in c}}
     else:
         d, base, creator = config.user_dir(ctx.uid()) / "jobs" / jid, dict(DEFAULTS), None
     opts = {**base, **clean_options(options)}
@@ -746,12 +751,20 @@ def _remembered(job):
     return box if isinstance(box, list) and len(box) == 4 else None
 
 
-def _remember(job, frac_box, n: int):
+def _remembered_info(job) -> dict:
+    key = _cam_key(job)
+    return (_cams().get(key) if key else None) or {}
+
+
+def _remember(job, frac_box, n: int, manual=False):
     key = _cam_key(job)
     if not key:
         return
     cams = _cams()
-    cams[key] = {"box": [round(float(v), 4) for v in frac_box], "seen": int(n), "at": time.time()}
+    if frac_box is None:
+        cams[key] = {"box": None, "none": True, "manual": True, "at": time.time()}      # "this streamer has no webcam"
+    else:
+        cams[key] = {"box": [round(float(v), 4) for v in frac_box], "seen": int(n), "at": time.time(), "manual": bool(manual)}
     if len(cams) > 500:                                  # never grows without limit
         for k in sorted(cams, key=lambda k: cams[k].get("at", 0))[:len(cams) - 500]:
             cams.pop(k, None)
@@ -791,6 +804,8 @@ def _learn(job, frac_box):
     del seen[:-30]
     agree = [b for b in seen if _iou(b, frac_box) >= CAM_AGREE]
     mem = _remembered(job)
+    if _remembered_info(job).get("manual"):
+        return                                            # a place a person set is kept
     if len(agree) >= 2 and (not mem or _iou(mem, frac_box) < CAM_AGREE):
         med = [float(np.median([b[i] for b in agree])) for i in range(4)]
         _remember(job, med, len(agree))
@@ -801,13 +816,32 @@ def _use_camera(job, clip):
     where this streamer's webcam is remembered to be (or no box at all) gives way to the remembered place."""
     if clip.get("layout") not in render.FACECAM_LAYOUTS:
         return
+    info = _remembered_info(job)
+    if info.get("manual") and info.get("none"):           # set by hand: this streamer shows no webcam
+        clip.pop("facecam", None)
+        clip.update(camera="none", camera_from="manual")
+        return
     cam = _camera(job, clip)
     clip.pop("facecam", None)
     w, h = _src_size(job, clip)
+    hint = (job.get("options") or {}).get("cam_hint") or "auto"
+    if hint == "none":
+        clip.update(camera="none", camera_from="chosen")
+        return
+    if hint in CAM_PRESETS and w and h and cam != "full" and not info.get("manual"):
+        # the corner was chosen: a box found anywhere else is not the webcam, and none found means the usual size there
+        px = _px(CAM_PRESETS[hint], w, h)
+        if not (isinstance(cam, list) and _iou(cam, px) > 0.05):
+            cam = px
+            clip["camera_from"] = "chosen"
     mem = _remembered(job)
-    if isinstance(cam, list) and w and h:
+    if isinstance(cam, list) and w and h and clip.get("camera_from") != "chosen":
         _learn(job, _frac(cam, w, h))
         mem = _remembered(job)
+    if info.get("manual") and mem and w and h and cam != "full":
+        cam = _px(mem, w, h)                              # set by hand: always this place
+        clip["camera_from"] = "manual"
+        mem = None
     if mem and w and h and cam != "full":
         mem_px = _px(mem, w, h)
         if not (isinstance(cam, list) and _iou(cam, mem_px) >= CAM_AGREE):
@@ -849,7 +883,8 @@ def _check_cameras(job, words):
     a clip whose facecam shows the game is made again with the streamer's remembered webcam, or, when there is
     none, with the whole picture. Nothing changes when the AI can't look."""
     fixed = 0
-    for c in [c for c in job["clips"] if c.get("status") == "done" and c.get("layout_used") in render.FACECAM_LAYOUTS][:CHECK_CLIPS]:
+    for c in [c for c in job["clips"] if c.get("status") == "done" and c.get("layout_used") in render.FACECAM_LAYOUTS
+              and c.get("camera_from") != "manual"][:CHECK_CLIPS]:
         verdict = brain.is_streamer_cam(_cam_band(job, c))
         if verdict is not False:
             continue
@@ -866,11 +901,63 @@ def _check_cameras(job, words):
     return fixed
 
 
+def set_facecam(jid, frac_box, cid=None):
+    """A webcam place set by hand on a frame (fractions of the picture [x, y, w, h]), or None for "no webcam":
+    remembered for this streamer, and the clip (or, with no cid, every clip of the video) made again with it."""
+    job = _jobs[jid]
+    if frac_box is not None:
+        if not (isinstance(frac_box, (list, tuple)) and len(frac_box) == 4):
+            raise ValueError("Draw the box around the webcam.")
+        x, y, w_, h_ = (float(v) for v in frac_box)
+        if not all(math.isfinite(v) for v in (x, y, w_, h_)) or w_ < 0.04 or h_ < 0.04 or x < -0.01 or y < -0.01 \
+                or x + w_ > 1.01 or y + h_ > 1.01:
+            raise ValueError("Draw the box around the webcam, inside the picture.")
+        frac_box = [max(0.0, x), max(0.0, y), min(w_, 1.0 - max(0.0, x)), min(h_, 1.0 - max(0.0, y))]
+    _remember(job, frac_box, 99, manual=True)
+    targets = [c for c in job["clips"] if (cid is None or c["id"] == cid) and c.get("status") in ("done", "error", "queued")]
+    for c in targets:
+        w, h = _src_size(job, c)
+        if c.get("layout") not in render.FACECAM_LAYOUTS:
+            c["layout"] = "split"                         # a webcam was drawn: the clip shows it on top
+        if frac_box is None or not (w and h):
+            c.pop("facecam", None)
+            c.update(camera="none", camera_from="manual")
+        else:
+            c.update(facecam=_px(frac_box, w, h), camera="box", camera_from="manual")
+        waiting = c.get("status") == "queued"           # already waiting to be made: it will use the new box
+        c["status"] = "queued"
+        save(job)
+        if not waiting:
+            _q.put(("clip", jid, c["id"]))
+    return len(targets)
+
+
+def facecam_frame(jid, cid) -> tuple:
+    """A frame of the picture a clip is cut from (JPEG), with the webcam box in use as fractions, to draw on."""
+    job = _jobs[jid]
+    clip = next(c for c in job["clips"] if c["id"] == cid)
+    path, span = clip.get("src"), None
+    if not path:
+        path, span = job.get("source_path"), (clip["start"], clip["end"])
+    if not path or not Path(path).is_file():
+        raise ValueError("The video this clip came from isn't on this computer any more.")
+    jpeg = facecam._frame_jpeg(path, width=960, span=span)
+    if not jpeg:
+        raise ValueError("Couldn't read a picture from this clip's video.")
+    w, h = _src_size(job, clip)
+    box = clip.get("facecam")
+    mem = _remembered(job)
+    frac = _frac(box, w, h) if isinstance(box, list) and w and h else mem
+    return jpeg, frac
+
+
 def _agree_cameras(job, words):
     """After a video's clips are made: the place most clips found the webcam is the webcam. Clips whose own look
     disagreed are made again with it, so one cutscene can't leave a game character in the facecam."""
     boxed = [c for c in job["clips"] if c.get("status") == "done" and c.get("layout") in render.FACECAM_LAYOUTS]
-    found = [(c, c["facecam"]) for c in boxed if isinstance(c.get("facecam"), list) and c.get("camera_from") != "remembered"]
+    if _remembered_info(job).get("manual"):
+        return 0
+    found = [(c, c["facecam"]) for c in boxed if isinstance(c.get("facecam"), list) and c.get("camera_from") not in ("remembered", "chosen")]
     if len(found) < 2:
         return 0
     best = max(found, key=lambda cf: sum(1 for _c, b in found if _iou(b, cf[1]) >= CAM_AGREE))
@@ -1008,6 +1095,7 @@ def _run_job(job):
     hi = min(len(audio), int((o["range_end"] - sec0) * 16000)) if o["range_end"] else len(audio)
     span = (hi - lo) / 16000
     db = media.loudness_per_second(audio[lo:hi])
+    voice = media.voice_per_second(audio[lo:hi])         # a raised voice: one of the signs something happened
 
     vlock, vstate = threading.Lock(), {}
     mark("audio")
@@ -1203,7 +1291,8 @@ def _run_job(job):
         quota = max(1, math.ceil(left / (len(blocks) - bi)))
         s0 = int((a - lo) / 16000)
         found, ai = brain.find_clips(bw, db[s0: s0 + int((b - a) / 16000) + 1], (b - a) / 16000, job["title"],
-                                     job["uploader"], quota, int(o["min_len"]), int(o["max_len"]), notes.append, game=game)
+                                     job["uploader"], quota, int(o["min_len"]), int(o["max_len"]), notes.append, game=game,
+                                     voice=voice[s0: s0 + int((b - a) / 16000) + 1])
         tokens += ai.get("tokens", 0)
         model = ai.get("model") or model
         if ai.get("note"):
@@ -1218,7 +1307,7 @@ def _run_job(job):
         base = lo / 16000
         rel = [dict(w, s=round(w["s"] - base, 2), e=round(w["e"] - base, 2)) for w in words]
         found, ai = brain.find_clips(rel, db, span, job["title"], job["uploader"], int(o["max_clips"]),
-                                     int(o["min_len"]), int(o["max_len"]), notes.append, game=game)
+                                     int(o["min_len"]), int(o["max_len"]), notes.append, game=game, voice=voice)
         tokens += ai.get("tokens", 0)
         model = ai.get("model") or model
         if ai.get("note"):
@@ -1232,7 +1321,7 @@ def _run_job(job):
         base = lo / 16000
         rel = [dict(w, s=round(w["s"] - base, 2), e=round(w["e"] - base, 2)) for w in words]
         n = min(int(o["max_clips"]), 3, max(1, int(span // max(15, int(o["max_len"])))))
-        net = brain.liveliest_clips(rel, db, span, n, int(o["min_len"]), int(o["max_len"]))
+        net = brain.liveliest_clips(rel, db, span, n, int(o["min_len"]), int(o["max_len"]), voice)
         if net:
             notes.append("Nothing stood out to the AI, so the liveliest parts were clipped.")
             job["safety_net"] = True
@@ -1261,7 +1350,8 @@ def _run_job(job):
     clips = job["clips"]
     job["ai"] = {"model": model, "tokens": tokens, "log": notes[-5:],
                  "note": "Nothing stood out to the AI, so the liveliest parts were clipped." if job.get("safety_net") and model
-                 else "The AI was unavailable, so clips were picked by loudness only." if clips and not model else ""}
+                 else "Your AI key wasn't answering, so the free AI on this computer picked the clips." if str(model or "").startswith("ollama:")
+                 else "The AI was unavailable, so clips were picked from the sound and the words." if clips and not model else ""}
     stage = "Done" if clips else "Done, but nothing clip-worthy was found"
     _set(job, status="done", stage=stage, progress=1.0, took=round(time.time() - t0))
     try:
@@ -1295,8 +1385,12 @@ def _worker(quick_only=False):
             else:
                 clip = next(c for c in job["clips"] if c["id"] == cid)
                 words = []
-                if clip.get("captions", True):
-                    words = json.loads((Path(job["dir"]) / "words.json").read_text(encoding="utf-8"))
+                wf = Path(job["dir"]) / "words.json"
+                if clip.get("captions", True) and wf.is_file():   # no transcript kept: the clip is made without captions
+                    try:
+                        words = json.loads(wf.read_text(encoding="utf-8"))
+                    except ValueError:
+                        words = []
                 if clip.get("layout") in render.FACECAM_LAYOUTS and not clip.get("camera"):
                     _use_camera(job, clip)    # re-made with a facecam layout: how the camera shows in this clip
                 render_one(job, clip, words)
@@ -1308,6 +1402,11 @@ def _worker(quick_only=False):
                         c.update(status="error", error="The video stopped before this clip was made.")
                 _set(job, status="error", error=safe.friendly(e), stage="Stopped")
                 creators.log(job["creator"], f"Video failed: {safe.friendly(e)[:200]}")
+            else:                            # one clip made again: it says what went wrong instead of waiting forever
+                for c in job["clips"]:
+                    if c["id"] == cid and c.get("status") in ("queued", "rendering"):
+                        c.update(status="error", error=safe.friendly(e, 300))
+                save(job)
         finally:
             ctx._uid.reset(token)
             if kind == "job":

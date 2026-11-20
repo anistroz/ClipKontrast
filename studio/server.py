@@ -21,7 +21,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Redirect
 
 from . import admin as admins
 from . import account, load
-from . import (accounts, ai, alerts, auth, config, creators, ctx, db, earn, jobs, live, media, posting,
+from . import (accounts, ai, alerts, auth, brain, config, creators, ctx, db, earn, jobs, live, media, posting,
                profiles, render, safe, transcribe, usage, whisper)
 
 from . import tools as _tools  # noqa: E402
@@ -1055,6 +1055,95 @@ def rerender(jid: str, cid: str, body: dict = Body(...)):
     except (ValueError, TypeError) as e:
         raise HTTPException(400, str(e))
     return jobs.public(job)
+
+
+_PULL = {"status": "", "percent": 0, "error": "", "busy": False}
+PULL_MODEL = "llama3.2:3b"
+
+
+@app.get("/api/local-ai")
+def local_ai(request: Request):
+    """The free AI on this computer (Ollama): is it running, which models it has, and a model download's progress."""
+    _me(request)
+    names = brain.local_models(fresh=True)
+    return {"running": bool(names) or _ollama_up(), "models": names, "model": brain._LOCAL["model"], "pull": dict(_PULL),
+            "suggested": PULL_MODEL}
+
+
+def _ollama_up() -> bool:
+    import httpx
+    try:
+        return httpx.get(brain.OLLAMA + "/api/version", timeout=1.5).status_code == 200
+    except Exception:  # noqa: BLE001
+        return False
+
+
+@app.post("/api/local-ai/pull")
+def local_ai_pull(request: Request):
+    """Download the free model into Ollama (about 2 GB, once), in the background; its progress shows in Settings."""
+    me_ = _me(request)
+    if config.ACCOUNTS and not me_.is_admin:
+        raise HTTPException(403, "Only the owner can set this up.")
+    if _PULL["busy"]:
+        return dict(_PULL)
+    if not _ollama_up():
+        raise HTTPException(400, "Ollama isn't running. Install it from ollama.com, then try again.")
+
+    def run():
+        import httpx
+        _PULL.update(busy=True, status="Starting", percent=0, error="")
+        try:
+            with httpx.stream("POST", brain.OLLAMA + "/api/pull", json={"model": PULL_MODEL, "stream": True}, timeout=None) as r:
+                for line in r.iter_lines():
+                    try:
+                        d = json.loads(line)
+                    except ValueError:
+                        continue
+                    if d.get("error"):
+                        raise RuntimeError(d["error"])
+                    if d.get("total"):
+                        _PULL["percent"] = int(100 * (d.get("completed") or 0) / d["total"])
+                    _PULL["status"] = str(d.get("status") or "")[:80]
+            _PULL.update(status="Ready", percent=100)
+            brain.local_models(fresh=True)
+        except Exception as e:  # noqa: BLE001
+            _PULL.update(error=str(e)[:200], status="")
+        finally:
+            _PULL["busy"] = False
+    threading.Thread(target=run, daemon=True).start()
+    return dict(_PULL, busy=True)
+
+
+@app.get("/api/jobs/{jid}/clips/{cid}/frame")
+def clip_frame(jid: str, cid: str):
+    """A frame of the video a clip is cut from, to draw the webcam's place on."""
+    job = _job_or_404(jid)
+    if not any(c["id"] == cid for c in job["clips"]):
+        raise HTTPException(404, "No such clip")
+    try:
+        jpeg, frac = jobs.facecam_frame(jid, cid)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    import base64
+    return {"image": "data:image/jpeg;base64," + base64.b64encode(jpeg).decode(), "box": frac}
+
+
+@app.post("/api/jobs/{jid}/facecam")
+def set_job_facecam(jid: str, body: dict = Body(...)):
+    """The webcam's place, drawn by hand: for one clip or all of this video's clips, and remembered for the streamer."""
+    job = _job_or_404(jid)
+    if job["status"] in ("queued", "running", "live"):
+        raise HTTPException(409, "Wait until the clips are made, then set the webcam.")
+    _throttle("camset:" + ctx.uid(), 30, 600, "That's a lot of changes in a short time. Wait a few minutes.")
+    cid = body.get("clip") or None
+    if cid is not None and not any(c["id"] == cid for c in job["clips"]):
+        raise HTTPException(404, "No such clip")
+    box = body.get("box")
+    try:
+        n = jobs.set_facecam(jid, None if box in (None, "none") else box, cid)
+    except (ValueError, TypeError) as e:
+        raise HTTPException(400, str(e))
+    return {"remade": n, "job": jobs.public(job)}
 
 
 @app.delete("/api/jobs/{jid}")

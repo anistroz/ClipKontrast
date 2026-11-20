@@ -426,6 +426,23 @@ def load_audio(wav: Path) -> np.ndarray:
     return data
 
 
+def voice_per_second(audio: np.ndarray) -> np.ndarray:
+    """For each second, how much of the sound is in the 2-4 kHz band: a raised voice (shouting, screaming, yelling)
+    puts its energy there, while game music and explosions mostly sit lower. 0 to 1."""
+    n = len(audio) // 16000
+    if n == 0:
+        return np.zeros(1, dtype=np.float32)
+    out = np.empty(n, dtype=np.float32)
+    step = 120                                           # two minutes at a time, so memory stays small
+    for i in range(0, n, step):
+        j = min(n, i + step)
+        x = audio[i * 16000: j * 16000].reshape(j - i, 16000).astype(np.float32) / 32768.0
+        p = np.abs(np.fft.rfft(x, axis=1)) ** 2           # one bin per Hz
+        total = p[:, 100:8000].sum(axis=1) + 1e-9
+        out[i:j] = p[:, 2000:4000].sum(axis=1) / total
+    return out
+
+
 def loudness_per_second(audio: np.ndarray) -> np.ndarray:
     """RMS level in dB for each second of audio."""
     n = len(audio) // 16000

@@ -627,6 +627,28 @@ a.lnk{color:var(--brand-ink);text-decoration:none;font-weight:600}
 .prerange svg{width:16px;height:16px;flex:none}
 .prerange span{flex:1}
 .prerange .rm{border:0;background:transparent;cursor:pointer;color:inherit;padding:2px;display:grid;place-items:center}
+.la-state{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.la-steps{margin:0 0 10px;padding-left:20px;display:flex;flex-direction:column;gap:8px;font-size:14px}
+.la-steps .btn{margin-left:6px}
+/* ---------- the webcam: chosen in the composer, fixed on a clip */
+.camrow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:6px}
+.camrow>b{font-size:13px;font-weight:700}
+.camrow .sub{font-size:12px}
+.seg-mini{display:flex;flex-wrap:wrap;gap:4px}
+.seg-mini button{border:1px solid var(--line-2);background:#fff;border-radius:999px;padding:4px 10px;font:inherit;font-size:12px;font-weight:600;color:var(--dim);cursor:pointer}
+.seg-mini button[aria-pressed=true]{background:var(--brand-soft);border-color:var(--brand-deep);color:var(--brand-ink)}
+.camfix-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.camfix-row .sub{font-size:12px}
+.dlg.camfix{width:880px}
+.cf-stage{position:relative;width:100%;border-radius:12px;overflow:hidden;background:#000;user-select:none;touch-action:none}
+.cf-stage img{display:block;width:100%;height:auto;pointer-events:none}
+.cf-box{position:absolute;border:3px solid var(--brand);box-shadow:0 0 0 9999px rgba(0,0,0,.45);cursor:move;touch-action:none}
+.cf-box span{position:absolute;left:6px;top:4px;font-size:12px;font-weight:800;color:var(--brand-ink);background:var(--brand);border-radius:6px;padding:1px 6px;pointer-events:none}
+.cf-box i{position:absolute;width:16px;height:16px;background:#fff;border:3px solid var(--brand);border-radius:4px}
+.cf-box i[data-h=tl]{left:-10px;top:-10px;cursor:nwse-resize}.cf-box i[data-h=br]{right:-10px;bottom:-10px;cursor:nwse-resize}
+.cf-box i[data-h=tr]{right:-10px;top:-10px;cursor:nesw-resize}.cf-box i[data-h=bl]{left:-10px;bottom:-10px;cursor:nesw-resize}
+.cf-foot{flex-wrap:wrap}
+.cf-foot .grow{flex:1}
 /* ---------- clip a video, or a live stream */
 .modes{display:flex;gap:4px;padding:6px 6px 0;border-bottom:1px solid var(--line)}
 .modes button{display:inline-flex;align-items:center;gap:8px;border:0;background:transparent;font:inherit;font-size:13.5px;font-weight:600;color:var(--dim);padding:10px 14px;border-radius:10px 10px 0 0;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px}
@@ -1633,8 +1655,81 @@ async function startLive(url, btn) {
   } catch (e) { toast(e.message, "bad"); }
   finally { if (btn && btn.isConnected) { btn.disabled = false; btn.innerHTML = was; } }
 }
+const CAM_CHOICES = [["auto", "Auto"], ["tl", "Top left"], ["tr", "Top right"], ["bl", "Bottom left"], ["br", "Bottom right"], ["bc", "Bottom centre"], ["none", "No webcam"]];
 const lsGet = k => { try { return localStorage.getItem(k) || ""; } catch { return ""; } };
 const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch {} };
+/* Fix facecam: a frame of the clip's video, a box to drag onto the webcam and pull to size. Saved for this clip or
+   every clip of the video, and remembered for the streamer, so their next clips are right from the start. */
+async function openCamFix() {
+  const jid = D.jid, cid = D.cid; if (!jid) return;
+  let f;
+  try { f = await api(`/api/jobs/${encodeURIComponent(jid)}/clips/${encodeURIComponent(cid)}/frame`); } catch (e) { return toast(e.message, "bad"); }
+  const box = f.box && f.box.length === 4 ? f.box.slice() : [0.70, 0.02, 0.28, 0.28];
+  const d = $("#formdlg");
+  d.innerHTML = `<div class="dlg camfix"><h2>Where is the webcam?</h2>
+    <p class="help">Drag the box onto the streamer's webcam and pull its corners to fit it. It's remembered for this streamer.</p>
+    <div class="cf-stage" id="cfStage"><img src="${f.image}" alt="A frame of the video" draggable="false"><div class="cf-box" id="cfBox">
+      <i data-h="tl"></i><i data-h="tr"></i><i data-h="bl"></i><i data-h="br"></i><span>Webcam</span></div></div>
+    <div class="dlg-foot cf-foot"><button type="button" class="btn" data-act="camsave" data-scope="none">No webcam</button><span class="grow"></span>
+      <button type="button" class="btn" data-act="camcancel">Cancel</button>
+      <button type="button" class="btn" data-act="camsave" data-scope="clip">This clip</button>
+      <button type="button" class="btn primary" data-act="camsave" data-scope="video">All clips of this video</button></div></div>`;
+  d.dataset.jid = jid; d.dataset.cid = cid;
+  const el = $("#cfBox"), stage = $("#cfStage");
+  const show = () => Object.assign(el.style, {left: box[0] * 100 + "%", top: box[1] * 100 + "%", width: box[2] * 100 + "%", height: box[3] * 100 + "%"});
+  show();
+  let drag = null;
+  el.addEventListener("pointerdown", e => {
+    e.preventDefault(); el.setPointerCapture(e.pointerId);
+    drag = {h: e.target.dataset.h || "move", x: e.clientX, y: e.clientY, b: box.slice(), r: stage.getBoundingClientRect()};
+  });
+  el.addEventListener("pointermove", e => {
+    if (!drag) return;
+    const dx = (e.clientX - drag.x) / drag.r.width, dy = (e.clientY - drag.y) / drag.r.height, b = drag.b.slice(), MIN = 0.06;
+    if (drag.h === "move") { b[0] = Math.min(1 - b[2], Math.max(0, b[0] + dx)); b[1] = Math.min(1 - b[3], Math.max(0, b[1] + dy)); }
+    else {
+      let [x0, y0, x1, y1] = [b[0], b[1], b[0] + b[2], b[1] + b[3]];
+      if (drag.h.includes("l")) x0 = Math.min(x1 - MIN, Math.max(0, x0 + dx)); else x1 = Math.max(x0 + MIN, Math.min(1, x1 + dx));
+      if (drag.h.includes("t")) y0 = Math.min(y1 - MIN, Math.max(0, y0 + dy)); else y1 = Math.max(y0 + MIN, Math.min(1, y1 + dy));
+      b.splice(0, 4, x0, y0, x1 - x0, y1 - y0);
+    }
+    box.splice(0, 4, ...b); show();
+  });
+  el.addEventListener("pointerup", () => { drag = null; });
+  d.camBox = box;
+  d.returnValue = ""; d.showModal();
+}
+async function saveCamFix(scope) {
+  const d = $("#formdlg"), jid = d.dataset.jid, cid = d.dataset.cid;
+  const body = scope === "none" ? {box: null} : {box: d.camBox.map(v => Math.round(v * 10000) / 10000)};
+  if (scope === "clip") body.clip = cid;
+  try {
+    const r = await send(`/api/jobs/${encodeURIComponent(jid)}/facecam`, body);
+    d.close(); $("#clipdlg").open && $("#clipdlg").close();
+    toast(scope === "none" ? "Done: these clips show the whole picture, and this streamer is remembered as having no webcam."
+      : `Re-making ${r.remade} clip${r.remade === 1 ? "" : "s"} with the webcam you set. Remembered for this streamer's next clips.`, "ok");
+    tick();
+  } catch (e) { toast(e.message, "bad"); }
+}
+
+/* The free AI on this computer (Ollama): ready, or the two steps to get it. */
+let laTimer = 0;
+async function drawLocalAi() {
+  clearTimeout(laTimer);
+  const box = $("#laState"); if (!box) return;
+  let r; try { r = await api("/api/local-ai"); } catch (e) { box.textContent = e.message; return; }
+  const p = r.pull || {};
+  if (r.model) box.innerHTML = `<span class="pill ok">${ic("check")}Ready</span><span class="sub">${esc(r.model)}. Used by itself whenever your AI key isn't answering.</span>`;
+  else if (p.busy) box.innerHTML = `<span class="pill warn">Downloading the model</span><span class="sub">${esc(p.status || "")} ${p.percent || 0}% (about 2 GB, once). You can keep using ClipKontrast.</span>`;
+  else if (r.running) box.innerHTML = `<span class="pill warn">One step left</span><span class="sub">Ollama is running. Get the free model (about 2 GB, once):</span>
+      <button class="btn sm primary" data-act="lapull">${ic("down")}Download the model</button>${p.error ? `<p class="sub" style="color:var(--bad)">${esc(p.error)}</p>` : ""}`;
+  else box.innerHTML = `<ol class="la-steps"><li>Download <b>Ollama</b> (free) and install it. It starts by itself.
+        <a class="btn sm" href="https://ollama.com/download" target="_blank" rel="noopener">Open ollama.com/download ${ic("arrowr")}</a></li>
+      <li>Come back here and press <b>Check again</b>, then <b>Download the model</b>.</li></ol>
+      <button class="btn sm" data-act="lacheck">Check again</button>`;
+  if (p.busy) laTimer = setTimeout(drawLocalAi, 2000);
+}
+
 /* The look of the clips: caption style (a moving preview of each), layout, auto zoom. In view under the link box,
    not hidden in Options: most people never opened Options, and never knew there was a choice. */
 function lookPanel(c) {
@@ -1643,6 +1738,7 @@ function lookPanel(c) {
   const caps = c ? c.captions !== false : lsGet("ck_caps") !== "0";
   const zoom = c ? c.zoom !== false : lsGet("ck_zoom") !== "0";
   const tight = c ? c.tighten !== false : lsGet("ck_tight") !== "0";
+  const cam = c?.cam_hint || lsGet("ck_cam") || "auto";
   return `<div class="look">
     <div class="look-h"><b id="o_style_label">Caption style</b><span class="sub">${c ? `Used for ${esc(c.name)}'s live clips too.` : "Tap one to choose. You can change it later on any clip."}</span><span class="grow"></span>
       <label class="mini-sw"><input type="checkbox" id="o_captions" data-caption-toggle ${caps ? "checked" : ""}>Captions</label></div>
@@ -1654,6 +1750,10 @@ function lookPanel(c) {
       <label class="mini-sw" title="Quiet pauses and filler words (um, uh) are cut out, so the clip moves faster. The game's action is never cut."><input type="checkbox" id="o_tight" ${tight ? "checked" : ""}>Cut silences</label>
       <label class="mini-sw" title="The picture punches in on the loudest moments: a shout, a laugh, the big reaction"><input type="checkbox" id="o_zoom" ${zoom ? "checked" : ""}>Auto zoom</label></div>
     ${choice("o_layout", Object.entries(S.status.layouts).map(([k, v]) => ({v:k, label:LAYOUT_SHORT[k] || v, title:v, prev:`<span class="lay-prev ${esc(k)}"><span class="ph"><i></i></span></span>`})), layout)}
+    <div class="camrow"${["split", "gameplay"].includes(layout) ? "" : " hidden"}><b>Webcam</b>
+      <input type="hidden" id="o_cam" value="${esc(cam)}"><div class="seg-mini" role="group" aria-label="Where the webcam is">${CAM_CHOICES.map(([k, l]) =>
+        `<button type="button" data-seg="o_cam" data-v="${k}" aria-pressed="${k === cam}">${l}</button>`).join("")}</div>
+      <span class="sub">Auto finds it. If it picks the wrong spot, choose the corner, or fix it on any clip.</span></div>
   </div>`;
 }
 /* On a creator's page the look is the creator's: their live clips use it too, so a choice here is saved for them. */
@@ -1706,6 +1806,7 @@ document.addEventListener("click", e => {
   if (sg && !sg.disabled) { $("#" + sg.dataset.seg).value = sg.dataset.v;
     sg.parentElement.querySelectorAll("[data-seg]").forEach(b => b.setAttribute("aria-pressed", String(b === sg)));
     if (sg.classList.contains("sty")) playLooks();
+    if (sg.dataset.seg === "o_layout") { const r = $(".camrow"); if (r) r.hidden = !["split", "gameplay"].includes(sg.dataset.v); }
     if (creatorId() && (sg.dataset.seg === "o_style" || sg.dataset.seg === "o_layout")) saveLook({[sg.dataset.seg.slice(2)]: sg.dataset.v});
     return; }
   const st = e.target.closest("[data-step]");
@@ -1727,8 +1828,9 @@ function jobOptions() {
   const o = {max_clips:n("#o_max"), min_len:n("#o_min"), max_len:n("#o_maxlen"), captions:$("#o_captions").checked, style:$("#o_style").value, layout:$("#o_layout").value, quality:n("#o_quality"),
              lang:$("#o_lang")?.value || "auto", caption_lang:$("#o_caplang")?.value || "auto",
              zoom:$("#o_zoom") ? $("#o_zoom").checked : true, tighten:$("#o_tight") ? $("#o_tight").checked : true,
+             cam_hint:$("#o_cam")?.value || "auto",
              watermark:($("#o_wm")?.value || "").trim()};
-  lsSet("ck_style", o.style); lsSet("ck_layout", o.layout); lsSet("ck_caps", o.captions ? "1" : "0"); lsSet("ck_zoom", o.zoom ? "1" : "0"); lsSet("ck_tight", o.tighten ? "1" : "0"); lsSet("ck_wm", o.watermark);
+  lsSet("ck_style", o.style); lsSet("ck_layout", o.layout); lsSet("ck_caps", o.captions ? "1" : "0"); lsSet("ck_zoom", o.zoom ? "1" : "0"); lsSet("ck_tight", o.tighten ? "1" : "0"); lsSet("ck_cam", o.cam_hint); lsSet("ck_wm", o.watermark);
   if (n("#o_from") !== null) o.range_start = n("#o_from") * 60;
   if (n("#o_to") !== null) o.range_end = n("#o_to") * 60;
   if (S.preRange && !creatorId()) {        // one moment: one or two clips from just that stretch
@@ -2372,6 +2474,10 @@ async function drawSettings() {
           </div>
           <div class="row" style="margin-top:20px"><button class="btn primary" data-act="aisave">Save and test</button>${k.ready ? `<button class="btn" data-act="aitest">Test again</button>` : ""}</div></section>`;
       aiHints();
+      body.insertAdjacentHTML("beforeend", `<section class="set-sec" id="localai"><h2>Free AI on this computer</h2>
+        <p class="help">When your AI key runs out (a daily limit, no credit left), ClipKontrast uses a free AI that runs on this computer instead: no key, no limits, nothing sent anywhere. It needs Ollama (a free app) and a 2 GB model, once.</p>
+        <div id="laState" class="la-state">Checking…</div></section>`);
+      drawLocalAi();
     }
     if (tab === "profile") {
       const joined = me.created_at ? new Date(me.created_at * 1000).toLocaleDateString([], {day: "numeric", month: "long", year: "numeric"}) : "";
@@ -2483,6 +2589,8 @@ function drawClipDlg(full) {
         <label class="sw"><input type="checkbox" data-f="captions" data-caption-toggle ${c.captions === false ? "" : "checked"}>Generate captions</label>
         <div class="two"><label class="f">Caption style<select data-f="style" data-caption-style ${c.captions === false ? "disabled" : ""}>${opts(S.status.styles, c.style)}</select></label>
           <label class="f">Layout<select data-f="layout">${opts(S.status.layouts, c.layout)}</select></label></div>
+        <div class="camfix-row"><button type="button" class="btn sm" data-act="camfix">${ic("eye")}Fix facecam</button>
+          <span class="sub">${c.camera_from === "manual" ? "Set by you, remembered for this streamer." : "Wrong part on top? Draw a box around the streamer's webcam."}</span></div>
         <label class="sw"><input type="checkbox" data-f="tighten" ${c.tighten ? "checked" : ""}>Cut silences and filler words${c.tightened ? ` <small style="font-weight:400;color:var(--dim)">(${c.tightened}s cut)</small>` : ""}</label>
         <div class="two"><label class="sw"><input type="checkbox" data-f="zoom" ${c.zoom ? "checked" : ""}>Auto zoom</label>
           <label class="f">Watermark<input data-f="watermark" maxlength="40" value="${esc(c.watermark || "")}" placeholder="@yourname"></label></div>
@@ -2651,6 +2759,11 @@ document.addEventListener("click", async e => {
     if (a === "tab") return setTab(d.t);
     if (a === "pickfile") return $("#file").click();
     if (a === "addmode") return setAddMode(d.m);
+    if (a === "camfix") return openCamFix();
+    if (a === "lacheck") return drawLocalAi();
+    if (a === "lapull") { await send("/api/local-ai/pull", {}); toast("Downloading the free AI model (about 2 GB). It keeps going in the background.", "ok"); return drawLocalAi(); }
+    if (a === "camsave") return saveCamFix(d.scope);
+    if (a === "camcancel") return $("#formdlg").close();
     if (a === "clipmoment") return clipMoment(d.c, Number(d.i));
     if (a === "cmommore") { S.cmomOpen = {...S.cmomOpen, [d.c]: !S.cmomOpen?.[d.c]}; return drawCampaignMoments(); }
     if (a === "clearrange") { S.preRange = null; return drawAdd(S.view === "overview" ? "hero" : "compact"); }

@@ -36,6 +36,7 @@ def no_clips(prompt, purpose=""):
 
 
 brain.ask_ai = no_clips
+brain.config.ai_ready = lambda: True          # the AI is set up (and answers through the fake above)
 user = auth.local_user()
 
 

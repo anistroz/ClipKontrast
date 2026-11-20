@@ -100,6 +100,7 @@ def pick(prompt, purpose=""):
 
 
 brain.ask_ai = pick
+brain.config.ai_ready = lambda: True          # the AI is set up (and answers through the fake above)
 brain.english_captions = lambda raw, *a, **k: raw
 seen_caps = []
 real_render = jobs.render.render_clip
