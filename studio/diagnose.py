@@ -81,6 +81,24 @@ def _problems() -> list:
     return out[:12]
 
 
+def _recent() -> list:
+    """The last few videos: how long they were, how long each step took, and where the transcript came from, so a
+    slow computer shows which step is slow."""
+    from . import jobs
+    out = []
+    for j in sorted(list(jobs._jobs.values()), key=lambda j: j.get("created", 0), reverse=True):
+        if j.get("kind") != "video" or j.get("status") not in ("done", "error", "running"):
+            continue
+        t = j.get("timings") or {}
+        steps = ", ".join(f"{k} {v // 60}m{v % 60:02d}s" for k, v in t.items())
+        out.append(f"{(j.get('duration') or 0) / 60:.0f} min video, {j.get('status')}, took {j.get('took', '?')} s, "
+                   f"{len(j.get('clips') or [])} clips, language {j.get('lang') or '?'}, transcript {j.get('transcript_from') or 'own'}"
+                   + (f" | {steps}" if steps else ""))
+        if len(out) >= 5:
+            break
+    return out
+
+
 def _log_tail() -> str:
     f = config.DATA_DIR / "logs" / "clipkontrast.log"
     try:
@@ -96,6 +114,11 @@ def _log_tail() -> str:
 def details() -> str:
     """Everything technical a report carries, as plain text the person can read before sending."""
     parts = ["Setup:", *("  " + x for x in _safe(_setup))]
+    from . import jobs
+    parts += [f"  Clips made at once: {jobs.render_workers()}"]
+    recent = _safe(_recent)
+    if recent:
+        parts += ["", "Recent videos:", *("  " + r for r in recent)]
     probs = _safe(_problems)
     parts += ["", "Recent problems:", *(("  " + p) for p in probs)] if probs else ["", "Recent problems: none"]
     tail = _safe(_log_tail, "")

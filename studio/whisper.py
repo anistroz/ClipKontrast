@@ -33,6 +33,9 @@ CAPTION_LANGS = {"auto": "As spoken (Hinglish)", "deva": "Hindi script (हि�
 PACKAGE = "faster-whisper==1.2.1"
 # "small" is quick on an ordinary computer and good at Hindi; "large-v3-turbo" is better and slower.
 MODEL = (config.env("CLIPKONTRAST_WHISPER_MODEL") or "small").strip()
+# The quick model that listens to a long video only to find its best moments, several times faster than MODEL on an
+# ordinary computer. The captions of the chosen clips are then written by MODEL, so they are as good as before.
+SCAN_MODEL = (config.env("CLIPKONTRAST_WHISPER_SCAN_MODEL") or "base").strip()
 ENABLED = config.env("CLIPKONTRAST_WHISPER", "1") != "0"
 BEAM = max(1, int(config.env("CLIPKONTRAST_WHISPER_BEAM") or "1"))     # 5 is a little more accurate, about twice as slow
 THREADS = int(config.env("CLIPKONTRAST_WHISPER_THREADS") or max(2, (os.cpu_count() or 4) - 2))
@@ -41,7 +44,7 @@ SR = 16000
 
 _lock = threading.Lock()          # one install and one model load at a time
 _run_lock = threading.Lock()      # one transcription at a time: a second copy of the model would double the memory
-_model = None
+_models: dict = {}
 
 
 def installed() -> bool:
@@ -79,18 +82,19 @@ def ready(note=None) -> bool:
     return ENABLED and (installed() or install(note))
 
 
-def _get(note=None):
-    """The model, loaded once. The first time, it is downloaded into ClipKontrast's models folder."""
-    global _model
+def _get(note=None, name=None):
+    """A model, loaded once. The first time, it is downloaded into ClipKontrast's models folder."""
+    name = name or MODEL
     with _lock:
-        if _model is None:
+        if name not in _models:
             from faster_whisper import WhisperModel
             MODEL_DIR.mkdir(parents=True, exist_ok=True)
-            if note and not any(MODEL_DIR.iterdir()):
-                note("Downloading the Hindi speech model (once, about 500 MB)")
-            _model = WhisperModel(MODEL, device="cpu", compute_type="int8", cpu_threads=THREADS,
-                                  download_root=str(MODEL_DIR))
-        return _model
+            if note and not any(MODEL_DIR.glob(f"*{name}*")):
+                note("Downloading the quick Hindi speech model (once, about 150 MB)" if name != MODEL else
+                     "Downloading the Hindi speech model (once, about 500 MB)")
+            _models[name] = WhisperModel(name, device="cpu", compute_type="int8", cpu_threads=THREADS,
+                                         download_root=str(MODEL_DIR))
+        return _models[name]
 
 
 def _float(audio: np.ndarray) -> np.ndarray:
@@ -124,23 +128,46 @@ def detect(audio: np.ndarray, note=None):
     return (info.language or "en"), float(info.language_probability or 0)
 
 
-def transcribe(audio: np.ndarray, lang: str = None, on_progress=None, note=None) -> list:
-    """[{'w', 's', 'e'}, ...] for the whole audio, like transcribe.transcribe. Raises if Whisper can't be used."""
+def quick_model() -> bool:
+    """Is there a quicker model than the caption one to find the moments with?"""
+    return SCAN_MODEL and SCAN_MODEL != MODEL
+
+
+def transcribe(audio: np.ndarray, lang: str = None, on_progress=None, note=None, quick=False) -> list:
+    """[{'w', 's', 'e'}, ...] for the whole audio, like transcribe.transcribe. Raises if Whisper can't be used.
+
+    quick: for finding the moments of a long video only. The quick model, with the time of each line instead of each
+    word (the words of a line are spread over it), which is much faster. Captions never use this."""
     if not ready(note):
         raise RuntimeError("Hindi speech support couldn't be installed. Check the internet connection and try again.")
-    m = _get(note)
+    m = None
+    if quick and quick_model():
+        try:
+            m = _get(note, SCAN_MODEL)
+        except Exception as e:  # noqa: BLE001 - it couldn't be downloaded: the caption model does it, more slowly
+            print(f"  Quick speech model unavailable ({str(e)[-120:]}), using the full one", flush=True)
+            m = None
+    m = m or _get(note)
     a = _float(audio)
     dur = max(len(a) / SR, 0.01)
     words = []
     with _run_lock:
         segments, _info = m.transcribe(a, language=lang or None, task="transcribe", beam_size=BEAM,
-                                       word_timestamps=True, vad_filter=True, condition_on_previous_text=False)
+                                       word_timestamps=not quick, vad_filter=True, condition_on_previous_text=False)
         for seg in segments:
-            for w in seg.words or []:
-                text = (w.word or "").strip()
-                if text:
-                    s = round(float(w.start), 2)
-                    words.append({"w": text, "s": s, "e": round(max(float(w.end), s + 0.05), 2)})
+            if quick:
+                parts = (seg.text or "").split()
+                s0, e0 = float(seg.start), max(float(seg.end), float(seg.start) + 0.1)
+                step = (e0 - s0) / max(1, len(parts))
+                for i, text in enumerate(parts):
+                    s = round(s0 + i * step, 2)
+                    words.append({"w": text, "s": s, "e": round(s + max(0.05, step * 0.9), 2)})
+            else:
+                for w in seg.words or []:
+                    text = (w.word or "").strip()
+                    if text:
+                        s = round(float(w.start), 2)
+                        words.append({"w": text, "s": s, "e": round(max(float(w.end), s + 0.05), 2)})
             if on_progress:
                 on_progress(min(1.0, float(seg.end) / dur))
     return words

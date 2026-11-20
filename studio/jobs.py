@@ -608,6 +608,17 @@ SCAN_REGION = 150       # scan mode: seconds of audio listened to around each li
 WHISPER_REGION = 90     # ...when Whisper listens (Hindi and other languages), which is slower
 
 
+def render_workers() -> int:
+    """How many clips are made at once. Each one is mostly waiting (its piece downloading, the AI tidying its
+    captions) and then one ffmpeg, so a few at a time is quicker on any computer; fewer when memory is short."""
+    cpus = os.cpu_count() or 4
+    n = max(2, min(6, (cpus + 1) // 3))
+    ram = getattr(transcribe, "RAM_GB", 0) or 0
+    if ram and ram < 8:
+        n = 2
+    return n
+
+
 def _mmss(t: float) -> str:
     t = max(0, int(t))
     return f"{t // 60}:{t % 60:02d}"
@@ -721,6 +732,14 @@ def _run_job(job):
     d = Path(job["dir"])
     o = job["options"]
     src = job["source"]
+    tmark = [time.time()]
+    job["timings"] = {}
+
+    def mark(step):
+        """How long each step took, in seconds: kept with the video, and sent with a bug report."""
+        now = time.time()
+        job["timings"][step] = round(now - tmark[0])
+        tmark[0] = now
     # Which game this is: what the creator set, or what the title says. It decides the extra rules the AI
     # reads and the tags every post carries.
     game = job.get("game") or ""
@@ -788,6 +807,7 @@ def _run_job(job):
     db = media.loudness_per_second(audio[lo:hi])
 
     vlock, vstate = threading.Lock(), {}
+    mark("audio")
 
     def whole_video():
         """Wait for the background download once; retry it, or give up and use pieces."""
@@ -809,6 +829,7 @@ def _run_job(job):
             return vstate["path"]
 
     exact = {}      # clip id -> (from, to, words): our own model's words for just that clip
+    rough = [False]  # the moments were found with the quick model: each clip's captions are written again, properly
 
     began = {}      # clip id -> when work on it started
 
@@ -818,12 +839,14 @@ def _run_job(job):
             _fetch_piece(job, clip, audio)
         if clip["status"] != "error":
             _use_camera(job, clip)          # webcam box, camera filling the picture, or none: for this clip
-        if clip["status"] != "error" and clip.get("captions", True) and yt and yt[1].lower().startswith("en"):
-            # The clip was found with YouTube's transcript. What is shown on screen comes from our own model,
-            # run on just this clip: full punctuation, nothing blanked out, timings to the word.
+        yt_en = bool(yt and yt[1].lower().startswith("en"))
+        if clip["status"] != "error" and clip.get("captions", True) and (yt_en or rough[0]):
+            # The clip was found with YouTube's transcript, or with the quick model. What is shown on screen comes
+            # from our own full model, run on just this clip: full punctuation, nothing blanked out, timings to the word.
             a0, b0 = max(lo, int((clip["start"] - 1.5) * 16000)), min(hi, int((clip["end"] + 1.5) * 16000))
             try:
-                tw = [dict(w, s=round(w["s"] + a0 / 16000, 2), e=round(w["e"] + a0 / 16000, 2)) for w in transcribe.transcribe(audio[a0:b0])]
+                fine = transcribe.transcribe(audio[a0:b0]) if yt_en else asr(audio[a0:b0])
+                tw = [dict(w, s=round(w["s"] + a0 / 16000, 2), e=round(w["e"] + a0 / 16000, 2)) for w in fine]
             except Exception:  # noqa: BLE001 - the clip is still made, with YouTube's words
                 tw = []
             if len(tw) >= 3:
@@ -832,8 +855,7 @@ def _run_job(job):
         if clip["status"] != "error":
             render_one(job, clip, words_now)
 
-    cpus = os.cpu_count() or 4
-    renders = ThreadPoolExecutor(2 if cpus < 8 else min(6, cpus // 6))  # more clips made at once on a bigger machine
+    renders = ThreadPoolExecutor(render_workers())
     futures = []
     step = BLOCK * 16000 if span > PROGRESSIVE_FROM else hi - lo
     blocks = [(x, min(hi, x + step)) for x in range(lo, hi, step)] or [(lo, hi)]
@@ -855,11 +877,11 @@ def _run_job(job):
     spoken, yt = _pick_language(job, o, yt, audio[lo:hi], resuming)
     use_whisper = [not whisper.is_english(spoken)]
 
-    def asr(part, on_progress=None):
+    def asr(part, on_progress=None, quick=False):
         """The transcript of a part of the audio, by the speech model for the language spoken."""
         if use_whisper[0]:
             try:
-                return whisper.transcribe(part, spoken.split("-")[0], on_progress, note=lambda t: _set(job, stage=t))
+                return whisper.transcribe(part, spoken.split("-")[0], on_progress, note=lambda t: _set(job, stage=t), quick=quick)
             except Exception as e:  # noqa: BLE001 - the English model still gives something to work with
                 use_whisper[0] = False
                 notes.append(f"Hindi speech model unavailable ({str(e)[-100:]}), used the English one")
@@ -873,6 +895,7 @@ def _run_job(job):
         # computer, so it listens to shorter stretches around fewer lively moments: the same clips, far sooner.
         hot = _hot_regions(db, int(o["max_clips"]), WHISPER_REGION, 2) if use_whisper[0] else _hot_regions(db, int(o["max_clips"]))
         blocks = [(lo + a * 16000, min(hi, lo + b * 16000)) for a, b in hot]
+        rough[0] = bool(use_whisper[0] and whisper.quick_model())
     prog_base, acc = [], 0
     for a_, b_ in blocks:
         prog_base.append(acc)
@@ -910,7 +933,7 @@ def _run_job(job):
                     heard_now = f": {_mmss(p * secs)} of {_mmss(secs)} heard" if secs >= 60 else ""
                     stage = job.get("stage", "").split(":")[0] + heard_now     # people can see it's moving
                     _set(job, stage=stage, progress=max(job["progress"], 0.14 + 0.78 * (prog_base[i] + p * (b_ - a_)) / prog_total))
-            heard[i] = ahead.submit(ctx.bind(asr), audio[a_:b_], tp)
+            heard[i] = ahead.submit(ctx.bind(asr), audio[a_:b_], tp, rough[0])
 
     def take(found, shift):
         """Drop clips in ad breaks or static screens, then queue the rest to be made."""
@@ -980,6 +1003,7 @@ def _run_job(job):
         job["ai"] = {"model": model, "tokens": tokens, "note": "", "log": notes[-5:]}
         job["done_blocks"] = bi + 1       # a restart from here on carries on with the next part
         save(job)
+    mark("transcript")
     if scan and not job["clips"] and words:
         _set(job, stage="Picking the best moments of the whole video", progress=max(job["progress"], 0.9))
         base = lo / 16000
@@ -1004,9 +1028,11 @@ def _run_job(job):
             notes.append("Nothing stood out to the AI, so the liveliest parts were clipped.")
             job["safety_net"] = True
             take(net, base)
+    mark("picking")
     if futures:
         _set(job, stage="Finishing the clips", progress=max(job["progress"], 0.92))
     _wait_for_clips(job, futures, began, renders._max_workers)
+    mark("clips")
     if exact:           # keep our own words for the clips in the saved transcript, so editing a clip later uses them
         for a_s, b_s, tw in exact.values():
             words = [w for w in words if not a_s <= w["s"] < b_s] + tw
