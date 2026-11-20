@@ -605,28 +605,35 @@ def _fetch_piece(job, clip, full_audio):
 BLOCK = 10 * 60         # long videos are transcribed and clipped one block at a time
 PROGRESSIVE_FROM = 20 * 60
 SCAN_REGION = 150       # scan mode: seconds of audio listened to around each lively moment
+WHISPER_REGION = 90     # ...when Whisper listens (Hindi and other languages), which is slower
+
+
+def _mmss(t: float) -> str:
+    t = max(0, int(t))
+    return f"{t // 60}:{t % 60:02d}"
 SCAN_SLICE = 15 * 60    # scan mode: every slice this long gets at least its liveliest moment
 
 
-def _hot_regions(db, max_clips: int) -> list:
+def _hot_regions(db, max_clips: int, region: int = None, per_clip: int = 3) -> list:
     """Scan mode: the lively parts of a long video, picked from its loudness alone (seconds from its start).
 
     The liveliest moment of every 15 minutes is taken, so no part of the video is skipped, and then the liveliest
     moments of the whole video until there are about three for every clip wanted. Only these parts are transcribed,
     which is far quicker than the whole video, and the AI then picks the best clips out of all of them at once."""
+    region = region or SCAN_REGION
     n = len(db)
-    if n < SCAN_REGION * 2:
+    if n < region * 2:
         return [(0, n)]
     z = brain.loud_zscore(np.asarray(db, dtype=np.float32))
     k = 20                                              # how lively the 20 seconds around each second are
     live = np.convolve(z, np.ones(k) / k, mode="same")
-    half = SCAN_REGION // 2
-    want = max(int(np.ceil(n / SCAN_SLICE)), max_clips * 3)
-    want = min(want, max(1, int(n * 0.45) // SCAN_REGION))      # never more than about half the video
+    half = region // 2
+    want = max(int(np.ceil(n / SCAN_SLICE)), max_clips * per_clip)
+    want = min(want, max(1, int(n * 0.45) // region))      # never more than about half the video
     picked = []
 
     def free(c):
-        return all(abs(c - p) >= SCAN_REGION // 2 for p in picked)
+        return all(abs(c - p) >= region // 2 for p in picked)
 
     for s in range(0, n, SCAN_SLICE):                  # the liveliest moment of each slice
         part = live[s: s + SCAN_SLICE]
@@ -862,7 +869,10 @@ def _run_job(job):
     # transcribed, found from the loudness of every second, which is much quicker than the whole video.
     scan = span > PROGRESSIVE_FROM and job.get("kind") != "live" and o.get("scan", True)
     if scan and not yt:
-        blocks = [(lo + a * 16000, min(hi, lo + b * 16000)) for a, b in _hot_regions(db, int(o["max_clips"]))]
+        # Whisper (Hindi and other languages) is several times slower than the English model on an ordinary
+        # computer, so it listens to shorter stretches around fewer lively moments: the same clips, far sooner.
+        hot = _hot_regions(db, int(o["max_clips"]), WHISPER_REGION, 2) if use_whisper[0] else _hot_regions(db, int(o["max_clips"]))
+        blocks = [(lo + a * 16000, min(hi, lo + b * 16000)) for a, b in hot]
     prog_base, acc = [], 0
     for a_, b_ in blocks:
         prog_base.append(acc)
@@ -896,7 +906,10 @@ def _run_job(job):
             def tp(p, i=i, a_=a_, b_=b_):
                 if now_on[0] == i and p - last[0] > 0.05:      # only the part being shown moves the bar
                     last[0] = p
-                    _set(job, progress=max(job["progress"], 0.14 + 0.78 * (prog_base[i] + p * (b_ - a_)) / prog_total))
+                    secs = (b_ - a_) / 16000
+                    heard_now = f": {_mmss(p * secs)} of {_mmss(secs)} heard" if secs >= 60 else ""
+                    stage = job.get("stage", "").split(":")[0] + heard_now     # people can see it's moving
+                    _set(job, stage=stage, progress=max(job["progress"], 0.14 + 0.78 * (prog_base[i] + p * (b_ - a_)) / prog_total))
             heard[i] = ahead.submit(ctx.bind(asr), audio[a_:b_], tp)
 
     def take(found, shift):
@@ -980,6 +993,17 @@ def _run_job(job):
         take(found, base)
         job["ai"] = {"model": model, "tokens": tokens, "note": "", "log": notes[-5:]}
         save(job)
+    if not job["clips"] and job.get("kind") != "live" and span >= 5:
+        # The safety net: nothing was picked (the AI found nothing that stood out, or too little was heard to ask
+        # it), so the liveliest parts are clipped. Someone who asked for clips never gets none back.
+        base = lo / 16000
+        rel = [dict(w, s=round(w["s"] - base, 2), e=round(w["e"] - base, 2)) for w in words]
+        n = min(int(o["max_clips"]), 3, max(1, int(span // max(15, int(o["max_len"])))))
+        net = brain.liveliest_clips(rel, db, span, n, int(o["min_len"]), int(o["max_len"]))
+        if net:
+            notes.append("Nothing stood out to the AI, so the liveliest parts were clipped.")
+            job["safety_net"] = True
+            take(net, base)
     if futures:
         _set(job, stage="Finishing the clips", progress=max(job["progress"], 0.92))
     _wait_for_clips(job, futures, began, renders._max_workers)
@@ -994,7 +1018,8 @@ def _run_job(job):
     del audio
     clips = job["clips"]
     job["ai"] = {"model": model, "tokens": tokens, "log": notes[-5:],
-                 "note": "The AI was unavailable, so clips were picked by loudness only." if clips and not model else ""}
+                 "note": "Nothing stood out to the AI, so the liveliest parts were clipped." if job.get("safety_net") and model
+                 else "The AI was unavailable, so clips were picked by loudness only." if clips and not model else ""}
     stage = "Done" if clips else "Done, but nothing clip-worthy was found"
     _set(job, status="done", stage=stage, progress=1.0, took=round(time.time() - t0))
     try:

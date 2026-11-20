@@ -261,8 +261,8 @@ def _snap(clip, lines, words, min_len, max_len, duration):
     return round(max(0.0, s - 0.15), 2), round(min(duration, e + tail), 2)
 
 
-def fallback_by_loudness(db, words, n, max_len, duration):
-    """No AI available: take the loudest stretches that contain speech."""
+def fallback_by_loudness(db, words, n, max_len, duration, why="Picked by loudness because the AI was unavailable."):
+    """No AI available: take the loudest stretches that contain speech (any loud stretch, when nothing was heard)."""
     z = loud_zscore(db)
     picks, order = [], np.argsort(-z)
     for sec in order:
@@ -270,11 +270,11 @@ def fallback_by_loudness(db, words, n, max_len, duration):
         e = min(duration, s + max_len)
         if any(not (e <= p["start"] or s >= p["end"]) for p in picks):
             continue
-        if not any(s <= w["s"] <= e for w in words):
+        if words and not any(s <= w["s"] <= e for w in words):
             continue
         picks.append({"start": s, "end": e, "score": 50, "category": "other", "hook": "WAIT FOR IT",
                       "title": "Loud moment", "description": "", "hashtags": [], "highlight_words": [],
-                      "reason": "Picked by loudness because the AI was unavailable."})
+                      "reason": why})
         if len(picks) >= n:
             break
     return picks
@@ -331,6 +331,26 @@ def find_clips(words, db, duration, title="", uploader="", max_clips=6, min_len=
             break
     clips.sort(key=lambda c: c["start"])
     return clips, {"model": used_model, "tokens": tokens, "note": note}
+
+
+def liveliest_clips(words, db, duration, n, min_len, max_len):
+    """The safety net: the liveliest parts of a video, as clips, for when nothing else was picked (the AI found
+    nothing that stood out, or too little was heard to ask it). A video someone asked clips of never comes back
+    with none. Works with no words at all (music, a game with no talking)."""
+    if duration < 5 or n < 1:
+        return []
+    why = "Nothing stood out to the AI, so the liveliest part was clipped."
+    picks = fallback_by_loudness(db, words, n, max_len, duration, why) or \
+        fallback_by_loudness(db, [], n, max_len, duration, why)
+    lines = make_lines(words, loud_zscore(db)) if words else []
+    clips = []
+    for c in picks:
+        s, e = _snap(c, lines, words, min_len, max_len, duration) if words else (round(c["start"], 2), round(c["end"], 2))
+        if e - s < min(min_len, duration) - 1 or _overlaps(s, e, clips):
+            continue
+        clips.append(_tidy(c, s, e))
+    clips.sort(key=lambda c: c["start"])
+    return clips
 
 
 def find_live_clips(words, z, now, chat=None, title="", uploader="", min_len=15, max_len=60, existing=(), game=None):
