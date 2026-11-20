@@ -36,15 +36,15 @@ not a time 99:99:99x"""
 g = earn.parse_moments(MOMENTS, SOURCES)
 check("moments are grouped under the stream they name", [x["title"] for x in g], ["Day 3", "Day 2", "Previous stream"])
 check("...a name like one of the streams gets its link", [x["url"] for x in g],
-      ["https://www.youtube.com/live/xyz789ghi01", "https://www.youtube.com/watch?v=abc123def45&list=x", "https://www.twitch.tv/videos/123456"])
+      ["https://www.youtube.com/watch?v=xyz789ghi01", "https://www.youtube.com/watch?v=abc123def45", "https://www.twitch.tv/videos/123456"])
 d3 = g[0]["moments"]
 check("times, ranges and labels are read", [(m["t"], m["end"], m["label"]) for m in d3],
       [(9432, None, "wait for transition + heavy driving race to the club 🌎"), (9870, 9953, ""), (10257, None, "finally found jason")])
-check("each moment opens its stream at that second (YouTube)", d3[0]["watch"], "https://www.youtube.com/live/xyz789ghi01?t=9432s")
-check("...keeping the video's other parts of the link", g[1]["moments"][0]["watch"], "https://www.youtube.com/watch?v=abc123def45&list=x&t=809s")
+check("each moment opens its stream at that second (YouTube, any kind of link made plain)", d3[0]["watch"], "https://www.youtube.com/watch?v=xyz789ghi01&t=9432s")
+check("...a plain watch link too", g[1]["moments"][0]["watch"], "https://www.youtube.com/watch?v=abc123def45&t=809s")
 check("...and on Twitch", g[2]["moments"][0]["watch"], "https://www.twitch.tv/videos/123456?t=1h4m38s")
 check("a line that only looks like a time is not a moment", sum(len(x["moments"]) for x in g), 6)
-check("times above any name go with the newest stream", earn.parse_moments("1:00 hello", SOURCES)[0]["url"], "https://www.youtube.com/live/xyz789ghi01")
+check("times above any name go with the newest stream", earn.parse_moments("1:00 hello", SOURCES)[0]["url"], "https://www.youtube.com/watch?v=xyz789ghi01")
 check("a stream that can't be matched still lists its moments, without links", earn.parse_moments("Old stream\n1:00 hi", "")[0]["moments"][0]["watch"], "")
 # ---- the ways people really paste them
 for dash in ("-", "--", "\u2010", "\u2011", "\u2013", "\u2014", "\u2212", "~", " to "):
@@ -54,8 +54,8 @@ g2 = earn.parse_moments("CLIP WORTHY TIMESTAMPS👇\n2:37:12 race", "Mizo | http
 check("a heading that names no stream goes with the newest stream", g2[0]["url"], "https://www.youtube.com/watch?v=LjNhaHf3tNE")
 check("...and the start time pasted in its link is dropped", g2[0]["moments"][0]["watch"], "https://www.youtube.com/watch?v=LjNhaHf3tNE&t=9432s")
 g3 = earn.parse_moments("Old stream\nhttps://youtu.be/abcdefghijk\n1:00 hi\nMore\n2:00 later", "")
-check("a link on its own line is the stream of the times below it", (g3[0]["title"], g3[0]["url"]), ("Old stream", "https://youtu.be/abcdefghijk"))
-check("...and the next heading with no stream keeps it", g3[1]["url"], "https://youtu.be/abcdefghijk")
+check("a link on its own line is the stream of the times below it", (g3[0]["title"], g3[0]["url"]), ("Old stream", "https://www.youtube.com/watch?v=abcdefghijk"))
+check("...and the next heading with no stream keeps it", g3[1]["url"], "https://www.youtube.com/watch?v=abcdefghijk")
 check("a Drive folder shows inside the page", earn.drive_embed("https://drive.google.com/drive/u/0/folders/1FS-9FvroI8K5_6wWNYoAuk-nqMOTtkGt"),
       "https://drive.google.com/embeddedfolderview?id=1FS-9FvroI8K5_6wWNYoAuk-nqMOTtkGt#grid")
 check("...a link that isn't a Drive folder doesn't", earn.drive_embed("https://example.com/folders/abcdefghijkl"), "")
@@ -86,13 +86,19 @@ check("the admin gets the moments as typed, to edit", adm["raw_moments"], MOMENT
 earn.save_campaign({"status": "ended"}, camp["id"])
 check("an ended campaign keeps them to itself", "moments" in earn.campaign(camp["slug"], uid=u.id), False)
 
+S4 = "Day 1 | https://www.youtube.com/live/hrVIm-8R0As?si=x\nVideo of Day 1 | https://youtu.be/pB8YW4vnrew?si=y\nDay 2 | https://www.youtube.com/live/LjNhaHf3tNE?si=z"
+check("'Video of Day 1' is that video, not Day 1", earn.parse_moments("Video of Day 1\n1:00 x", S4)[0]["url"], "https://www.youtube.com/watch?v=pB8YW4vnrew")
+check("'Day 1' is Day 1", earn.parse_moments("Day 1\n1:00 x", S4)[0]["url"], "https://www.youtube.com/watch?v=hrVIm-8R0As")
+check("'Day 2 - CLIP WORTHY TIMESTAMPS' is Day 2, its share tag dropped", earn.parse_moments("Day 2 - CLIP WORTHY TIMESTAMPS\n2:37:12 x", S4)[0]["moments"][0]["watch"],
+      "https://www.youtube.com/watch?v=LjNhaHf3tNE&t=9432s")
+
 # ---- the admin sees how the timestamps are read; the app gets every open campaign's moments
 from fastapi.testclient import TestClient  # noqa: E402
 web = TestClient(server.app, base_url="http://127.0.0.1:8765")
 check("only an admin can ask how timestamps are read", web.post("/api/admin/earn/moments-preview", json={"moments": "1:00 x"},
                                                               headers={"Origin": "http://127.0.0.1:8765"}).status_code, 404)
 check("...it says which stream each group opens", {k: v for k, v in earn.parse_moments("Day 3\n1:00 x", SOURCES)[0].items() if k in ("title", "url")},
-      {"title": "Day 3", "url": "https://www.youtube.com/live/xyz789ghi01"})
+      {"title": "Day 3", "url": "https://www.youtube.com/watch?v=xyz789ghi01"})
 earn.save_campaign({"status": "live"}, camp["id"])
 server._MOMENTS_CACHE.clear()
 pm = web.get("/api/earn/public/moments").json()

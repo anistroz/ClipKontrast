@@ -409,10 +409,16 @@ def watch_url(url: str, t: int) -> str:
 
 
 def _stream(url: str) -> str:
-    """A stream's link without a start time in it (a pasted YouTube link often has one: &t=992s)."""
+    """A stream's link in one plain form: a YouTube video as watch?v=<id> (from /live/, /shorts/ or youtu.be links),
+    without a start time (&t=992s) or the share tag (?si=...)."""
     p = urlparse(url)
-    if "youtube.com" in (p.hostname or "") or p.hostname == "youtu.be":
-        q = [x for x in p.query.split("&") if x and not x.startswith("t=")]
+    host = (p.hostname or "").lower()
+    if "youtube.com" in host or host == "youtu.be":
+        m = re.match(r"^/(?:live|shorts|embed)/([\w-]{6,})", p.path) if host != "youtu.be" else re.match(r"^/([\w-]{6,})", p.path)
+        vid = m.group(1) if m else (parse_qs(p.query).get("v") or [""])[0]
+        if vid:
+            return f"https://www.youtube.com/watch?v={vid}"
+        q = [x for x in p.query.split("&") if x and not x.startswith(("t=", "si="))]
         return p._replace(query="&".join(q)).geturl()
     return url
 
@@ -431,11 +437,13 @@ def parse_moments(text: str, sources: str = "") -> list:
         m = _URL.search(title)
         if m:
             return _stream(m.group(0))
-        low = title.lower()
-        for lab, u in srcs:
-            if lab and (low.startswith(lab.lower()) or lab.lower() in low):
-                return u
-        return ""
+        low = re.sub(r"\s+", " ", title.lower()).strip()
+        # the stream whose name it is exactly, else the longest name it contains ("Video of Day 1" is not "Day 1")
+        hits = [(lab.lower(), u) for lab, u in srcs if lab and lab.lower() in low]
+        exact = [u for lab, u in hits if lab == low or low.startswith(lab + " ") and not any(l2 != lab and l2 in low and len(l2) > len(lab) for l2, _ in hits)]
+        if exact:
+            return exact[0]
+        return max(hits, key=lambda h: len(h[0]))[1] if hits else ""
 
     groups, cur = [], None
     for raw in (text or "").splitlines()[:600]:
