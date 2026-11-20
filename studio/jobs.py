@@ -4,6 +4,7 @@ import json
 import os
 import math
 import queue
+import re
 import shutil
 import threading
 import time
@@ -696,15 +697,151 @@ def _camera(job, clip):
     return [box["x"], box["y"], box["w"], box["h"]]
 
 
+# ---------------------------------------------------------------- where each streamer's webcam is, remembered
+# A streamer's webcam sits in the same place in every clip, stream after stream. Looking for it in one clip alone can
+# be fooled (a game character's face in a cutscene, a cinematic bar), so the place found in most clips is remembered
+# per channel, and a clip whose own answer disagrees uses the remembered place instead.
+CAM_AGREE = 0.5            # how much two boxes must overlap to be the same place
+
+
+def _iou(a, b) -> float:
+    ax, ay, aw, ah = a
+    bx, by, bw, bh = b
+    ix = max(0.0, min(ax + aw, bx + bw) - max(ax, bx))
+    iy = max(0.0, min(ay + ah, by + bh) - max(ay, by))
+    inter = ix * iy
+    union = aw * ah + bw * bh - inter
+    return inter / union if union > 0 else 0.0
+
+
+def _cam_key(job) -> str:
+    """Whose webcam: the creator's workspace, else the channel the video is from."""
+    if job.get("creator"):
+        return "creator:" + job["creator"]
+    up = re.sub(r"\s+", " ", str(job.get("uploader") or "")).strip().lower()
+    return "channel:" + up if up else ""
+
+
+def _cam_file():
+    return config.user_dir(job_user()) / "facecams.json"
+
+
+def job_user():
+    return ctx.uid()
+
+
+def _cams() -> dict:
+    try:
+        return json.loads(_cam_file().read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+def _remembered(job):
+    """The remembered webcam box for this job's channel, as fractions of the picture [x, y, w, h], or None."""
+    key = _cam_key(job)
+    got = _cams().get(key) if key else None
+    box = (got or {}).get("box")
+    return box if isinstance(box, list) and len(box) == 4 else None
+
+
+def _remember(job, frac_box, n: int):
+    key = _cam_key(job)
+    if not key:
+        return
+    cams = _cams()
+    cams[key] = {"box": [round(float(v), 4) for v in frac_box], "seen": int(n), "at": time.time()}
+    if len(cams) > 500:                                  # never grows without limit
+        for k in sorted(cams, key=lambda k: cams[k].get("at", 0))[:len(cams) - 500]:
+            cams.pop(k, None)
+    try:
+        f = _cam_file()
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_text(json.dumps(cams), encoding="utf-8")
+    except OSError:
+        pass
+
+
+def _frac(box, w, h):
+    return [box[0] / w, box[1] / h, box[2] / w, box[3] / h] if w and h else None
+
+
+def _px(frac, w, h):
+    return [int(round(frac[0] * w)), int(round(frac[1] * h)), int(round(frac[2] * w)), int(round(frac[3] * h))]
+
+
+def _src_size(job, clip):
+    """The size of the picture this clip is cut from."""
+    path = clip.get("src") or job.get("source_path")
+    if clip.get("src_w") and clip.get("src_h"):
+        return clip["src_w"], clip["src_h"]
+    try:
+        meta = media.probe(path)
+        return meta.get("width") or job.get("width"), meta.get("height") or job.get("height")
+    except Exception:  # noqa: BLE001
+        return job.get("width"), job.get("height")
+
+
+def _learn(job, frac_box):
+    """Each clip's own answer is counted; once two clips agree on a place that isn't the remembered one (or none
+    is remembered yet), that place is remembered."""
+    seen = job.setdefault("cam_seen", [])
+    seen.append([round(v, 4) for v in frac_box])
+    del seen[:-30]
+    agree = [b for b in seen if _iou(b, frac_box) >= CAM_AGREE]
+    mem = _remembered(job)
+    if len(agree) >= 2 and (not mem or _iou(mem, frac_box) < CAM_AGREE):
+        med = [float(np.median([b[i] for b in agree])) for i in range(4)]
+        _remember(job, med, len(agree))
+
+
 def _use_camera(job, clip):
-    """Find the camera for a clip with a facecam layout, and note what was found on it."""
+    """Find the camera for a clip with a facecam layout, and note what was found on it. A box that disagrees with
+    where this streamer's webcam is remembered to be (or no box at all) gives way to the remembered place."""
     if clip.get("layout") not in render.FACECAM_LAYOUTS:
         return
     cam = _camera(job, clip)
     clip.pop("facecam", None)
+    w, h = _src_size(job, clip)
+    mem = _remembered(job)
+    if isinstance(cam, list) and w and h:
+        _learn(job, _frac(cam, w, h))
+        mem = _remembered(job)
+    if mem and w and h and cam != "full":
+        mem_px = _px(mem, w, h)
+        if not (isinstance(cam, list) and _iou(cam, mem_px) >= CAM_AGREE):
+            cam = mem_px                                  # this clip's own look was fooled, or found nothing
+            clip["camera_from"] = "remembered"
     clip["camera"] = "box" if isinstance(cam, list) else (cam or "none")
     if isinstance(cam, list):
         clip["facecam"] = cam
+
+
+def _agree_cameras(job, words):
+    """After a video's clips are made: the place most clips found the webcam is the webcam. Clips whose own look
+    disagreed are made again with it, so one cutscene can't leave a game character in the facecam."""
+    boxed = [c for c in job["clips"] if c.get("status") == "done" and c.get("layout") in render.FACECAM_LAYOUTS]
+    found = [(c, c["facecam"]) for c in boxed if isinstance(c.get("facecam"), list) and c.get("camera_from") != "remembered"]
+    if len(found) < 2:
+        return 0
+    best = max(found, key=lambda cf: sum(1 for _c, b in found if _iou(b, cf[1]) >= CAM_AGREE))
+    group = [b for _c, b in found if _iou(b, best[1]) >= CAM_AGREE]
+    if len(group) < 2 or len(group) * 2 < len(found):
+        return 0                                          # no clear majority: each clip keeps its own
+    cons = [int(np.median([b[i] for b in group])) for i in range(4)]
+    w, h = _src_size(job, boxed[0])
+    if w and h:
+        _remember(job, _frac(cons, w, h), len(group))
+    fixed = 0
+    for c in boxed:
+        if c.get("camera") == "full":
+            continue
+        if isinstance(c.get("facecam"), list) and _iou(c["facecam"], cons) >= CAM_AGREE:
+            continue
+        c.update(facecam=cons, camera="box", camera_from="agreed")
+        render_one(job, c, words)
+        fixed += 1
+    return fixed
 
 
 def _facecam(job, path=None) -> list | None:
@@ -1054,6 +1191,11 @@ def _run_job(job):
     if futures:
         _set(job, stage="Finishing the clips", progress=max(job["progress"], 0.92))
     _wait_for_clips(job, futures, began, renders._max_workers)
+    try:
+        if _agree_cameras(job, words):
+            notes.append("The facecam was set the same in every clip.")
+    except Exception:  # noqa: BLE001 - the clips are already made; this only improves them
+        traceback.print_exc()
     mark("clips")
     if exact:           # keep our own words for the clips in the saved transcript, so editing a clip later uses them
         for a_s, b_s, tw in exact.values():

@@ -620,7 +620,15 @@ class Session:
         # webcam is looked for in it, once per stream.
         if clip.get("layout") in render.FACECAM_LAYOUTS:
             if not self.facecam_checked:
-                self.facecam_box = self._find_facecam(src)
+                found = self._find_facecam(src)
+                mem = jobs._remembered(self.job)
+                size = jobs._src_size(self.job, {"src": str(src)})
+                # where this streamer's webcam is remembered to be wins over one look at one clip that disagrees
+                if mem and size[0] and size[1] and not (found and jobs._iou(found, jobs._px(mem, *size)) >= jobs.CAM_AGREE):
+                    found = jobs._px(mem, *size)
+                elif found and size[0] and size[1]:
+                    jobs._learn(self.job, jobs._frac(found, *size))
+                self.facecam_box = found
                 self.facecam_checked = True
             if self.facecam_box:
                 clip["facecam"] = self.facecam_box
