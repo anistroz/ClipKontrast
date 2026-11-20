@@ -497,6 +497,9 @@ footer.site .fbottom{display:flex;justify-content:space-between;gap:12px;flex-wr
 .mom a.ts:hover{background:var(--brand)}
 .mom .mlabel{flex:1;font-size:14px;min-width:0;overflow-wrap:anywhere}
 .mom .mlabel.none{color:var(--faint)}
+.res-sub{font-size:13.5px;color:var(--dim);margin:-4px 0 8px}
+.res-sub a{color:var(--deep)}
+.mom-g summary .new-src{font-style:normal;font-size:11px;font-weight:700;background:var(--brand);color:var(--ink);border-radius:999px;padding:2px 8px}
 </style>
 </head>
 <body>
@@ -819,8 +822,8 @@ function appLink(url, m) {
   return `${APP}#clip=${encodeURIComponent(url)}&from=${from}&to=${to}${m.label ? "&label=" + encodeURIComponent(m.label.slice(0, 80)) : ""}`;
 }
 function resources(c) {
-  const r = c.resources || {}, n = r.moments || 0, moments = c.moments || [];
-  if (!moments.length && !r.raw_clips) return "";
+  const r = c.resources || {}, n = r.moments || 0, moments = [];
+  if (!r.raw_clips) return "";
   let h = `<h4>Resource library</h4>`;
   if (!c.raw_clips && r.raw_clips) h += `<div class="locked res-lock">🔒 Join the campaign to unlock <b>the raw clips folder</b>: best moments already cut, ready to edit and post.</div>`;
   if (c.raw_clips) h += `<div class="res-raw"><div class="res-ic">📁</div><div><b>Raw clips</b><span>Best moments, already cut. Download, edit them your own way, post, then Send a clip.</span></div>
@@ -835,6 +838,27 @@ function resources(c) {
         ${g.url && !IS_PHONE ? `<a class="btn xs" href="${esc(appLink(g.url, m))}" target="_blank" rel="noopener" title="Opens the ClipKontrast app on this computer, ready to clip this moment">✂ Clip in app</a>` : ""}
       </div>`).join("")}</details>`).join("");
   }
+  return h;
+}
+// Every stream or video to clip, each in its own box with its best moments. Those who joined see all of them;
+// everyone sees the ones with best moments.
+function streamsSection(c) {
+  const ss = c.streams || [], member = !!c.sources, total = ss.reduce((a, s) => a + s.moments.length, 0);
+  let h = `<h4>Streams to clip</h4>`;
+  if (!ss.length) return h + (member ? `<div class="locked">Links will be posted here.</div>` : `<div class="locked">🔒 Join the campaign to see which streams and videos to clip.</div>`);
+  if (total) h += `<p class="res-sub">${total} best moments. Click a time to watch from there.${IS_PHONE ? "" : ` <b>Clip in app</b> opens ClipKontrast on your computer with that moment ready (keep the app open). No app yet? <a href="/download">Download it free</a>.`}</p>`;
+  const openAt = Math.max(0, ss.findIndex(s => s.moments.length));
+  h += ss.map((s, i) => `<details class="mom-g"${i === openAt ? " open" : ""}><summary><b>${esc(s.name)}</b>${s.latest ? '<em class="new-src">Latest</em>' : ""}
+      <span>${s.moments.length ? s.moments.length + " moments" : "No timestamps yet"}</span>${s.url ? `<a href="${esc(safeUrl(s.url))}" target="_blank" rel="noopener" class="mom-src">Watch ↗</a>` : ""}</summary>
+    ${s.moments.length ? s.moments.map(m => `<div class="mom">
+        ${m.watch ? `<a class="ts" href="${esc(safeUrl(m.watch))}" target="_blank" rel="noopener" title="Watch from here">${hms(m.t)}${m.end ? "–" + hms(m.end) : ""}</a>` : `<span class="ts">${hms(m.t)}${m.end ? "–" + hms(m.end) : ""}</span>`}
+        <span class="mlabel${m.label ? "" : " none"}">${esc(m.label || "Clip-worthy moment")}</span>
+        ${s.url && !IS_PHONE ? `<a class="btn xs" href="${esc(appLink(s.url, m))}" target="_blank" rel="noopener" title="Opens the ClipKontrast app on this computer, ready to clip this moment">✂ Clip in app</a>` : ""}
+      </div>`).join("")
+    : `<div class="mom"><span class="mlabel none">No best moments for this one yet. Find your own: the app picks the best parts by itself.</span>
+        ${s.url && !IS_PHONE ? `<a class="btn xs" href="${esc(APP + "#clip=" + encodeURIComponent(s.url))}" target="_blank" rel="noopener">✂ Open in app</a>` : ""}</div>`}
+  </details>`).join("");
+  if (!member) h += `<div class="locked" style="margin-top:8px">🔒 Join the campaign to see every stream and video to clip.</div>`;
   return h;
 }
 // A line of "Streams and footage" may start with a label: "Day 1 | https://..." (or "Day 1 - https://...").
@@ -911,9 +935,7 @@ async function openCampaign(slug) {
         ${c.brief ? `<div class="brief">${esc(c.brief)}</div>` : ""}
         ${c.rules.length ? `<h4>Clip rules</h4><ul class="rules">${c.rules.map(r => `<li>${esc(r)}</li>`).join("")}</ul>` : ""}
         ${c.required_tag ? `<h4>Required in your caption</h4><div class="note info"><b>${esc(c.required_tag)}</b><span>Checked automatically on YouTube, and by hand on the others.</span></div>` : ""}
-        <h4>Streams and footage to clip</h4>
-        ${c.sources ? (c.sources.length ? `<div class="srcs">${c.sources.map((s, i) => srcLink(s, i === c.sources.length - 1 && c.sources.length > 1)).join("")}</div>` : `<div class="locked">Links will be posted here.</div>`)
-          : `<div class="locked">🔒 Join the campaign to see which streams and videos to clip.</div>`}
+        ${streamsSection(c)}
         ${resources(c)}
         <h4>Top clippers in this campaign</h4>
         ${c.leaderboard.length ? `<div class="mini-lb">${c.leaderboard.map((r, i) => `<div><span>${i + 1}. ${esc(r.name)}</span><span class="num">${short(r.views)} views · ${inr(r.earned)}</span></div>`).join("")}</div>` : `<div class="locked">No clips yet. Yours could be first.</div>`}

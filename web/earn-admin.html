@@ -128,6 +128,12 @@ ol.steps{padding-left:18px;color:var(--dim);display:grid;gap:6px;margin:10px 0 0
 .mprev:empty{display:none}
 .mprev .ok{color:var(--deep)}.mprev .warn{color:#9A5B00}
 .mprev a{color:inherit}
+.srow{border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:10px;display:flex;flex-direction:column;gap:8px}
+.srow-h{display:grid;grid-template-columns:minmax(120px,1fr) 2.2fr auto;gap:8px;align-items:center}
+.srow textarea{min-height:70px;font-size:13.5px}
+.s-info{font-size:12.5px;color:var(--dim)}
+@media (max-width:700px){.srow-h{grid-template-columns:1fr}}
+.srow textarea.inp{height:auto;padding:8px 12px;line-height:1.5;resize:vertical}
 </style>
 </head>
 <body>
@@ -250,11 +256,14 @@ function openForm(c) {
       <div class="field"><label>One-line pitch</label><input name="tagline" value="${esc(c.tagline)}" maxlength="200" placeholder="Live-clip the GTA 6 launch streams and get paid per view"></div>
       <div class="field"><label>Important note for clippers</label><textarea name="notice" rows="2" maxlength="1000" placeholder="e.g. Only send clips of Mizo Plays. Clips of other creators will be rejected.">${esc(c.notice || "")}</textarea><div class="hint">Shown in a yellow box at the top of the campaign and on the Send a clip form.</div></div>
       <div class="field"><label>Brief</label><textarea name="brief" rows="5" placeholder="What to clip, what kind of moments work, tone, language…">${esc(c.brief)}</textarea></div>
-      <div class="g2"><div class="field"><label>Rules (one per line)</label><textarea name="rules" rows="7">${esc(c.raw_rules ?? (c.rules || []).join("\n"))}</textarea></div>
-        <div class="field"><label>Streams and footage (one link per line)</label><textarea name="sources" rows="7" placeholder="https://youtube.com/@creator/streams&#10;https://drive.google.com/…">${esc(c.raw_sources ?? (c.sources || []).join("\n"))}</textarea><div class="hint">Only clippers who joined can see these.</div></div></div>
+      <div class="field"><label>Rules (one per line)</label><textarea name="rules" rows="6">${esc(c.raw_rules ?? (c.rules || []).join("\n"))}</textarea></div>
       <div class="sect">Resource library</div>
       <div class="field"><label>Raw clips folder (Google Drive)</label><input name="raw_clips" value="${esc(c.raw_clips || "")}" placeholder="https://drive.google.com/drive/folders/…"><div class="hint">Moments already cut, for clippers to edit their own way. Share the folder as <b>Anyone with the link can view</b>, so its files show right on the campaign. Only clippers who joined see it.</div></div>
-      <div class="field"><label>Best moments (timestamps)</label><textarea name="moments" rows="10" placeholder="Day 3&#10;2:37:12 heavy driving race to the club&#10;2:44:30-2:45:53 clubbing&#10;&#10;Previous stream | https://youtube.com/watch?v=…&#10;13:29&#10;32:57 beach intro">${esc(c.raw_moments || "")}</textarea><div class="hint">Paste them straight from the mod's message, one per line. A line with no time names the stream: write it like its name under Streams and footage ("Day 3"), or put its link after a <b>|</b>. Then each time opens the stream at that second, and clippers can clip it in the ClipKontrast app with one click. Times above any name go with the newest stream.</div><div class="mprev" id="mprev"></div></div>
+      <div class="sect">Streams and videos to clip</div>
+      <p class="hint" style="margin:-6px 0 10px">One box per stream or video, oldest first (the last one is marked <b>Latest</b>). Paste a stream's best moments in its own box, straight from the mod's message. Each time then opens that stream at that second, and clippers can clip it in the app with one click. Clippers who joined see every stream; everyone sees the ones with best moments.</p>
+      <div id="streams">${streamRows(c).map(streamRow).join("")}</div>
+      <button type="button" class="btn" data-act="addstream" style="margin-top:8px">+ Add a stream or video</button>
+      <input type="hidden" name="sources"><input type="hidden" name="moments">
       <div class="sect">Where and how clips are checked</div>
       <div class="field"><label>Platforms that pay</label><div class="checks">${Object.entries(PLAT).map(([k, l]) => `<label><input type="checkbox" name="platforms" value="${k}" ${pl.has(k) ? "checked" : ""}>${l}</label>`).join("")}</div></div>
       <div class="g2"><div class="field"><label>Required in the caption</label><input name="required_tag" value="${esc(c.required_tag)}" placeholder="@creatorhandle"><div class="hint">Checked automatically on YouTube.</div></div>
@@ -285,7 +294,7 @@ function openForm(c) {
       ${c.cover ? `<img class="cover-prev" src="${esc(c.cover)}" alt="">` : ""}
     </form></div></div>`;
   mathPreview();
-  setTimeout(momentsPreview, 50);
+
 }
 function mathPreview() {
   const f = $("#cf"); if (!f) return;
@@ -420,6 +429,43 @@ function drawSettings() {
     <div class="note ${S.mail ? "info" : "warn"}">${S.mail ? "Email sending is set up." : "Email sending isn't set up yet, so confirmation emails can't go out."}</div></div>`;
 }
 
+// ---------------------------------------------------------------- streams, each with its own best moments
+const TS_LINE = /^\s*(\d{1,2}:)?\d{1,2}:\d{2}/;
+function streamRows(c) {
+  if (c.stream_rows && c.stream_rows.length) return c.stream_rows;
+  return [{name: "", url: "", timestamps: ""}];
+}
+function streamRow(r) {
+  const n = (r.timestamps || "").split("\n").filter(l => TS_LINE.test(l)).length;
+  return `<div class="srow">
+    <div class="srow-h"><input class="inp s-name" value="${esc(r.name || "")}" placeholder="Name, e.g. Day 2" maxlength="60">
+      <input class="inp s-url" value="${esc(r.url || "")}" placeholder="Link: https://youtube.com/live/…" maxlength="300">
+      <button type="button" class="btn xs" data-act="delstream" title="Remove this stream">Remove</button></div>
+    <textarea class="inp s-ts" rows="4" placeholder="Best moments of this stream, one per line (optional):&#10;2:37:12 heavy driving race to the club&#10;2:44:30-2:45:53">${esc(r.timestamps || "")}</textarea>
+    <div class="s-info">${n ? `✓ ${n} moments` : "No best moments yet"}</div></div>`;
+}
+function readStreams() {
+  return $$("#streams .srow").map(row => ({name: row.querySelector(".s-name").value.trim().replace(/[|\n]/g, " "),
+    url: row.querySelector(".s-url").value.trim(), timestamps: row.querySelector(".s-ts").value}))
+    .filter(r => r.url || r.timestamps.trim());
+}
+// The boxes go to the server as the two texts it keeps: the streams, one "Name | link" per line, and the best moments,
+// each stream's times under a line with its name and link, so every time is tied to its own stream.
+function serializeStreams(f) {
+  const rows = readStreams();
+  for (const r of rows) {
+    if (r.url && !/^https?:\/\//i.test(r.url)) r.url = "https://" + r.url;
+    if (r.timestamps.trim() && !r.url) throw new Error(`Add the link of "${r.name || "the stream"}", so its best moments open it.`);
+  }
+  f.sources.value = rows.filter(r => r.url).map(r => (r.name ? r.name + " | " : "") + r.url).join("\n");
+  f.moments.value = rows.filter(r => r.timestamps.trim()).map(r => `${r.name || "Stream"} | ${r.url}\n${r.timestamps.trim()}`).join("\n\n");
+}
+document.addEventListener("input", e => {
+  const row = e.target.closest?.(".srow"); if (!row) return;
+  const n = row.querySelector(".s-ts").value.split("\n").filter(l => TS_LINE.test(l)).length;
+  row.querySelector(".s-info").textContent = n ? `✓ ${n} moments` : "No best moments yet";
+});
+
 // ---------------------------------------------------------------- how the pasted best moments are read
 let mpTimer = 0;
 function momentsPreview() {
@@ -435,7 +481,7 @@ function momentsPreview() {
     } catch (err) { box.textContent = err.message; }
   }, 350);
 }
-document.addEventListener("input", e => { if (e.target.closest?.("#cf") && (e.target.name === "moments" || e.target.name === "sources")) momentsPreview(); });
+
 
 // ---------------------------------------------------------------- bug reports
 function drawBugs() {
@@ -525,6 +571,8 @@ document.addEventListener("click", async e => {
     else if (act === "yt-refresh") { const r = await api("/api/admin/earn/refresh", {method: "POST", body: {}}); toast(`${r.updated} YouTube clips updated.`, "good"); await load(); }
     else if (act === "copy") { await navigator.clipboard.writeText(a.dataset.v); toast((a.dataset.what || "UPI ID") + " copied."); }
     else if (act === "bstatus") { S.bStatus = a.dataset.s; draw(); }
+    else if (act === "addstream") { $("#streams").insertAdjacentHTML("beforeend", streamRow({name: "", url: "", timestamps: ""})); $("#streams .srow:last-child .s-name").focus(); }
+    else if (act === "delstream") { const row = a.closest(".srow"); if (!row.querySelector(".s-ts").value.trim() || confirm("Remove this stream and its best moments?")) row.remove(); }
     else if (act === "bdiag") { const n = Number(id); S.open.has(n) ? S.open.delete(n) : S.open.add(n); draw(); }
     else if (act === "bset") { await api("/api/admin/feedback/" + id, {method: "POST", body: {status: a.dataset.s}}); S.bugs = await api("/api/admin/feedback"); draw(); toast(a.dataset.s === "done" ? "Marked fixed." : a.dataset.s === "seen" ? "Marked as looking into it." : "Reopened."); }
     else if (act === "pay") {
@@ -561,6 +609,7 @@ document.addEventListener("submit", async e => {
   const f = e.target;
   try {
     if (f.id === "cf") {
+      serializeStreams(f);
       const all = Object.fromEntries(new FormData(f).entries());
       // the showcase numbers travel together, as "results"
       const d = Object.fromEntries(Object.entries(all).filter(([k]) => !k.startsWith("r_")));

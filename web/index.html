@@ -1577,12 +1577,13 @@ function takeClipLink(hash) {
   if (!hash || !hash.startsWith("#clip=")) return false;
   const q = new URLSearchParams(hash.slice(1));
   const url = (q.get("clip") || "").trim(), from = Number(q.get("from")), to = Number(q.get("to"));
-  if (!VIDEO_SITE.test(url) || !(from >= 0) || !(to > from) || to - from > 600) { toast("That moment's link couldn't be opened here.", "bad"); return false; }
-  S.preRange = {start: from, end: to, label: (q.get("label") || "").slice(0, 80)};
+  const whole = !q.has("from") && !q.has("to");          // a whole stream or video, with no moment chosen
+  if (!VIDEO_SITE.test(url) || (!whole && (!(from >= 0) || !(to > from) || to - from > 600))) { toast("That moment's link couldn't be opened here.", "bad"); return false; }
+  S.preRange = whole ? null : {start: from, end: to, label: (q.get("label") || "").slice(0, 80)};
   S.addMode = "video"; lsSet("ck_mode", "video");
   go("overview");
   const input = $("#url"); if (input) { input.value = url; onLink(input); }
-  toast(`Moment ready: ${hms(from)} – ${hms(to)}. Pick a style and press Make clips.`, "ok");
+  toast(whole ? "Video ready. Pick a style and press Make clips." : `Moment ready: ${hms(from)} – ${hms(to)}. Pick a style and press Make clips.`, "ok");
   return true;
 }
 addEventListener("hashchange", () => { if (takeClipLink(location.hash)) history.replaceState(null, "", location.pathname); });

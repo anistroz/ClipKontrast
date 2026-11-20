@@ -92,6 +92,33 @@ check("'Day 1' is Day 1", earn.parse_moments("Day 1\n1:00 x", S4)[0]["url"], "ht
 check("'Day 2 - CLIP WORTHY TIMESTAMPS' is Day 2, its share tag dropped", earn.parse_moments("Day 2 - CLIP WORTHY TIMESTAMPS\n2:37:12 x", S4)[0]["moments"][0]["watch"],
       "https://www.youtube.com/watch?v=LjNhaHf3tNE&t=9432s")
 
+# ---- one box per stream: what the admin's editor saves, and what clippers see
+EDIT_SOURCES = "Day 1 | https://www.youtube.com/live/hrVIm-8R0As\nVideo of Day 1 | https://youtu.be/pB8YW4vnrew\nDay 2 | https://www.youtube.com/live/LjNhaHf3tNE\nDay 3 | https://www.youtube.com/live/m83xnDJjWws"
+EDIT_MOMENTS = "Day 2 | https://www.youtube.com/live/LjNhaHf3tNE\n2:37:12 race\n2:44:30--2:45:53\n13:29"
+rows = earn.stream_rows(EDIT_SOURCES, EDIT_MOMENTS)
+check("every stream gets its own box, in order", [r["name"] for r in rows], ["Day 1", "Video of Day 1", "Day 2", "Day 3"])
+check("...each with only its own best moments", [len(r["moments"]) for r in rows], [0, 0, 3, 0])
+check("...the last one is the latest", [r["latest"] for r in rows], [False, False, False, True])
+check("...and Day 2's times open Day 2", rows[2]["moments"][0]["watch"], "https://www.youtube.com/watch?v=LjNhaHf3tNE&t=9432s")
+old = earn.stream_rows("https://www.youtube.com/watch?v=hrVIm-8R0As\nhttps://www.youtube.com/watch?v=LjNhaHf3tNE", "CLIP WORTHY\n1:00 x")
+check("links without names are numbered, and their times shown where they were read", ([r["name"] for r in old], [len(r["moments"]) for r in old]),
+      (["Stream 1", "Stream 2"], [0, 1]))
+c2 = earn.save_campaign({"title": "Boxes", "status": "live", "rate_per_1k": 10, "budget": 100, "platforms": ["youtube"],
+                         "sources": EDIT_SOURCES, "moments": EDIT_MOMENTS})
+adm2 = earn.campaign(c2["id"], admin=True)
+check("the admin's editor gets one box per stream, its times as typed", [(r["name"], r["timestamps"].count("\n") + 1 if r["timestamps"] else 0) for r in adm2["stream_rows"]],
+      [("Day 1", 0), ("Video of Day 1", 0), ("Day 2", 3), ("Day 3", 0)])
+vis = earn.campaign(c2["slug"])
+check("visitors see the streams with best moments", [s["name"] for s in vis["streams"]], ["Day 2"])
+check("...without the raw lines the admin typed", "raw" in str(vis["streams"]), False)
+u2 = auth.signup("member2@example.com", "test-pass-123", "M")[0]
+with db.engine.begin() as cx:
+    cx.execute(db.earn_members.insert().values(campaign_id=c2["id"], user_id=u2.id, joined_at=time.time()))
+check("clippers who joined see every stream", [s["name"] for s in earn.campaign(c2["slug"], uid=u2.id)["streams"]], ["Day 1", "Video of Day 1", "Day 2", "Day 3"])
+check("the app gets each stream's moments under its name", [(g["title"], len(g["moments"])) for c in earn.open_moments() if c["slug"] == c2["slug"] for g in c["moments"]],
+      [("Day 2", 3)])
+earn.save_campaign({"status": "ended"}, c2["id"])            # out of the way of what follows
+
 # ---- the admin sees how the timestamps are read; the app gets every open campaign's moments
 from fastapi.testclient import TestClient  # noqa: E402
 web = TestClient(server.app, base_url="http://127.0.0.1:8765")
