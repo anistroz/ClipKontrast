@@ -376,7 +376,7 @@ def _stats(c, ids: list) -> dict:
 # ---------------------------------------------------------------- the resource library: best moments and raw clips
 _TS = r"(?:\d{1,2}:)?\d{1,2}:\d{2}"
 _DASH = "-\u2010\u2011\u2012\u2013\u2014\u2015\u2212~"
-_MOMENT = re.compile(rf"^\s*({_TS})(?:\s*(?:[{_DASH}]|to)\s*({_TS}))?\s*[{_DASH}:|]?\s*(.*)$")
+_MOMENT = re.compile(rf"^\s*({_TS})(?:\s*(?:[{_DASH}]+|to)\s*({_TS}))?\s*[{_DASH}:|]*\s*(.*)$")
 _URL = re.compile(r"https?://\S+")
 
 

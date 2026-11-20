@@ -47,7 +47,7 @@ check("a line that only looks like a time is not a moment", sum(len(x["moments"]
 check("times above any name go with the newest stream", earn.parse_moments("1:00 hello", SOURCES)[0]["url"], "https://www.youtube.com/live/xyz789ghi01")
 check("a stream that can't be matched still lists its moments, without links", earn.parse_moments("Old stream\n1:00 hi", "")[0]["moments"][0]["watch"], "")
 # ---- the ways people really paste them
-for dash in ("-", "\u2010", "\u2011", "\u2013", "\u2014", "\u2212", "~", " to "):
+for dash in ("-", "--", "\u2010", "\u2011", "\u2013", "\u2014", "\u2212", "~", " to "):
     m = earn.parse_moments(f"2:44:30 {dash}2:45:53", SOURCES)[0]["moments"][0]
     check(f"a range with {dash!r} between the times", (m["t"], m["end"], m["label"]), (9870, 9953, ""))
 g2 = earn.parse_moments("CLIP WORTHY TIMESTAMPS👇\n2:37:12 race", "Mizo | https://www.youtube.com/watch?v=LjNhaHf3tNE&t=992s")
