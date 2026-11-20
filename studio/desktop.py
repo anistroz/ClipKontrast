@@ -169,6 +169,35 @@ def _page(message: str) -> str:
     return LOADING.replace("MESSAGE", html.escape(message).replace("\n", "<br>"))
 
 
+def _starting() -> tuple:
+    """What the server is busy with while it starts, read from the end of its log: (words for the window, whether it
+    is moving the folder). Moving videos to another drive can take many minutes, and must not be given up on."""
+    lines = [x.strip() for x in _tail(40).splitlines() if x.strip()]
+    start = max((i for i, x in enumerate(lines) if x.startswith("---- ClipKontrast starting")), default=-1)
+    lines = lines[start + 1:]
+    moving = next((x for x in lines if x.startswith("Moving ClipKontrast's folder to ")), "")
+    if moving and not any(x == "Moved." for x in lines):
+        where = moving[len("Moving ClipKontrast's folder to "):].split(" (")[0]
+        step = next((x for x in reversed(lines) if x.startswith("Moved ") and " of " in x), "")
+        return (f"Moving your ClipKontrast folder to {where}…\nYour videos and clips are being copied to the new place "
+                f"you chose in Settings. This is done once and can take several minutes. Please don't close this window."
+                + (f"\n\n{step.split(':')[0]}" if step else ""), True)
+    return "Starting ClipKontrast…\nThis can take up to a minute.", False
+
+
+def _wait_for_server(server, show=None) -> None:
+    """Wait until the server answers (or stops). While it moves the folder there is no time limit."""
+    began, said = time.time(), ""
+    while not _up() and server.poll() is None:
+        text, moving = _starting()
+        if not moving and time.time() - began > 600:
+            return
+        if show and time.time() - began > 3 and text != said:
+            show(text)
+            said = text
+        time.sleep(0.5)
+
+
 def _run_native():
     """ClipKontrast in its own pywebview window; the server is looked after on a second thread."""
     import webview
@@ -184,13 +213,7 @@ def _run_native():
         while not state["closing"]:
             _swap()
             server = state["server"] = _start_server()
-            began, shown = time.time(), False
-            while not _up() and server.poll() is None and time.time() - began < 600:
-                if not shown and time.time() - began > 8:
-                    window.load_html(_page("Starting ClipKontrast…\nThe first start downloads the speech model "
-                                           "(about 480 MB, once). This can take a few minutes."))
-                    shown = True
-                time.sleep(0.5)
+            _wait_for_server(server, lambda text: window.load_html(_page(text)))
             if server.poll() is not None and server.returncode not in (RESTART_CODE, INSTALLER_CODE):
                 window.load_html(_page("ClipKontrast couldn't start.\n\n" + _tail(8)))
                 return
@@ -267,9 +290,7 @@ def main():
     while True:
         _swap()
         server = _start_server()
-        began = time.time()
-        while not _up() and server.poll() is None and time.time() - began < 600:
-            time.sleep(0.5)
+        _wait_for_server(server)
         if server.poll() is not None and server.returncode not in (RESTART_CODE, INSTALLER_CODE):
             _message("ClipKontrast couldn't start.\n\n" + _tail(), error=True)
             return

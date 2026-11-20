@@ -79,7 +79,7 @@ def _move_folder(old: Path, new: Path) -> bool:
     if items:
         print(f"\n  Moving ClipKontrast's folder to {new} ({len(items)} things). This is done once and can take a while...", flush=True)
     done = True
-    for item in items:
+    for i, item in enumerate(items, 1):
         target = new / item.name
         try:
             if target.exists() and item.is_dir():
@@ -97,6 +97,7 @@ def _move_folder(old: Path, new: Path) -> bool:
         except OSError as e:
             print(f"  Could not move {item.name}: {e}", flush=True)
             done = False
+        print(f"  Moved {i} of {len(items)}: {item.name}", flush=True)       # the app's window shows how far it has got
     if done:
         try:
             old.rmdir()

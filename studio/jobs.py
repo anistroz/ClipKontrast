@@ -719,7 +719,7 @@ def _run_job(job):
     if not transcribe.model_ready() and not transcribe.REMOTE:
         from . import fetch_model
         _set(job, stage="Getting the speech model (one time, about 480 MB)")
-        fetch_model.ensure()
+        fetch_model.ensure(lambda p: _set(job, stage=f"Getting the speech model (one time, about 480 MB): {p}%"))
         _set(job, stage="Getting the audio")
     fetch = ThreadPoolExecutor(1)
     video = None

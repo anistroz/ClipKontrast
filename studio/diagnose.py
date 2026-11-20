@@ -52,7 +52,12 @@ def _setup() -> list:
     ffmpeg = shutil.which("ffmpeg") or ("found" if not tools.missing() else "")
     used = [k for k, v in render._hw_ok.items() if v] or ["processor (libx264)"]
     failed = [k for k, v in render._hw_ok.items() if v is False]
+    from . import fetch_model
+    fm = fetch_model.state
+    speech = ("ready" if fetch_model.ready() else f"downloading ({fm['percent']}%)" if fm["doing"]
+              else "not downloaded" + (f" (last problem: {fm['error']})" if fm["error"] else ""))
     return [f"ffmpeg: {'yes' if ffmpeg else 'NOT FOUND'}",
+            f"Speech model (English): {speech}",
             f"Deno (for YouTube): {'yes' if js else 'no'}",
             f"Whisper (Hindi): {'installed' if whisper.installed() else 'not installed'}",
             f"AI: {'set up' if config.ai_ready() else 'not set up'}",
