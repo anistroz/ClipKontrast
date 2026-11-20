@@ -10,6 +10,7 @@ os.environ.update(CLIPKONTRAST_DATA=tempfile.mkdtemp(prefix="pc-speed-"), DATABA
 sys.path.insert(0, ".")
 from studio import auth, brain, ctx, db, diagnose, jobs, transcribe, whisper  # noqa: E402
 db.init()
+REAL_ASK = brain.ask_ai
 fails = []
 
 
@@ -125,6 +126,41 @@ t = job.get("timings") or {}
 check("each step's time is kept with the video", set(t) >= {"audio", "transcript", "picking", "clips"} and all(isinstance(v, int) for v in t.values()))
 d = diagnose.details()
 check("...and a bug report shows them, with how many clips are made at once", "Recent videos:" in d and "transcript" in d and "Clips made at once" in d)
+
+# ---- the AI out of credit: a long video doesn't wait for it, window after window
+import time as _t  # noqa: E402
+from unittest.mock import patch  # noqa: E402
+from studio import ai, config  # noqa: E402
+brain.ask_ai = REAL_ASK
+brain._down.update(until=0.0, why=None)
+tries = []
+
+
+def no_credit(model, prompt, schema, timeout=None):
+    tries.append(model)
+    raise RuntimeError("HTTP 429 RESOURCE_EXHAUSTED: You exceeded your current quota, please check your plan and billing details.")
+
+
+words3h = [{"w": "word.", "s": i * 2.0, "e": i * 2.0 + 0.5} for i in range(int(3.5 * 3600 / 2))]
+db3h = np.random.RandomState(5).normal(-30, 3, int(3.5 * 3600)).astype(np.float32)
+with patch.object(config, "ai_ready", return_value=True), patch.object(ai, "models", return_value=["m1", "m2", "m3"]), \
+        patch.object(ai, "call", side_effect=no_credit), patch.object(brain.time, "sleep", side_effect=AssertionError("waited")):
+    t0 = _t.time()
+    found, info = brain.find_clips(words3h, db3h, 3.5 * 3600, max_clips=6, log=lambda m: None)
+    took = _t.time() - t0
+    check("out of credit: a 3.5-hour video's moments are picked in seconds, without waiting", took < 10)
+    check("...each model asked once, not every window three times", tries, ["m1", "m2", "m3"])
+    check("...by loudness, and it says so", (len(found) > 0, info["model"]), (True, None))
+    n = len(tries)
+    try:
+        brain.ask_ai("caption fix", purpose="x")
+        check("then the AI rests: the next ask fails at once, with no call", False)
+    except RuntimeError:
+        check("then the AI rests: the next ask fails at once, with no call", len(tries), n)
+brain._down.update(until=0.0, why=None)
+with patch.object(config, "ai_ready", return_value=True), patch.object(ai, "models", return_value=["m1"]), \
+        patch.object(ai, "call", return_value=([], 10, 5)), patch.object(brain.usage, "record", return_value=None):
+    check("once it answers again, it's used again", brain.ask_ai("x")[1], "m1")
 
 print(f"  {len(fails)} failed" if fails else "  ALL PASSED")
 sys.exit(1 if fails else 0)

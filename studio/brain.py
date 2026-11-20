@@ -199,26 +199,45 @@ def loud_zscore(db):
     return (db - np.median(db)) / (db.std() + 1e-6)
 
 
+# When the AI has just failed (a key out of credit, a daily limit, no internet), it isn't asked again for a while:
+# a long video asks it many times, and waiting for every one of them to fail took half an hour. Clips are picked by
+# loudness meanwhile, at once.
+_down = {"until": 0.0, "why": None}
+QUOTA_WORDS = ("quota", "exceeded", "credit", "billing", "insufficient", "limit: 0", "per day", "perday")
+
+
+def ai_resting() -> bool:
+    return time.time() < _down["until"]
+
+
 def ask_ai(prompt, schema=None, purpose="AI call", timeout=None):
-    """Try each model in order, with a couple of retries for rate limits and overloads.
+    """Try each model in order, with one short retry for a moment's overload.
     Returns (the answer, the model that gave it, tokens used) and notes the tokens in the usage record."""
     if not config.ai_ready():
         raise RuntimeError("The AI is not set up on this server.")
-    last = None
+    if ai_resting():
+        raise RuntimeError(f"The AI did not answer: {ai.explain(_down['why']) or _down['why']}")
+    last, out_of_credit = None, False
     for model in ai.models():
-        for attempt in range(3):
+        for attempt in range(2):
             try:
                 out, sent, wrote = ai.call(model, prompt, schema or SCHEMA, timeout)
                 usage.record(sent, wrote, purpose)
                 ai.clear_problem()
+                _down.update(until=0.0, why=None)
                 return out, model, sent + wrote
             except Exception as e:  # noqa: BLE001
                 last = e
-                if "HTTP 429" in str(e) or "HTTP 5" in str(e):
-                    time.sleep(4 * (attempt + 1))
+                text = str(e).lower()
+                if "http 429" in text and any(w in text for w in QUOTA_WORDS):
+                    out_of_credit = True        # waiting seconds won't bring a daily limit back: the next model
+                    break
+                if ("http 429" in text or "http 5" in text) and attempt == 0:
+                    time.sleep(3)
                     continue
                 break
     ai.note_problem(last)
+    _down.update(until=time.time() + (600 if out_of_credit else 120), why=last)
     raise RuntimeError(f"The AI did not answer: {ai.explain(last) or last}")
 
 
@@ -315,6 +334,8 @@ def find_clips(words, db, duration, title="", uploader="", max_clips=6, min_len=
             found += [c for c in out if isinstance(c, dict) and a - 5 <= float(c.get("start", -1)) < b]
         except Exception as e:  # noqa: BLE001
             log(f"AI window {a:.0f}-{b:.0f}s failed: {e}")
+            if ai_resting():
+                break                    # the AI is down: the rest is picked by loudness straight away
     note = ""
     if not used_model:
         found = fallback_by_loudness(db, words, max_clips, max_len, duration)
