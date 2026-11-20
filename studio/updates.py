@@ -72,9 +72,12 @@ def _what_changed(here: str):
     d = r.json()
     notes = []
     for c in reversed(d.get("commits") or []):
-        msg = str((c.get("commit") or {}).get("message") or "").strip().splitlines()
-        notes.append({"sha": str(c.get("sha") or "")[:7], "title": (msg[0] if msg else "")[:140],
-                      "date": str(((c.get("commit") or {}).get("committer") or {}).get("date") or "")[:10]})
+        # Only lines a change marks "What's new: ..." are shown: a commit's title also covers the website, the admin
+        # pages and the build, which are not for the people using the clip maker.
+        for line in str((c.get("commit") or {}).get("message") or "").splitlines():
+            if line.lower().startswith("what's new:") and line[11:].strip():
+                notes.append({"sha": str(c.get("sha") or "")[:7], "title": line[11:].strip()[:140],
+                              "date": str(((c.get("commit") or {}).get("committer") or {}).get("date") or "")[:10]})
     return int(d.get("ahead_by") or 0), notes[:20]
 
 

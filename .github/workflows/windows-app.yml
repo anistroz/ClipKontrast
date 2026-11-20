@@ -3,6 +3,9 @@
 #
 #   Publish a new version:   Actions -> Windows app -> Run workflow, a new version number, tick "publish"
 #                            (or push a tag like v2026.11.20.1)
+#   What's new:              only the "notes" typed here are shown to people in the app's update window. Write them
+#                            for clippers, about the clip maker. Changes to the website, the admin pages or the
+#                            build are never listed (commit messages are not used).
 #   Just build and test it:  the same without "publish" (the installer is kept as a download for 14 days)
 name: Windows app
 
@@ -19,6 +22,10 @@ on:
         description: "Publish it to everyone (only if every test passes)"
         type: boolean
         default: false
+      notes:
+        description: "What's new, shown to clippers in the app. One line each, separated by |. Only clip-maker changes they will notice. Empty shows none."
+        required: false
+        default: ""
 
 permissions:
   contents: write
@@ -42,12 +49,14 @@ jobs:
           if ("${{ github.ref_type }}" -eq "tag") { $v = "${{ github.ref_name }}".TrimStart("v") } else { $v = "${{ inputs.version }}" }
           if ($v -notmatch '^\d+(\.\d+){1,5}$') { throw "The version must be numbers with dots, like 2026.11.19.1 (got '$v')" }
           "CK_VERSION=$v" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-          # What's new: the first line of each change since the last published version, shown in the app.
-          $prev = git describe --tags --abbrev=0 --match "v*" HEAD^ 2>$null
-          $range = if ($LASTEXITCODE -eq 0 -and $prev) { "$prev..HEAD" } else { "-n15" }
-          git log --no-merges --pretty=format:%s $range | Select-Object -First 15 | Set-Content -Encoding utf8 release-notes.txt
-          Get-Content release-notes.txt
-          exit 0      # "no earlier version" from git describe is not a failure
+          # What's new: only the lines typed in "notes" (never commit messages, which also describe the website,
+          # the admin pages and the build: none of that is for the people using the app).
+          $notes = @("${{ inputs.notes }}".Split("|") | ForEach-Object { $_.Trim() } | Where-Object { $_ } | Select-Object -First 8)
+          $notes | Set-Content -Encoding utf8 release-notes.txt
+          $body = if ($notes.Count) { $notes | ForEach-Object { "- $_" } } else { "ClipKontrast $v" }
+          $body | Set-Content -Encoding utf8 release-body.txt
+          "What's new in the app:"; Get-Content release-notes.txt
+          exit 0
 
       - name: Build the installer
         shell: pwsh
@@ -76,4 +85,4 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         # makes the tag itself when started by hand
-        run: gh release create "v$env:CK_VERSION" dist/ClipKontrast-Setup.exe dist/ClipKontrast-app.zip dist/ClipKontrast-Mac-Linux.zip dist/latest.json --target "${{ github.sha }}" --title "ClipKontrast $env:CK_VERSION" --notes-file release-notes.txt --latest
+        run: gh release create "v$env:CK_VERSION" dist/ClipKontrast-Setup.exe dist/ClipKontrast-app.zip dist/ClipKontrast-Mac-Linux.zip dist/latest.json --target "${{ github.sha }}" --title "ClipKontrast $env:CK_VERSION" --notes-file release-body.txt --latest

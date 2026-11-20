@@ -51,8 +51,9 @@ here = updates.RUNNING
 check("the version ClipKontrast started on is remembered", len(here), 40)
 NEWER, NEWEST = "1" * 40, "2" * 40
 two = R(200, {"ahead_by": 2, "commits": [
-    {"sha": "aaaaaaa1", "commit": {"message": "Connect TikTok in one click\n\nlong text", "committer": {"date": "2026-11-15T10:00:00Z"}}},
-    {"sha": NEWER, "commit": {"message": "Captions always in English", "committer": {"date": "2026-11-16T10:00:00Z"}}}]})
+    {"sha": "aaaaaaa1", "commit": {"message": "Connect TikTok in one click\n\nlong text\nWhat's new: Connect TikTok in one click", "committer": {"date": "2026-11-15T10:00:00Z"}}},
+    {"sha": "aaaaaaa2", "commit": {"message": "Admin: drag campaigns into order\n\nonly for the website", "committer": {"date": "2026-11-15T12:00:00Z"}}},
+    {"sha": NEWER, "commit": {"message": "Captions\n\nWhat's new: Captions always in English", "committer": {"date": "2026-11-16T10:00:00Z"}}}]})
 
 gh.update(top=here)
 check("up to date: no notice", updates.check(force=True), None)
@@ -64,6 +65,8 @@ got = updates.check(force=True)
 check("a new commit is noticed while ClipKontrast is running, with no restart", (got["behind"], got["latest"], got["current"], got["restart"]), (2, "1111111", here[:7], False))
 check("newest change first, one line each, with its date", [(n["title"], n["date"]) for n in got["notes"]],
       [("Captions always in English", "2026-11-16"), ("Connect TikTok in one click", "2026-11-15")])
+check("changes not marked for people using the app (website, admin, build) are never listed",
+      any("Admin" in n["title"] or "drag" in n["title"] for n in got["notes"]), False)
 asked.clear()
 for _ in range(5):
     updates.check(force=True)
