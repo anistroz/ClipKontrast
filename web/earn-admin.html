@@ -118,6 +118,12 @@ ol.steps{padding-left:18px;color:var(--dim);display:grid;gap:6px;margin:10px 0 0
 .order .arrows .btn{height:20px;min-width:24px;padding:0 6px;font-size:11px}
 .drag-row.dragging{opacity:.45}
 .drag-row.over td{background:var(--soft)}
+.bug .bh{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.bug .bpill{font-size:11px;font-weight:600;padding:2px 8px;border-radius:99px;background:var(--soft);color:var(--deep)}
+.bug .bpill.isapp{background:var(--frame);color:#fff}
+.bug .dimt{color:var(--dim);font-size:13px}
+.bug .bmsg{white-space:pre-wrap;margin-top:12px;font-size:15px;line-height:1.5;overflow-wrap:anywhere}
+.bug pre.diag{margin-top:12px;background:#0f1115;color:#d8dee9;border-radius:10px;padding:12px;font-size:12px;max-height:420px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere}
 </style>
 </head>
 <body>
@@ -154,14 +160,16 @@ const IC = {
   check: '<path d="M173.66,98.34a8,8,0,0,1,0,11.32l-56,56a8,8,0,0,1-11.32,0l-24-24a8,8,0,0,1,11.32-11.32L112,148.69l50.34-50.35A8,8,0,0,1,173.66,98.34ZM232,128A104,104,0,1,1,128,24,104.11,104.11,0,0,1,232,128Zm-16,0a88,88,0,1,0-88,88A88.1,88.1,0,0,0,216,128Z"/>',
   money: '<path d="M128,88a40,40,0,1,0,40,40A40,40,0,0,0,128,88Zm0,64a24,24,0,1,1,24-24A24,24,0,0,1,128,152ZM240,56H16a8,8,0,0,0-8,8V192a8,8,0,0,0,8,8H240a8,8,0,0,0,8-8V64A8,8,0,0,0,240,56ZM193.65,184H62.35A56.78,56.78,0,0,0,24,145.65v-35.3A56.78,56.78,0,0,0,62.35,72h131.3A56.78,56.78,0,0,0,232,110.35v35.3A56.78,56.78,0,0,0,193.65,184ZM232,93.37A40.81,40.81,0,0,1,210.63,72H232ZM45.37,72A40.81,40.81,0,0,1,24,93.37V72ZM24,162.63A40.81,40.81,0,0,1,45.37,184H24ZM210.63,184A40.81,40.81,0,0,1,232,162.63V184Z"/>',
   gear: '<path d="M128,80a48,48,0,1,0,48,48A48.05,48.05,0,0,0,128,80Zm0,80a32,32,0,1,1,32-32A32,32,0,0,1,128,160Zm88-29.84q.06-2.16,0-4.32l14.92-18.64a8,8,0,0,0,1.48-7.06,107.21,107.21,0,0,0-10.88-26.25,8,8,0,0,0-6-3.93l-23.72-2.64q-1.48-1.56-3-3L186,40.54a8,8,0,0,0-3.94-6,107.71,107.71,0,0,0-26.25-10.87,8,8,0,0,0-7.06,1.49L130.16,40Q128,40,125.84,40L107.2,25.11a8,8,0,0,0-7.06-1.48A107.6,107.6,0,0,0,73.89,34.51a8,8,0,0,0-3.93,6L67.32,64.27q-1.56,1.49-3,3L40.54,70a8,8,0,0,0-6,3.94,107.71,107.71,0,0,0-10.87,26.25,8,8,0,0,0,1.49,7.06L40,125.84Q40,128,40,130.16L25.11,148.8a8,8,0,0,0-1.48,7.06,107.21,107.21,0,0,0,10.88,26.25,8,8,0,0,0,6,3.93l23.72,2.64q1.49,1.56,3,3L70,215.46a8,8,0,0,0,3.94,6,107.71,107.71,0,0,0,26.25,10.87,8,8,0,0,0,7.06-1.49L125.84,216q2.16.06,4.32,0l18.64,14.92a8,8,0,0,0,7.06,1.48,107.21,107.21,0,0,0,26.25-10.88,8,8,0,0,0,3.93-6l2.64-23.72q1.56-1.48,3-3L215.46,186a8,8,0,0,0,6-3.94,107.71,107.71,0,0,0,10.87-26.25,8,8,0,0,0-1.49-7.06Zm-16.1-6.5a73.93,73.93,0,0,1,0,8.68,8,8,0,0,0,1.74,5.48l14.19,17.73a91.57,91.57,0,0,1-6.23,15L187,173.11a8,8,0,0,0-5.1,2.64,74.11,74.11,0,0,1-6.14,6.14,8,8,0,0,0-2.64,5.1l-2.51,22.58a91.32,91.32,0,0,1-15,6.23l-17.74-14.19a8,8,0,0,0-5-1.75h-.48a73.93,73.93,0,0,1-8.68,0,8,8,0,0,0-5.48,1.74L100.45,215.8a91.57,91.57,0,0,1-15-6.23L82.89,187a8,8,0,0,0-2.64-5.1,74.11,74.11,0,0,1-6.14-6.14,8,8,0,0,0-5.1-2.64L46.43,170.6a91.32,91.32,0,0,1-6.23-15l14.19-17.74a8,8,0,0,0,1.74-5.48,73.93,73.93,0,0,1,0-8.68,8,8,0,0,0-1.74-5.48L40.2,100.45a91.57,91.57,0,0,1,6.23-15L69,82.89a8,8,0,0,0,5.1-2.64,74.11,74.11,0,0,1,6.14-6.14A8,8,0,0,0,82.89,69L85.4,46.43a91.32,91.32,0,0,1,15-6.23l17.74,14.19a8,8,0,0,0,5.48,1.74,73.93,73.93,0,0,1,8.68,0,8,8,0,0,0,5.48-1.74L155.55,40.2a91.57,91.57,0,0,1,15,6.23L173.11,69a8,8,0,0,0,2.64,5.1,74.11,74.11,0,0,1,6.14,6.14,8,8,0,0,0,5.1,2.64l22.58,2.51a91.32,91.32,0,0,1,6.23,15l-14.19,17.74A8,8,0,0,0,199.87,123.66Z"/>'};
+IC.bug = '<path d="M144,92a12,12,0,1,1,12,12A12,12,0,0,1,144,92ZM100,80a12,12,0,1,0,12,12A12,12,0,0,0,100,80Zm116,64a87.76,87.76,0,0,1-3,22.88l19.29,8.43a8,8,0,1,1-6.42,14.66l-19.1-8.35a88,88,0,0,1-157.54,0l-19.1,8.35A8,8,0,0,1,23.71,175.3L43,166.87A87.76,87.76,0,0,1,40,144v-8H16a8,8,0,0,1,0-16H40v-8a87.76,87.76,0,0,1,3-22.88L23.71,80.69a8,8,0,1,1,6.42-14.66l19.1,8.35a88,88,0,0,1,157.54,0l19.1-8.35a8,8,0,1,1,6.42,14.66L213,89.12A87.76,87.76,0,0,1,216,112v8h24a8,8,0,0,1,0,16H216ZM56,120H200v-8a72,72,0,0,0-144,0Zm64,95.54V136H56v8A72.08,72.08,0,0,0,120,215.54ZM200,144v-8H136v79.54A72.08,72.08,0,0,0,200,144Z"/>';
 const ic = n => `<svg viewBox="0 0 256 256">${IC[n]}</svg>`;
 const TABS = {overview: ["Overview", "home", "Campaigns, clips waiting for review, and money owed"],
   campaigns: ["Campaigns", "flag", "Create campaigns, set budgets and rates, and go live"],
   review: ["Review clips", "check", "Check each clip, set its views, then approve or reject it"],
   clippers: ["Clippers", "users", "Everyone who signed up: payout details, account handles and campaigns"],
   payouts: ["Payouts", "money", "What each clipper is owed, and the record of what was sent"],
+  bugs: ["Bug reports", "bug", "Problems people reported from the app and the website, with what their app sent along"],
   settings: ["Settings", "gear", "The YouTube key that counts views automatically"]};
-const S = {tab: (location.pathname.split("/")[3] || "overview"), sum: null, camps: [], queue: null, qStatus: "pending", qCamp: "", q: "", owed: null, sel: new Set()};
+const S = {tab: (location.pathname.split("/")[3] || "overview"), bugs: null, bStatus: "new", open: new Set(), sum: null, camps: [], queue: null, qStatus: "pending", qCamp: "", q: "", owed: null, sel: new Set()};
 if (!TABS[S.tab]) S.tab = "overview";
 
 async function api(path, opts = {}) {
@@ -177,7 +185,7 @@ function toast(m, k = "") { $$(".toast").forEach(t => t.remove()); const t = doc
 
 function nav() {
   const pend = S.sum?.pending, owedN = S.sum?.owed_people;
-  $("#nav").innerHTML = Object.entries(TABS).map(([k, [l, i]]) => `<a class="ni ${S.tab === k ? "on" : ""}" href="/admin/earn/${k}" data-tab="${k}">${ic(i)}${l}${k === "review" && pend ? `<span class="cnt">${pend}</span>` : ""}${k === "payouts" && owedN ? `<span class="cnt">${owedN}</span>` : ""}</a>`).join("");
+  $("#nav").innerHTML = Object.entries(TABS).map(([k, [l, i]]) => `<a class="ni ${S.tab === k ? "on" : ""}" href="/admin/earn/${k}" data-tab="${k}">${ic(i)}${l}${k === "review" && pend ? `<span class="cnt">${pend}</span>` : ""}${k === "payouts" && owedN ? `<span class="cnt">${owedN}</span>` : ""}${k === "bugs" && S.bugs && S.bugs.counts.new ? `<span class="cnt">${S.bugs.counts.new}</span>` : ""}</a>`).join("");
   const [t, , sub] = TABS[S.tab]; $("#title").textContent = t; $("#subtitle").textContent = sub;
   $("#actions").innerHTML = S.tab === "campaigns" || S.tab === "overview" ? `<button class="btn primary" data-act="new">+ New campaign</button>` :
     S.tab === "review" ? `<a class="btn" href="/api/admin/earn/submissions.csv" title="Every clip from every campaign, with clipper details, checks and views">Export all clips (CSV)</a><button class="btn" data-act="yt-refresh">Refresh YouTube views</button>` :
@@ -404,10 +412,37 @@ function drawSettings() {
     <div class="note ${S.mail ? "info" : "warn"}">${S.mail ? "Email sending is set up." : "Email sending isn't set up yet, so confirmation emails can't go out."}</div></div>`;
 }
 
+// ---------------------------------------------------------------- bug reports
+function drawBugs() {
+  const b = S.bugs; if (!b) return "Loading…";
+  const c = b.counts, all = Object.values(c).reduce((x, y) => x + y, 0);
+  const items = b.items.filter(x => S.bStatus === "all" || x.status === S.bStatus);
+  return `<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+      <div class="seg">${[["new", "New"], ["seen", "Looking into it"], ["done", "Fixed"], ["all", "All"]].map(([k, l]) => `<button class="${S.bStatus === k ? "on" : ""}" data-act="bstatus" data-s="${k}">${l}<span class="c">${k === "all" ? all : c[k] || 0}</span></button>`).join("")}</div>
+      <span style="color:var(--frame-dim);font-size:13px">People report from the app's <b>Report a problem</b> button, or at <a href="/report" target="_blank">clipkontrast.com/report</a>.</span></div>
+    ${items.length ? items.map(x => `<div class="card bug">
+      <div class="bh"><span class="bpill ${x.source === "app" ? "isapp" : ""}">${x.source === "app" ? "App" : x.source === "website" ? "Website" : esc(x.kind)}</span>
+        <b>#${x.id}</b><span class="dimt">${ago(x.t)}</span>
+        <span class="dimt">${esc(x.name || x.email || x.contact || "no contact given")}${x.contact && (x.name || x.email) ? " · " + esc(x.contact) : ""}</span>
+        <span style="flex:1"></span>
+        ${x.contact ? `<button class="btn xs" data-act="copy" data-v="${esc(x.contact)}" data-what="Contact">Copy contact</button>` : ""}
+        ${x.status !== "seen" ? `<button class="btn xs" data-act="bset" data-id="${x.id}" data-s="seen">Looking into it</button>` : ""}
+        ${x.status !== "done" ? `<button class="btn xs good" data-act="bset" data-id="${x.id}" data-s="done">Fixed</button>` : `<button class="btn xs" data-act="bset" data-id="${x.id}" data-s="new">Reopen</button>`}</div>
+      <div class="bmsg">${esc(x.message)}</div>
+      ${x.app ? `<div class="dimt" style="margin-top:8px">${esc(x.app)}</div>` : ""}
+      ${x.page && !x.source ? `<div class="dimt">Page: ${esc(x.page)}</div>` : ""}
+      ${x.context && x.source !== "website" ? `<div class="dimt">While: ${esc(x.context)}</div>` : ""}
+      <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+        ${x.shot ? `<a class="btn xs" href="/api/admin/feedback/${x.id}/shot" target="_blank" rel="noopener">See screenshot</a>` : ""}
+        ${x.diag ? `<button class="btn xs" data-act="bdiag" data-id="${x.id}">${S.open.has(x.id) ? "Hide" : "Show"} technical details</button><button class="btn xs" data-act="copy" data-v="${esc("Report #" + x.id + "\n" + x.message + "\n\n" + x.app + "\n\n" + x.diag)}" data-what="Report">Copy all</button>` : ""}</div>
+      ${x.diag && S.open.has(x.id) ? `<pre class="diag">${esc(x.diag)}</pre>` : ""}
+    </div>`).join("") : `<div class="card" style="text-align:center;color:var(--frame-dim)">${S.bStatus === "new" ? "No new reports. 🎉" : "Nothing here."}</div>`}`;
+}
+
 // ---------------------------------------------------------------- drawing and loading
 function draw() {
   nav();
-  $("#view").innerHTML = !S.sum ? "Loading…" : {overview: drawOverview, campaigns: drawCampaigns, review: drawReview, clippers: drawClippers, payouts: drawPayouts, settings: drawSettings}[S.tab]();
+  $("#view").innerHTML = !S.sum ? "Loading…" : {overview: drawOverview, campaigns: drawCampaigns, review: drawReview, clippers: drawClippers, payouts: drawPayouts, bugs: drawBugs, settings: drawSettings}[S.tab]();
 }
 async function loadQueue() { S.queue = await api(`/api/admin/earn/submissions?status=${S.qStatus === "all" ? "" : S.qStatus}&campaign=${encodeURIComponent(S.qCamp)}&q=${encodeURIComponent(S.q)}`); }
 async function load() {
@@ -415,6 +450,8 @@ async function load() {
   if (S.tab === "review") await loadQueue();
   if (S.tab === "payouts") S.owed = await api("/api/admin/earn/owed");
   if (S.tab === "clippers") S.clippers = (await api("/api/admin/earn/clippers")).clippers;
+  if (S.tab === "bugs") S.bugs = await api("/api/admin/feedback");
+  else if (!S.bugs) api("/api/admin/feedback").then(b => { S.bugs = b; nav(); }).catch(() => {});
   if (S.tab === "settings") { try { S.mail = (await api("/api/public")).mail; } catch {} }
   draw();
 }
@@ -461,7 +498,10 @@ document.addEventListener("click", async e => {
     else if (act === "clear-sel") { S.sel.clear(); draw(); }
     else if (act === "selall") { S.queue.items.filter(s => s.status === "pending").forEach(s => a.checked ? S.sel.add(s.id) : S.sel.delete(s.id)); draw(); }
     else if (act === "yt-refresh") { const r = await api("/api/admin/earn/refresh", {method: "POST", body: {}}); toast(`${r.updated} YouTube clips updated.`, "good"); await load(); }
-    else if (act === "copy") { await navigator.clipboard.writeText(a.dataset.v); toast("UPI ID copied."); }
+    else if (act === "copy") { await navigator.clipboard.writeText(a.dataset.v); toast((a.dataset.what || "UPI ID") + " copied."); }
+    else if (act === "bstatus") { S.bStatus = a.dataset.s; draw(); }
+    else if (act === "bdiag") { const n = Number(id); S.open.has(n) ? S.open.delete(n) : S.open.add(n); draw(); }
+    else if (act === "bset") { await api("/api/admin/feedback/" + id, {method: "POST", body: {status: a.dataset.s}}); S.bugs = await api("/api/admin/feedback"); draw(); toast(a.dataset.s === "done" ? "Marked fixed." : a.dataset.s === "seen" ? "Marked as looking into it." : "Reopened."); }
     else if (act === "pay") {
       const ref = prompt(`Send ${inr(+a.dataset.amt)} to ${a.dataset.name} from your UPI app first.\n\nThen paste the UTR / transaction reference here:`);
       if (ref === null) return;

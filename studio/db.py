@@ -85,6 +85,11 @@ feedback = sa.Table(                                                          # 
     sa.Column("context", sa.String(1000), nullable=False, server_default=""), # e.g. the error they were looking at
     sa.Column("status", sa.String(10), nullable=False, server_default="new", index=True),  # new | seen | done
     sa.Column("updated_at", sa.Float, nullable=False),
+    sa.Column("source", sa.String(20), nullable=False, server_default=""),   # where it came from: app | website
+    sa.Column("contact", sa.String(200), nullable=False, server_default=""), # how to reach them, if they said
+    sa.Column("app", sa.String(200), nullable=False, server_default=""),     # app version, computer, Windows version
+    sa.Column("diag", sa.Text, nullable=False, server_default=""),           # technical details: recent errors, the log's end
+    sa.Column("shot", sa.Integer, nullable=False, server_default="0"),       # 1 when a screenshot came with it
 )
 notices = sa.Table(                                                           # the bell: things worth telling someone about
     "notices", meta,

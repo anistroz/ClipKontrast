@@ -38,10 +38,10 @@ app = FastAPI(title="ClipKontrast", docs_url=None, redoc_url=None, openapi_url=N
 WEB = config.ROOT / "web"
 OPEN = ("/api/auth/", "/pub/", "/download/", "/api/public", "/api/earn/public/", "/earn/cover/", "/auth/google/", "/auth/verify", "/brand/", "/assets/", "/healthz", "/favicon.ico", "/robots.txt", "/sitemap.xml")
 # On an Earn-only website these are the only addresses people other than admins may change things through.
-EARN_ONLY_WRITES = ("/api/auth/", "/api/earn/", "/api/account/delete", "/api/notifications/", "/api/feedback")
+EARN_ONLY_WRITES = ("/api/auth/", "/api/earn/", "/api/account/delete", "/api/notifications/", "/api/feedback", "/api/public/bug-report")
 PAGES = {"/": "landing.html", "/login": "auth.html", "/signup": "auth.html", "/reset": "reset.html",
          "/privacy": "legal.html", "/terms": "legal.html", "/acceptable-use": "legal.html", "/earn": "earn.html",
-         "/clip-maker": "landing.html", "/download": "download.html"}
+         "/clip-maker": "landing.html", "/download": "download.html", "/report": "report.html"}
 VIDEO_TYPES = {".mp4", ".mov", ".mkv", ".webm", ".m4v", ".ts", ".flv"}
 CSP = ("default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
        "font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; media-src 'self' blob:; connect-src 'self'; "
@@ -109,6 +109,8 @@ class Gate:
                 if path == "/api/upload" or piece else 256 * 1024
             if re.fullmatch(r"/api/((admin/)?earn/submissions/\d+/proof|admin/earn/campaigns/[\w\-]+/cover)", path):
                 cap = 9 * 1024 * 1024          # a screenshot or a campaign cover
+            if path in ("/api/public/bug-report", "/api/bug-report"):
+                cap = 7 * 1024 * 1024          # a bug report, with its screenshot
             try:
                 if int(req.headers.get("content-length") or 0) > cap:
                     return await deny(413, f"That file is too big. The limit is {config.MAX_UPLOAD_MB} MB." if path == "/api/upload" else "That request is too large.")
@@ -434,6 +436,11 @@ def app_page(request: Request, rest: str = ""):
 def admin_earn_page(request: Request, rest: str = ""):
     _admin(request)
     return _page("earn-admin.html")
+
+
+@app.get("/report")
+def report_page():
+    return _page("report.html", shared=True)
 
 
 @app.get("/download")
@@ -1185,6 +1192,83 @@ def send_feedback(request: Request, body: dict = Body(...)):
         raise HTTPException(429, "You've sent a lot of messages in the last hour. Try again a bit later.")
     except feedback.Refused as e:
         raise HTTPException(400, str(e))
+
+
+@app.post("/api/public/bug-report")
+async def public_bug_report(request: Request, message: str = Form(""), steps: str = Form(""), contact: str = Form(""),
+                            app_info: str = Form("", alias="app"), diag: str = Form(""), context: str = Form(""),
+                            source: str = Form("website"), screenshot: UploadFile | None = File(None)):
+    """A bug report: from the clip maker on anyone's computer (sent on by its own server, so no account is needed),
+    or from the website's report page. Limited per address, and in all, so it can't be used to flood the admins."""
+    from . import feedback
+    ip = _ip(request)
+    try:
+        auth.throttle("bug-ip:" + ip, 6, 3600)
+        auth.throttle("bug-ip-day:" + ip, 25, 86400)
+        auth.throttle("bug-all", 500, 86400)
+    except auth.AuthError:
+        raise HTTPException(429, "Lots of reports were sent from here recently. Try again in a while.")
+    data = await screenshot.read(6 * 1024 * 1024 + 1) if screenshot is not None else b""
+    me_ = getattr(request.state, "user", None)
+    try:
+        return await run_in_threadpool(feedback.submit_report, message, steps, contact, app_info, diag, context,
+                                       "app" if source == "app" else "website", data, me_.id if me_ else None)
+    except feedback.Refused as e:
+        raise HTTPException(400, str(e))
+
+
+@app.get("/api/bug-report/details")
+def bug_report_details(request: Request):
+    """What a report from this clip maker would carry, shown to the person before they send it."""
+    from . import diagnose
+    return {"app": diagnose.app_line(), "details": diagnose.details() if _may_see_diag(_me(request)) else
+            "(Technical details are only sent from the ClipKontrast app on your own computer.)"}
+
+
+def _may_see_diag(user) -> bool:
+    """The log and the recent errors are about everyone on this server: on the app on someone's own computer that is
+    just them, on a shared server only its admins may see or send them."""
+    return not config.ACCOUNTS or bool(user and user.is_admin)
+
+
+@app.post("/api/bug-report")
+async def bug_report(request: Request, message: str = Form(""), steps: str = Form(""), contact: str = Form(""),
+                     details: str = Form("1"), context: str = Form(""), screenshot: UploadFile | None = File(None)):
+    """The clip maker's "Report a problem": the person's words, and if they agree the technical details, sent on to the
+    ClipKontrast website (this computer runs its own server, so the report goes from here, not from the page)."""
+    user = _me(request)
+    import httpx
+    from . import diagnose
+    data = await screenshot.read(6 * 1024 * 1024 + 1) if screenshot is not None else b""
+    form = {"message": message, "steps": steps, "contact": contact, "context": context[:1000], "source": "app",
+            "app": diagnose.app_line(), "diag": diagnose.details() if details == "1" and _may_see_diag(user) else ""}
+    files = {"screenshot": ("screenshot.jpg", data, "image/jpeg")} if data else None
+
+    def send():
+        return httpx.post(config.EARN_URL + "/api/public/bug-report", data=form, files=files, timeout=45,
+                          headers={"User-Agent": "ClipKontrast-bug-report"})
+    try:
+        r = await run_in_threadpool(send)
+    except Exception:  # noqa: BLE001
+        raise HTTPException(502, "Couldn't reach the ClipKontrast website. Check the internet connection and try again.")
+    try:
+        body = r.json()
+    except ValueError:
+        body = {}
+    if r.status_code != 200:
+        raise HTTPException(r.status_code if r.status_code in (400, 413, 429) else 502,
+                            str(body.get("detail") or "The report couldn't be sent. Try again in a minute."))
+    return {"id": body.get("id")}
+
+
+@app.get("/api/admin/feedback/{fid}/shot")
+def admin_feedback_shot(request: Request, fid: int):
+    _admin(request)
+    from . import feedback
+    p = feedback.shot_path(fid)
+    if not p:
+        raise HTTPException(404, "Not found.")
+    return FileResponse(p, media_type="image/jpeg", headers={"Cache-Control": "private, no-store"})
 
 
 @app.get("/api/admin/feedback")
