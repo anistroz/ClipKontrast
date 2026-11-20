@@ -44,7 +44,9 @@ check("each moment opens its stream at that second (YouTube, any kind of link ma
 check("...a plain watch link too", g[1]["moments"][0]["watch"], "https://www.youtube.com/watch?v=abc123def45&t=809s")
 check("...and on Twitch", g[2]["moments"][0]["watch"], "https://www.twitch.tv/videos/123456?t=1h4m38s")
 check("a line that only looks like a time is not a moment", sum(len(x["moments"]) for x in g), 6)
-check("times above any name go with the newest stream", earn.parse_moments("1:00 hello", SOURCES)[0]["url"], "https://www.youtube.com/watch?v=xyz789ghi01")
+check("with several streams, times above any name aren't guessed onto one", earn.parse_moments("1:00 hello", SOURCES)[0]["url"], "")
+check("with a single stream, they go with it", earn.parse_moments("1:00 hello", "Day 3 | https://www.youtube.com/live/xyz789ghi01")[0]["url"],
+      "https://www.youtube.com/watch?v=xyz789ghi01")
 check("a stream that can't be matched still lists its moments, without links", earn.parse_moments("Old stream\n1:00 hi", "")[0]["moments"][0]["watch"], "")
 # ---- the ways people really paste them
 for dash in ("-", "--", "\u2010", "\u2011", "\u2013", "\u2014", "\u2212", "~", " to "):
@@ -101,8 +103,18 @@ check("...each with only its own best moments", [len(r["moments"]) for r in rows
 check("...the last one is the latest", [r["latest"] for r in rows], [False, False, False, True])
 check("...and Day 2's times open Day 2", rows[2]["moments"][0]["watch"], "https://www.youtube.com/watch?v=LjNhaHf3tNE&t=9432s")
 old = earn.stream_rows("https://www.youtube.com/watch?v=hrVIm-8R0As\nhttps://www.youtube.com/watch?v=LjNhaHf3tNE", "CLIP WORTHY\n1:00 x")
-check("links without names are numbered, and their times shown where they were read", ([r["name"] for r in old], [len(r["moments"]) for r in old]),
-      (["Stream 1", "Stream 2"], [0, 1]))
+check("links without names are numbered; unnamed times wait in their own box", ([r["name"] for r in old], [len(r["moments"]) for r in old]),
+      (["Stream 1", "Stream 2", "CLIP WORTHY"], [0, 0, 1]))
+S_PLAIN = "https://www.youtube.com/watch?v=hrVIm-8R0As\nhttps://www.youtube.com/watch?v=LjNhaHf3tNE\nhttps://www.youtube.com/watch?v=m83xnDJjWws"
+r3 = earn.stream_rows(S_PLAIN, "CLIP WORTHY TIMESTAMPS\n2:37:12 race")
+check("with several streams, unnamed times are never guessed onto one of them", [len(r["moments"]) for r in r3], [0, 0, 0, 1])
+check("...they wait in a box of their own, with no link, for the admin", (r3[-1]["name"], r3[-1]["url"]), ("CLIP WORTHY TIMESTAMPS", ""))
+r4 = earn.stream_rows("https://www.youtube.com/watch?v=LjNhaHf3tNE\nDay 2 | https://www.youtube.com/live/LjNhaHf3tNE?si=q", "")
+check("the same stream twice (two kinds of link) is one box, with its name", [(r["name"], r["url"]) for r in r4], [("Day 2", "https://www.youtube.com/watch?v=LjNhaHf3tNE")])
+cx3 = earn.save_campaign({"title": "Unsorted", "status": "live", "rate_per_1k": 10, "budget": 100, "platforms": ["youtube"], "sources": S_PLAIN,
+                          "moments": "CLIP WORTHY\n1:00 x"})
+check("clippers never see times that aren't linked to a stream", [s["name"] for s in earn.campaign(cx3["slug"])["streams"]], [])
+earn.save_campaign({"status": "ended"}, cx3["id"])
 c2 = earn.save_campaign({"title": "Boxes", "status": "live", "rate_per_1k": 10, "budget": 100, "platforms": ["youtube"],
                          "sources": EDIT_SOURCES, "moments": EDIT_MOMENTS})
 adm2 = earn.campaign(c2["id"], admin=True)

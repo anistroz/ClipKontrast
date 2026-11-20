@@ -431,7 +431,7 @@ def parse_moments(text: str, sources: str = "") -> list:
         [{"title", "url", "moments": [{"t", "end", "label", "watch"}]}]"""
     srcs = [_label_url(x) for x in (sources or "").splitlines() if x.strip()]
     srcs = [(lab, _stream(u)) for lab, u in srcs if u]
-    latest = srcs[-1] if srcs else ("", "")
+    latest = srcs[-1] if len(srcs) == 1 else ("", "")      # with several streams, times are never guessed onto one
 
     def find(title: str) -> str:
         m = _URL.search(title)
@@ -464,7 +464,7 @@ def parse_moments(text: str, sources: str = "") -> list:
         elif _URL.fullmatch(line.strip("<> ")):        # a link on its own line: the stream of the times below
             url = _stream(_URL.search(line).group(0))
             if cur is not None and not cur["moments"]:
-                cur["url"] = url
+                cur["url"], cur["guessed"] = url, False
             else:
                 cur = {"title": next((lab for lab, u in srcs if u == url), "") or "Stream", "url": url, "moments": []}
                 groups.append(cur)
@@ -472,7 +472,8 @@ def parse_moments(text: str, sources: str = "") -> list:
             title = _URL.sub("", line).strip(" |:-–") or line
             # A heading that names no stream ("CLIP WORTHY TIMESTAMPS") is about the stream before it, or the newest.
             named = find(line)
-            url = named or (groups[-1]["url"] if groups else latest[1])
+            prev = groups[-1] if groups and not groups[-1].get("guessed") else None
+            url = named or (prev["url"] if prev else latest[1])
             cur = {"title": title[:120], "url": url, "moments": [], "guessed": not named}
             groups.append(cur)
     return [g for g in groups if g["moments"]][:40]
@@ -481,9 +482,20 @@ def parse_moments(text: str, sources: str = "") -> list:
 def stream_rows(sources: str, moments_text: str) -> list:
     """Each stream or video of the campaign, in the order the admin listed them, with its own best moments:
     [{"name", "url", "latest", "moments"}]. Moments whose stream isn't listed come after, as streams of their own."""
-    srcs = [(lab, _stream(u)) for lab, u in (_label_url(x) for x in (sources or "").splitlines() if x.strip()) if u]
+    srcs = []
+    for lab, u in (_label_url(x) for x in (sources or "").splitlines() if x.strip()):
+        if not u:
+            continue
+        u = _stream(u)
+        same = next((i for i, (_l, u2) in enumerate(srcs) if u2 == u), None)
+        if same is None:
+            srcs.append((lab, u))
+        elif lab and not srcs[same][0]:                # the same stream twice: one box, with the name it was given
+            srcs[same] = (lab, u)
     rows = [{"name": lab or f"Stream {i + 1}", "url": u, "moments": []} for i, (lab, u) in enumerate(srcs)]
     for g in parse_moments(moments_text, sources):
+        if not g["url"] and g["title"] == "Latest stream":
+            g["title"] = "Timestamps not linked to a stream yet"
         row = next((r for r in rows if g["url"] and r["url"] == g["url"]), None)
         if row is None:
             row = {"name": g["title"], "url": g["url"], "moments": []}
@@ -545,7 +557,7 @@ def _camp_dict(r, st: dict, admin=False, member=False, detail=True) -> dict:
         for s in rows:
             s["moments"] = _public_moments(s["moments"])
         # every stream to clip for those who joined; the streams with best moments for everyone
-        d["streams"] = rows if (admin or member) else [s for s in rows if s["moments"]]
+        d["streams"] = rows if admin else [s for s in rows if s["url"] and (member or s["moments"])]
     if admin or (member and d["state"] != "ended"):
         d["sources"] = [x.strip() for x in r.sources.splitlines() if x.strip()]
         d["raw_clips"] = r.raw_clips        # the raw clips folder is what joining unlocks
