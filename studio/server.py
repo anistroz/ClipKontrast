@@ -1410,6 +1410,76 @@ def go_live(cid: str, body: dict = Body(default={})):
         raise HTTPException(400, str(e))
 
 
+def _channel_key(url: str) -> str:
+    """One spelling for a channel link, to tell whether two links are the same channel."""
+    u = re.sub(r"^https?://(www\.|m\.)?", "", (url or "").strip().lower()).rstrip("/")
+    return re.sub(r"/(live|streams|videos|featured)$", "", u)
+
+
+_LIVE_VIDEO = re.compile(r"(youtube\.com/(watch\?|live/)|youtu\.be/)", re.I)
+
+
+@app.post("/api/live/quick")
+def quick_live(body: dict = Body(...)):
+    """Live clipping in one step, from the home screen: paste a channel (or a stream that is live right now) and
+    press Start. The creator's workspace is made by itself (or the one already there is used), auto-record is
+    turned on, and the recording starts at once if they are live, or by itself when they next go live."""
+    _need_verified()
+    _throttle("quicklive:" + ctx.uid(), 20, 600, "That's a lot of channels in a short time. Wait a few minutes.")
+    raw = str(body.get("url", "")).strip()[:300]
+    if raw and not re.match(r"^https?://", raw):
+        raw = "https://" + raw
+    if not raw or not media.site_allowed(raw):
+        raise HTTPException(400, "Paste a YouTube, Twitch or Kick channel link, like youtube.com/@name or twitch.tv/name.")
+    look = jobs.clean_options({k: body[k] for k in ("style", "layout", "captions", "zoom", "watermark", "lang", "caption_lang") if k in body})
+    channel, stream, name = raw, None, ""
+    if _LIVE_VIDEO.search(raw):              # one video: it has to be live right now, and its channel is the creator
+        try:
+            i = media.info(raw)
+        except Exception:  # noqa: BLE001
+            raise HTTPException(422, "Couldn't open that link. Check it's public and complete.")
+        if not i["is_live"]:
+            raise HTTPException(400, "That video isn't live right now. To make clips of it, use Clip a video. To clip "
+                                     "their next stream, paste their channel link here instead.")
+        stream, channel, name = raw, i.get("channel_url") or "", i.get("uploader") or ""
+    key = _channel_key(channel) if channel else ""
+    c = next((x for x in creators.all_creators() if key and any(_channel_key(u) == key for u in
+                                                                   [x.get("channel", "")] + list((x.get("channels") or {}).values()))), None)
+    made = False
+    if c:
+        c = creators.update(c["id"], {"auto_watch": True, **look})
+    else:
+        if len(creators.all_creators()) >= config.MAX_CREATORS:
+            raise HTTPException(400, f"This server allows {config.MAX_CREATORS} creators per account. Delete one first.")
+        if not name and channel:
+            try:
+                name = (profiles.preview(channel) or {}).get("name") or ""
+            except Exception:  # noqa: BLE001 - named from the link instead
+                name = ""
+        if not name:
+            m = re.search(r"(?:@|twitch\.tv/|kick\.com/|channel/|c/)([^/?#]+)", channel or raw, re.I)
+            name = (m.group(1) if m else "Live stream")[:60]
+        try:
+            c = creators.create({"name": name[:60], "channel": channel or stream, "auto_watch": True, **look})
+        except ValueError as e:
+            raise HTTPException(400, str(e))
+        made = True
+        if c.get("channels"):
+            profiles.refresh(c["id"], force=True)
+    job, note = None, ""
+    running = live.active_for(c["id"])
+    if running:
+        job = running.job
+    elif stream:
+        try:
+            job = live.start_session(c, stream)
+        except ValueError as e:
+            note = str(e)
+    else:
+        live.check_now(c["id"])               # live right now: recording starts within seconds; if not, when they go live
+    return {"creator": c, "made": made, "job": jobs.public(job) if job else None, "note": note}
+
+
 @app.post("/api/live/{jid}/stop")
 def stop_live(jid: str):
     s = live.mine(jid)

@@ -606,6 +606,21 @@ a.lnk{color:var(--brand-ink);text-decoration:none;font-weight:600}
 .rep-dlg label.sw{align-items:flex-start}
 .rep-dlg label.sw input{margin-top:2px}
 .rep-dlg .lnk{border:0;background:none;padding:0;color:var(--brand-deep);font:inherit;font-weight:600;text-decoration:underline;cursor:pointer}
+/* ---------- clip a video, or a live stream */
+.modes{display:flex;gap:4px;padding:6px 6px 0;border-bottom:1px solid var(--line)}
+.modes button{display:inline-flex;align-items:center;gap:8px;border:0;background:transparent;font:inherit;font-size:13.5px;font-weight:600;color:var(--dim);padding:10px 14px;border-radius:10px 10px 0 0;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px}
+.modes button svg{width:16px;height:16px}
+.modes button:hover{color:var(--text)}
+.modes button[aria-selected=true]{color:var(--text);border-bottom-color:var(--brand-deep);background:#fff}
+.modes .rdot,.live-go .rdot{width:9px;height:9px;border-radius:50%;background:#FF4D5E;display:inline-block;flex:none}
+.modes button[aria-selected=true] .rdot{box-shadow:0 0 0 4px rgba(255,77,94,.18)}
+.live-prev{padding:0 16px}
+.live-prev:empty{display:none}
+.live-prev .chprev{margin:2px 0 4px}
+.live-how{display:flex;gap:8px;flex-wrap:wrap;padding:8px 16px 12px}
+.live-how span{display:inline-flex;align-items:center;gap:8px;font-size:12.5px;color:var(--dim);background:var(--muted, #F7F4F1);border-radius:999px;padding:6px 12px 6px 6px}
+.live-how b{font-weight:700;color:var(--text)}
+.live-how span>b:first-child{width:20px;height:20px;border-radius:50%;background:var(--brand);color:var(--brand-ink);display:grid;place-items:center;font-size:11px}
 /* ---------- the look of the clips, in the composer */
 .look{border-top:1px solid var(--line);padding:14px 16px 12px;display:flex;flex-direction:column;gap:8px}
 .look-h{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
@@ -1371,6 +1386,7 @@ function moveInd() {
 }
 function drawShell() {  const nav = (v, icon, label, extra = "") => `<button class="nav-item ${S.view === v ? "on" : ""}" data-act="go" data-v="${esc(v)}" title="${esc(label)}">${icon}<span class="label">${esc(label)}</span>${extra}</button>`;
   put($("#nav"), nav("overview", navIc("home", "overview"), "Home") +
+    `<button class="nav-item" data-act="golivehome" title="Clip a live stream">${ic("radio")}<span class="label">Live clipping</span></button>` +
     nav("library", navIc("film", "library"), "All videos", (() => { const w = S.jobs.filter(j => ["queued", "running"].includes(j.status)).length;
       return w ? `<span class="working" title="${w} working now"><i></i>${w} working</span>` : S.jobs.length ? `<span class="count">${S.jobs.length}</span>` : ""; })()) +
     `<a class="nav-item" href="${esc(S.status.earn_url || "/earn")}" ${S.status.accounts === false ? 'target="_blank" rel="noopener"' : ""} title="Earn: paid clipping campaigns" style="text-decoration:none">${ic("money")}<span class="label">Earn</span><span class="count" style="background:var(--brand);color:var(--brand-ink,#1A2100)">New</span></a>` +
@@ -1485,19 +1501,28 @@ function setTab(t) {
 /* ============================================================ add bar */
 function drawAdd(variant) {
   const c = creator();
-  $("#add").innerHTML = `<form class="composer ${variant === "hero" ? "big" : "compact"}" id="addform">
-    <div class="composer-input">${ic("link")}<input id="url" placeholder="Paste a YouTube, Twitch or Kick video link" autocomplete="off" aria-label="Video link"></div>
-    <div class="att" id="att"><div><div class="att-in" id="attIn"></div></div></div>
+  const liveMode = !c && addMode() === "live";
+  $("#add").innerHTML = `<form class="composer ${variant === "hero" ? "big" : "compact"}${liveMode ? " is-live" : ""}" id="addform">
+    ${c ? "" : `<div class="modes" role="tablist" aria-label="What to clip">
+      <button type="button" role="tab" data-act="addmode" data-m="video" aria-selected="${!liveMode}">${ic("film")}Clip a video</button>
+      <button type="button" role="tab" data-act="addmode" data-m="live" aria-selected="${liveMode}"><span class="rdot"></span>Clip a live stream</button></div>`}
+    ${liveMode ? `<div class="composer-input">${ic("radio")}<input id="liveurl" placeholder="Paste their channel link: youtube.com/@name, twitch.tv/name or kick.com/name" autocomplete="off" aria-label="Channel link" value="${esc(S.liveDraft || "")}"></div>
+      <div id="livePrev" class="live-prev"></div>
+      <div class="live-how"><span><b>1</b>Paste the channel of the streamer you clip</span><span><b>2</b>Press <b>Start live clipping</b></span><span><b>3</b>While they stream, clips are made by themselves. Keep the app open.</span></div>`
+    : `<div class="composer-input">${ic("link")}<input id="url" placeholder="Paste a YouTube, Twitch or Kick video link" autocomplete="off" aria-label="Video link"></div>
+    <div class="att" id="att"><div><div class="att-in" id="attIn"></div></div></div>`}
     ${lookPanel(c)}
     <div class="composer-bar">
-      <button type="button" class="chip" data-act="pickfile">${ic("up")}Upload video</button>
-      ${c ? "" : picker("o_creator", "File under creator", [{v:"", label:"No creator", icon:"user"}, ...S.creators.map(x => ({v:x.id, label:x.name, img:x.profile?.pic && x.profile.channel === x.channel ? avatarUrl(x) : ""}))], "")}
+      ${liveMode ? "" : `<button type="button" class="chip" data-act="pickfile">${ic("up")}Upload video</button>`}
+      ${c || liveMode ? "" : picker("o_creator", "File under creator", [{v:"", label:"No creator", icon:"user"}, ...S.creators.map(x => ({v:x.id, label:x.name, img:x.profile?.pic && x.profile.channel === x.channel ? avatarUrl(x) : ""}))], "")}
       <button type="button" class="chip" data-act="toggleopts" aria-expanded="false">${ic("sliders")}Options</button>
-      <span class="grow"></span><span class="hint">or drop a video file here</span>
-      <button class="btn primary" id="goBtn">${ic("scissors")}Make clips</button>
+      <span class="grow"></span>${liveMode ? `<span class="hint">Works with YouTube, Twitch and Kick</span>
+      <button class="btn primary live-go" id="liveGo"><span class="rdot"></span>Start live clipping</button>`
+      : `<span class="hint">or drop a video file here</span>
+      <button class="btn primary" id="goBtn">${ic("scissors")}Make clips</button>`}
     </div>
     <div class="composer-opts" inert><div class="og">
-      <div class="ob wide"><div class="ot">Clips</div><div class="nsteps">
+      <div class="ob wide"${liveMode ? " hidden" : ""}><div class="ot">Clips</div><div class="nsteps">
         ${stepper("o_max", "How many", c?.max_clips ?? 6, 1, 20, 1, "")}
         ${stepper("o_min", "Shortest", c?.min_len ?? 15, 5, 120, 5, "s")}
         ${stepper("o_maxlen", "Longest", c?.max_len ?? 60, 10, 180, 5, "s")}
@@ -1509,15 +1534,62 @@ function drawAdd(variant) {
         <label class="f">Spoken<select id="o_lang" title="Hindi and other languages use Whisper, installed the first time it's needed">${opts(S.status.languages || {auto:"Auto-detect"}, c?.lang ?? "auto")}</select></label>
         <label class="f">Captions in<select id="o_caplang">${opts(S.status.caption_langs || {auto:"As spoken"}, c?.caption_lang ?? "auto")}</select></label></div>
         <small class="sub langs-note">Hindi and other languages are heard by Whisper. The first time, it downloads once (about 700 MB).</small></div>
-      <div class="ob"><div class="ot">Video quality</div><input type="hidden" id="o_quality" value="720"><div class="seg" role="group" aria-label="Video quality">
+      <div class="ob"${liveMode ? " hidden" : ""}><div class="ot">Video quality</div><input type="hidden" id="o_quality" value="720"><div class="seg" role="group" aria-label="Video quality">
         <button type="button" data-seg="o_quality" data-v="720" aria-pressed="true">720p<small>Fast</small></button>
         <button type="button" data-seg="o_quality" data-v="1080" aria-pressed="false">1080p<small>Sharper, about 2x slower</small></button></div></div>
-      <div class="ob"><div class="ot">Part of the video</div><div class="range">
+      <div class="ob"${liveMode ? " hidden" : ""}><div class="ot">Part of the video</div><div class="range">
         <label>From<input id="o_from" type="number" min="0" placeholder="start" aria-label="From minute">min</label>${ic("arrowr")}
         <label>To<input id="o_to" type="number" min="0" placeholder="end" aria-label="Up to minute">min</label></div></div>
     </div></div></form>`;
-  drawAtt();
+  if (liveMode) { if (S.liveDraft) livePreview(S.liveDraft); } else drawAtt();
   setTimeout(playLooks, 50);
+}
+const addMode = () => S.addMode || lsGet("ck_mode") || "video";
+function setAddMode(m, url) {
+  S.addMode = m; lsSet("ck_mode", m);
+  if (url !== undefined) S.liveDraft = url;
+  if (S.view !== "overview" && S.view !== "library") return go("overview");
+  drawAdd(S.view === "overview" ? "hero" : "compact");
+  (m === "live" ? $("#liveurl") : $("#url"))?.focus();
+}
+/* A channel link pasted into "Clip a live stream": who it is, before anything starts. */
+let liveSeq = 0, liveTimer = 0;
+function livePreview(u) {
+  clearTimeout(liveTimer);
+  const box = $("#livePrev"), me = ++liveSeq; if (!box) return;
+  u = (u || "").trim(); S.liveDraft = u;
+  if (!u) { box.innerHTML = ""; return; }
+  if (/youtube\.com\/(watch\?|live\/)|youtu\.be\//i.test(u)) {
+    box.innerHTML = `<div class="chprev"><span class="ph"></span><div><b>A stream link</b><span>If it's live right now, recording starts straight away.</span></div></div>`; return;
+  }
+  box.innerHTML = `<div class="chprev"><span class="ph"></span><div><span class="sk"></span><span class="sk" style="width:80px"></span></div></div>`;
+  liveTimer = setTimeout(async () => {
+    try {
+      const p = await api("/api/channel-preview?url=" + encodeURIComponent(u)); if (me !== liveSeq) return;
+      box.innerHTML = `<div class="chprev">${p.pic ? `<img src="${p.pic}" alt="">` : `<span class="ph"></span>`}<div><b>${esc(p.name)}</b><span>${esc([p.platform, p.followers].filter(Boolean).join(" · "))}</span></div></div>`;
+    } catch (err) { if (me === liveSeq) box.innerHTML = `<div class="chprev bad">${esc(err.message)}</div>`; }
+  }, 450);
+}
+/* Start live clipping: the creator is made (or found), auto-record is on, and it records now if they are live. */
+async function startLive(url, btn) {
+  url = (url || "").trim();
+  if (!url) { $("#liveurl")?.focus(); return toast("Paste the channel link of the streamer you want to clip.", "bad"); }
+  const was = btn?.innerHTML;
+  if (btn) { btn.disabled = true; btn.innerHTML = `<span class="rdot"></span>Starting…`; }
+  try {
+    const o = jobOptions();
+    const r = await send("/api/live/quick", {url, style:o.style, layout:o.layout, captions:o.captions, zoom:o.zoom, watermark:o.watermark,
+                                             lang:o.lang, caption_lang:o.caption_lang});
+    S.liveDraft = "";
+    await tick();
+    if (r.job?.id && !jobOf(r.job.id)) S.jobs.unshift(r.job);
+    go("c:" + r.creator.id, "clips");
+    toast(r.job ? `${r.creator.name} is live: recording started. Clips appear here as they're made.`
+      : r.note ? r.note
+      : `Watching ${r.creator.name}. If they're live, recording starts in a few seconds; if not, it starts by itself when they go live. Keep the app open.`,
+      r.note ? "bad" : "ok");
+  } catch (e) { toast(e.message, "bad"); }
+  finally { if (btn && btn.isConnected) { btn.disabled = false; btn.innerHTML = was; } }
 }
 const lsGet = k => { try { return localStorage.getItem(k) || ""; } catch { return ""; } };
 const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch {} };
@@ -1529,7 +1601,7 @@ function lookPanel(c) {
   const caps = c ? c.captions !== false : lsGet("ck_caps") !== "0";
   const zoom = c ? c.zoom !== false : lsGet("ck_zoom") !== "0";
   return `<div class="look">
-    <div class="look-h"><b id="o_style_label">Caption style</b><span class="sub">Tap one to choose. You can change it later on any clip.</span><span class="grow"></span>
+    <div class="look-h"><b id="o_style_label">Caption style</b><span class="sub">${c ? `Used for ${esc(c.name)}'s live clips too.` : "Tap one to choose. You can change it later on any clip."}</span><span class="grow"></span>
       <label class="mini-sw"><input type="checkbox" id="o_captions" data-caption-toggle ${caps ? "checked" : ""}>Captions</label></div>
     <input type="hidden" id="o_style" value="${esc(style)}">
     <div class="styles" role="group" aria-labelledby="o_style_label">${Object.entries(S.status.styles).map(([k, v]) =>
@@ -1539,6 +1611,17 @@ function lookPanel(c) {
       <label class="mini-sw" title="The picture punches in on the loudest moments: a shout, a laugh, the big reaction"><input type="checkbox" id="o_zoom" ${zoom ? "checked" : ""}>Auto zoom</label></div>
     ${choice("o_layout", Object.entries(S.status.layouts).map(([k, v]) => ({v:k, label:LAYOUT_SHORT[k] || v, title:v, prev:`<span class="lay-prev ${esc(k)}"><span class="ph"><i></i></span></span>`})), layout)}
   </div>`;
+}
+/* On a creator's page the look is the creator's: their live clips use it too, so a choice here is saved for them. */
+let lookTimer = 0, lookPending = {};
+function saveLook(change) {
+  const cid = creatorId(); if (!cid) return;
+  Object.assign(lookPending, change); clearTimeout(lookTimer);
+  lookTimer = setTimeout(async () => {
+    const body = lookPending; lookPending = {};
+    try { await send(`/api/creators/${cid}`, body, "PUT"); const c = S.creators.find(x => x.id === cid); if (c) Object.assign(c, body); toast("Saved for this creator's clips, live ones too.", "ok"); }
+    catch (e) { toast(e.message, "bad"); }
+  }, 350);
 }
 // The previews play while the pointer is over them (or the chosen one, always), so a page of them costs nothing.
 function playLooks() { $$(".sty video").forEach(v => { const on = v.parentElement.matches(":hover, [aria-pressed=true]"); if (on && v.paused) { v.play().catch(() => {}); } else if (!on && !v.paused) v.pause(); }); }
@@ -1579,6 +1662,7 @@ document.addEventListener("click", e => {
   if (sg && !sg.disabled) { $("#" + sg.dataset.seg).value = sg.dataset.v;
     sg.parentElement.querySelectorAll("[data-seg]").forEach(b => b.setAttribute("aria-pressed", String(b === sg)));
     if (sg.classList.contains("sty")) playLooks();
+    if (creatorId() && (sg.dataset.seg === "o_style" || sg.dataset.seg === "o_layout")) saveLook({[sg.dataset.seg.slice(2)]: sg.dataset.v});
     return; }
   const st = e.target.closest("[data-step]");
   if (st) { const i = $("#" + st.dataset.step), s = Number(i.step) || 1, d = Number(st.dataset.d);
@@ -1654,7 +1738,7 @@ function drawAtt() {
     const i = l.info;
     return rowHtml(A, {id: l.id, kind: "link", thumb: i.thumb ? `<img src="${i.thumb}" alt="">` : "", len: i.duration && !i.is_live ? fmtLen(i.duration) : "",
       title: i.title, sub: esc(i.uploader || "Video link"),
-      side: l.sending ? `<span class="ok up">Sending</span>` : i.is_live ? `<span class="ok live"><i></i>Live now</span>` : `<span class="ok">${ic("check")}Ready</span>`});
+      side: l.sending ? `<span class="ok up">Sending</span>` : i.is_live ? `<span class="ok live"><i></i>Live now · clipped live</span>` : `<span class="ok">${ic("check")}Ready</span>`});
   }).join("");
   h += A.files.map(f => rowHtml(A, {id: f.id, kind: "file", thumb: `<video src="${f.src}#t=1" muted preload="metadata" playsinline></video>`,
     len: f.dur ? fmtLen(f.dur) : "", title: f.file.name,
@@ -1708,13 +1792,17 @@ function onLink(input) {
   clearTimeout(linkTimer);
   const A = att(), u = input.value.trim();
   if (!u) { A.note = null; return drawAtt(); }
-  if (isChannel(u)) { A.note = "That's a channel, not a video. To clip their live streams, add them as a creator and press Start recording."; return drawAtt(); }
+  if (isChannel(u)) {                      // a channel is for live clipping: take it there, with the link
+    input.value = ""; A.note = null; setAddMode("live", u);
+    return toast("That's a channel link, so it's set up for live clipping. Press Start live clipping.", "ok");
+  }
   if (!looksLink(u)) { A.note = u.length > 10 ? "Paste a full YouTube, Twitch or Kick video link." : null; return drawAtt(); }
   A.note = null; drawAtt();
   if (fullLink(u)) return takeLink(A, u, input);
   linkTimer = setTimeout(() => { if (input.value.trim() === u) takeLink(A, u, input); }, 900);   // other link shapes: take it once typing stops
 }
 document.addEventListener("input", e => { if (e.target.id === "url") onLink(e.target);
+  if (e.target.id === "liveurl") livePreview(e.target.value);
   if (e.target.closest?.("#cform") && e.target.dataset.k && !/checkbox|radio/.test(e.target.type)) dirty(true); });
 document.addEventListener("keydown", e => { if (e.target.id === "url" && e.key === "Enter" && e.target.value.trim() && looksLink(e.target.value.trim())) { e.preventDefault(); clearTimeout(linkTimer); takeLink(att(), e.target.value.trim(), e.target); } });
 document.addEventListener("click", e => {
@@ -1803,6 +1891,10 @@ async function makeClips() {
   const who = targetCreator(), opts = jobOptions();
   for (const l of A.links.filter(x => x.state === "ok")) {
     l.sending = true; drawAtt();
+    if (l.info?.is_live) {                 // live right now: it would never finish downloading. Clipped live instead.
+      l.sending = false; l.state = "done"; A.links = A.links.filter(x => x !== l); A.busy = false; drawAtt();
+      return startLive(l.url, $("#goBtn"));
+    }
     try { await send("/api/jobs", {url: l.url, options: opts, creator: who}); l.state = "done"; started++; }
     catch (e) { l.state = "bad"; l.msg = e.message; failed++; }
     l.sending = false; drawAtt();
@@ -2379,7 +2471,8 @@ function loop() {
 }
 
 /* ============================================================ actions */
-document.addEventListener("submit", e => { if (e.target.id === "addform") { e.preventDefault(); makeClips(); } });
+document.addEventListener("submit", e => { if (e.target.id === "addform") { e.preventDefault();
+  if (e.target.classList.contains("is-live")) startLive($("#liveurl")?.value, $("#liveGo")); else makeClips(); } });
 document.addEventListener("submit", async e => {
   if (e.target.id !== "vcode") return;
   e.preventDefault();
@@ -2391,7 +2484,8 @@ document.addEventListener("submit", async e => {
 $("#file").addEventListener("change", e => { attach(e.target.files); e.target.value = ""; });
 document.addEventListener("dragover", e => { const a = $(".composer"); if (a) { e.preventDefault(); a.classList.add("over"); } });
 document.addEventListener("dragleave", () => $(".composer")?.classList.remove("over"));
-document.addEventListener("drop", e => { const a = $(".composer"); if (a) { e.preventDefault(); a.classList.remove("over"); attach(e.dataTransfer.files); } });
+document.addEventListener("drop", e => { const a = $(".composer"); if (a) { e.preventDefault(); a.classList.remove("over");
+  const files = e.dataTransfer.files; if (a.classList.contains("is-live")) { setAddMode("video"); setTimeout(() => attach(files), 0); } else attach(files); } });
 function syncCaptionStyle(toggle) {
   toggle.closest("#addform, #cform, #clipdlg").querySelectorAll("[data-caption-style]").forEach(i => i.disabled = !toggle.checked);
 }
@@ -2402,6 +2496,7 @@ document.addEventListener("change", async e => {
     if (!toggle.dataset.overridden) { toggle.checked = c?.captions !== false; syncCaptionStyle(toggle); }
     return;
   }
+  if ((t.id === "o_captions" || t.id === "o_zoom") && creatorId()) saveLook({[t.id.slice(2)]: t.checked});
   if (t.hasAttribute("data-caption-toggle")) {
     if (t.id === "o_captions") t.dataset.overridden = "true";
     syncCaptionStyle(t);
@@ -2468,6 +2563,8 @@ document.addEventListener("click", async e => {
     }
     if (a === "tab") return setTab(d.t);
     if (a === "pickfile") return $("#file").click();
+    if (a === "addmode") return setAddMode(d.m);
+    if (a === "golivehome") return setAddMode("live");
     if (a === "addmore") { const u = $("#url"); return u && !u.value ? (u.focus(), toast("Paste another link, or drop a file anywhere on the box.")) : $("#file").click(); }
     if (a === "closedlg") return $("#clipdlg").close();
     if (a === "openclip") return openClip(d.j, d.c);
