@@ -595,6 +595,23 @@ a.lnk{color:var(--brand-ink);text-decoration:none;font-weight:600}
 .plan.on{background:var(--brand-soft);border-color:var(--brand)}
 .plan:has(input:focus-visible){outline:2px solid var(--brand);outline-offset:2px}
 
+/* ---------- campaign moments, on the home screen */
+.cm{margin-bottom:18px}
+.cm-h h2{display:flex;align-items:center;gap:8px}
+.cm-h h2 svg{width:18px;height:18px;color:var(--brand-deep)}
+.cm-c{border:1px solid var(--line);border-radius:var(--r-lg);padding:14px;margin-top:12px}
+.cm-ch{display:flex;align-items:center;gap:12px;justify-content:space-between;flex-wrap:wrap}
+.cm-ch b{display:block;font-size:15px}
+.cm-ch span{font-size:12.5px;color:var(--dim)}
+.cm-note{display:flex;gap:8px;align-items:flex-start;font-size:12.5px;color:#7A4A00;background:#FFF4E0;border-radius:10px;padding:8px 10px;margin-top:10px}
+.cm-note svg{width:15px;height:15px;flex:none;margin-top:1px}
+.cm-list{margin-top:8px}
+.cm-m{display:flex;align-items:center;gap:12px;padding:8px 2px;border-top:1px solid var(--line)}
+.cm-t{font-family:"Geist Mono",ui-monospace,monospace;font-size:12.5px;font-weight:600;background:var(--brand-soft);color:var(--brand-deep);border-radius:7px;padding:3px 8px;white-space:nowrap}
+.cm-l{flex:1;font-size:13.5px;min-width:0}
+.cm-l small{display:block;font-size:11.5px;color:var(--faint)}
+.cm-l.none{color:var(--dim)}
+.cm-more{margin-top:8px;border:0;background:none;padding:0;font:inherit;font-size:13px;font-weight:600;color:var(--brand-deep);text-decoration:underline;cursor:pointer}
 /* ---------- report a problem */
 .rep-dlg{width:520px}
 .rep-dlg textarea{resize:vertical;min-height:44px}
@@ -1479,7 +1496,7 @@ function go(v, tab, fromHistory) {
   if (window._gaStop) { window._gaStop(); window._gaStop = null; }
   $("#heroSlot").innerHTML = v === "overview" ? `<section class="hero"><div class="ga-bg" id="appAscii" aria-hidden="true"></div><h2>What do you want to clip today?</h2>
       <p>Paste a link or drop in videos. You get captioned shorts back.</p><div id="add"></div></section>` : "";
-  if (v === "overview") view.innerHTML = `<div id="ov"></div>`;
+  if (v === "overview") { view.innerHTML = `<div id="cmom"></div><div id="ov"></div>`; loadCampaignMoments(); }
   else if (v === "library") view.innerHTML = `<div id="add"></div><div id="jobs"></div>`;
   else if (v === "settings") view.innerHTML = `<div id="sform"></div>`;
   else if (v === "usage") { view.innerHTML = `<div id="usage"></div>`; loadUsage(); }
@@ -2174,6 +2191,38 @@ function drawLog() {
 }
 
 /* ============================================================ overview */
+/* The Earn campaigns' best moments, from the ClipKontrast website: clip one with a click, then send it to the
+   campaign. Nothing is shown when there are none, or the website can't be reached. */
+async function loadCampaignMoments(force) {
+  if (!S.cmom || force) { try { S.cmom = await api("/api/campaign-moments"); } catch { S.cmom = {campaigns: []}; } }
+  drawCampaignMoments();
+}
+function drawCampaignMoments() {
+  const box = $("#cmom"); if (!box) return;
+  const cs = (S.cmom?.campaigns || []).filter(c => c.moments.length);
+  if (!cs.length) { box.innerHTML = ""; return; }
+  const site = S.cmom.earn_url || "https://clipkontrast.com";
+  box.innerHTML = `<section class="cm card"><div class="cm-h"><div><h2>${ic("money")}Campaign moments</h2>
+      <p class="help">The best moments of paid campaigns. Clip one, post it, then send it to the campaign to get paid.</p></div></div>
+    ${cs.map(c => {
+      const all = c.moments.flatMap(g => g.moments.map(m => ({...m, url: g.url, group: g.title})));
+      const open = S.cmomOpen?.[c.slug], shown = open ? all : all.slice(0, 6);
+      return `<div class="cm-c"><div class="cm-ch"><div><b>${esc(c.title)}</b><span>${esc(c.creator_name)}${c.rate_per_1k ? ` · ₹${c.rate_per_1k} per 1,000 views` : ""}</span></div>
+          <a class="btn sm" href="${esc(site)}/earn#c=${encodeURIComponent(c.slug)}" target="_blank" rel="noopener">Join and send clips ↗</a></div>
+        ${c.notice ? `<p class="cm-note">${ic("warn")}${esc(c.notice)}</p>` : ""}
+        <div class="cm-list">${shown.map((m, i) => `<div class="cm-m"><span class="cm-t">${hms(m.t)}${m.end ? "–" + hms(m.end) : ""}</span>
+          <span class="cm-l${m.label ? "" : " none"}">${esc(m.label || "Clip-worthy moment")}<small>${esc(m.group)}</small></span>
+          <button class="btn sm primary" data-act="clipmoment" data-c="${esc(c.slug)}" data-i="${i}">${ic("scissors")}Clip this</button></div>`).join("")}</div>
+        ${all.length > 6 ? `<button class="lnk cm-more" data-act="cmommore" data-c="${esc(c.slug)}">${open ? "Show fewer" : `Show all ${all.length} moments`}</button>` : ""}</div>`;
+    }).join("")}</section>`;
+}
+function clipMoment(slug, i) {
+  const c = (S.cmom?.campaigns || []).find(x => x.slug === slug); if (!c) return;
+  const m = c.moments.flatMap(g => g.moments.map(x => ({...x, url: g.url})))[i]; if (!m) return;
+  const from = Math.max(0, m.t - 8), to = m.end ? m.end + 4 : m.t + 75;
+  takeClipLink(`#clip=${encodeURIComponent(m.url)}&from=${from}&to=${to}&label=${encodeURIComponent((m.label || c.title).slice(0, 80))}`);
+  $("#addform")?.scrollIntoView({behavior: "smooth", block: "start"});
+}
 async function loadOverview() { try { S.overview = await api("/api/overview"); } catch { return; } drawOverview(); }
 function barChart(daily) {
   const W = 720, H = 230, pl = 30, pb = 28, pt = 12, n = daily.length, ch = H - pt - pb;
@@ -2596,6 +2645,8 @@ document.addEventListener("click", async e => {
     if (a === "tab") return setTab(d.t);
     if (a === "pickfile") return $("#file").click();
     if (a === "addmode") return setAddMode(d.m);
+    if (a === "clipmoment") return clipMoment(d.c, Number(d.i));
+    if (a === "cmommore") { S.cmomOpen = {...S.cmomOpen, [d.c]: !S.cmomOpen?.[d.c]}; return drawCampaignMoments(); }
     if (a === "clearrange") { S.preRange = null; return drawAdd(S.view === "overview" ? "hero" : "compact"); }
     if (a === "golivehome") return setAddMode("live");
     if (a === "addmore") { const u = $("#url"); return u && !u.value ? (u.focus(), toast("Paste another link, or drop a file anywhere on the box.")) : $("#file").click(); }

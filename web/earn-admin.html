@@ -124,6 +124,10 @@ ol.steps{padding-left:18px;color:var(--dim);display:grid;gap:6px;margin:10px 0 0
 .bug .dimt{color:var(--dim);font-size:13px}
 .bug .bmsg{white-space:pre-wrap;margin-top:12px;font-size:15px;line-height:1.5;overflow-wrap:anywhere}
 .bug pre.diag{margin-top:12px;background:#0f1115;color:#d8dee9;border-radius:10px;padding:12px;font-size:12px;max-height:420px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere}
+.mprev{margin-top:8px;font-size:13px;display:flex;flex-direction:column;gap:4px}
+.mprev:empty{display:none}
+.mprev .ok{color:var(--deep)}.mprev .warn{color:#9A5B00}
+.mprev a{color:inherit}
 </style>
 </head>
 <body>
@@ -250,7 +254,7 @@ function openForm(c) {
         <div class="field"><label>Streams and footage (one link per line)</label><textarea name="sources" rows="7" placeholder="https://youtube.com/@creator/streams&#10;https://drive.google.com/…">${esc(c.raw_sources ?? (c.sources || []).join("\n"))}</textarea><div class="hint">Only clippers who joined can see these.</div></div></div>
       <div class="sect">Resource library</div>
       <div class="field"><label>Raw clips folder (Google Drive)</label><input name="raw_clips" value="${esc(c.raw_clips || "")}" placeholder="https://drive.google.com/drive/folders/…"><div class="hint">Moments already cut, for clippers to edit their own way. Share the folder as <b>Anyone with the link can view</b>, so its files show right on the campaign. Only clippers who joined see it.</div></div>
-      <div class="field"><label>Best moments (timestamps)</label><textarea name="moments" rows="10" placeholder="Day 3&#10;2:37:12 heavy driving race to the club&#10;2:44:30-2:45:53 clubbing&#10;&#10;Previous stream | https://youtube.com/watch?v=…&#10;13:29&#10;32:57 beach intro">${esc(c.raw_moments || "")}</textarea><div class="hint">Paste them straight from the mod's message, one per line. A line with no time names the stream: write it like its name under Streams and footage ("Day 3"), or put its link after a <b>|</b>. Then each time opens the stream at that second, and clippers can clip it in the ClipKontrast app with one click. Times above any name go with the newest stream.</div></div>
+      <div class="field"><label>Best moments (timestamps)</label><textarea name="moments" rows="10" placeholder="Day 3&#10;2:37:12 heavy driving race to the club&#10;2:44:30-2:45:53 clubbing&#10;&#10;Previous stream | https://youtube.com/watch?v=…&#10;13:29&#10;32:57 beach intro">${esc(c.raw_moments || "")}</textarea><div class="hint">Paste them straight from the mod's message, one per line. A line with no time names the stream: write it like its name under Streams and footage ("Day 3"), or put its link after a <b>|</b>. Then each time opens the stream at that second, and clippers can clip it in the ClipKontrast app with one click. Times above any name go with the newest stream.</div><div class="mprev" id="mprev"></div></div>
       <div class="sect">Where and how clips are checked</div>
       <div class="field"><label>Platforms that pay</label><div class="checks">${Object.entries(PLAT).map(([k, l]) => `<label><input type="checkbox" name="platforms" value="${k}" ${pl.has(k) ? "checked" : ""}>${l}</label>`).join("")}</div></div>
       <div class="g2"><div class="field"><label>Required in the caption</label><input name="required_tag" value="${esc(c.required_tag)}" placeholder="@creatorhandle"><div class="hint">Checked automatically on YouTube.</div></div>
@@ -281,6 +285,7 @@ function openForm(c) {
       ${c.cover ? `<img class="cover-prev" src="${esc(c.cover)}" alt="">` : ""}
     </form></div></div>`;
   mathPreview();
+  setTimeout(momentsPreview, 50);
 }
 function mathPreview() {
   const f = $("#cf"); if (!f) return;
@@ -414,6 +419,23 @@ function drawSettings() {
     <div class="card" style="max-width:720px"><h3>Email confirmation (sign-up codes)</h3><p style="color:var(--dim)">Clippers must confirm their email before they can join or send clips. Emails are sent through SMTP: set <code>CLIPKONTRAST_SMTP_HOST</code>, <code>CLIPKONTRAST_SMTP_USER</code>, <code>CLIPKONTRAST_SMTP_PASSWORD</code>, <code>CLIPKONTRAST_MAIL_FROM</code> and <code>CLIPKONTRAST_VERIFY_EMAIL=1</code> in <code>.env</code>. Brevo, Resend or a Gmail app password all work. Sign in with Google needs no email confirmation.</p>
     <div class="note ${S.mail ? "info" : "warn"}">${S.mail ? "Email sending is set up." : "Email sending isn't set up yet, so confirmation emails can't go out."}</div></div>`;
 }
+
+// ---------------------------------------------------------------- how the pasted best moments are read
+let mpTimer = 0;
+function momentsPreview() {
+  clearTimeout(mpTimer);
+  mpTimer = setTimeout(async () => {
+    const f = $("#cf"), box = $("#mprev"); if (!f || !box) return;
+    if (!f.moments.value.trim()) { box.innerHTML = ""; return; }
+    try {
+      const r = await api("/api/admin/earn/moments-preview", {method: "POST", body: {moments: f.moments.value, sources: f.sources.value}});
+      box.innerHTML = `<b>${r.count} moments read</b>` + r.groups.map(g => `<div class="${g.url ? "ok" : "warn"}">${g.url ? "✓" : "⚠"} <b>${esc(g.title)}</b> · ${g.count} · ${g.url
+        ? `opens <a href="${esc(g.url)}" target="_blank" rel="noopener">${esc(g.url.replace(/^https?:\/\/(www\.)?/, "").slice(0, 60))}</a>`
+        : "no stream link: write its name like under Streams and footage, or put its link after a |"}</div>`).join("");
+    } catch (err) { box.textContent = err.message; }
+  }, 350);
+}
+document.addEventListener("input", e => { if (e.target.closest?.("#cf") && (e.target.name === "moments" || e.target.name === "sources")) momentsPreview(); });
 
 // ---------------------------------------------------------------- bug reports
 function drawBugs() {

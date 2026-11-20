@@ -46,6 +46,16 @@ check("...and on Twitch", g[2]["moments"][0]["watch"], "https://www.twitch.tv/vi
 check("a line that only looks like a time is not a moment", sum(len(x["moments"]) for x in g), 6)
 check("times above any name go with the newest stream", earn.parse_moments("1:00 hello", SOURCES)[0]["url"], "https://www.youtube.com/live/xyz789ghi01")
 check("a stream that can't be matched still lists its moments, without links", earn.parse_moments("Old stream\n1:00 hi", "")[0]["moments"][0]["watch"], "")
+# ---- the ways people really paste them
+for dash in ("-", "\u2010", "\u2011", "\u2013", "\u2014", "\u2212", "~", " to "):
+    m = earn.parse_moments(f"2:44:30 {dash}2:45:53", SOURCES)[0]["moments"][0]
+    check(f"a range with {dash!r} between the times", (m["t"], m["end"], m["label"]), (9870, 9953, ""))
+g2 = earn.parse_moments("CLIP WORTHY TIMESTAMPS👇\n2:37:12 race", "Mizo | https://www.youtube.com/watch?v=LjNhaHf3tNE&t=992s")
+check("a heading that names no stream goes with the newest stream", g2[0]["url"], "https://www.youtube.com/watch?v=LjNhaHf3tNE")
+check("...and the start time pasted in its link is dropped", g2[0]["moments"][0]["watch"], "https://www.youtube.com/watch?v=LjNhaHf3tNE&t=9432s")
+g3 = earn.parse_moments("Old stream\nhttps://youtu.be/abcdefghijk\n1:00 hi\nMore\n2:00 later", "")
+check("a link on its own line is the stream of the times below it", (g3[0]["title"], g3[0]["url"]), ("Old stream", "https://youtu.be/abcdefghijk"))
+check("...and the next heading with no stream keeps it", g3[1]["url"], "https://youtu.be/abcdefghijk")
 check("a Drive folder shows inside the page", earn.drive_embed("https://drive.google.com/drive/u/0/folders/1FS-9FvroI8K5_6wWNYoAuk-nqMOTtkGt"),
       "https://drive.google.com/embeddedfolderview?id=1FS-9FvroI8K5_6wWNYoAuk-nqMOTtkGt#grid")
 check("...a link that isn't a Drive folder doesn't", earn.drive_embed("https://example.com/folders/abcdefghijkl"), "")
@@ -63,7 +73,9 @@ for bad in ("javascript:alert(1)", "not a link at all"):
         check(f"raw clips {bad!r} is refused", True)
 pub = earn.campaign(camp["slug"])
 check("people who haven't joined see what joining unlocks", pub["resources"], {"moments": 6, "raw_clips": True})
-check("...but not the moments or the folder", ("moments" in pub, "raw_clips" in pub), (False, False))
+check("everyone sees the best moments (the more people clip them, the better)", len(pub.get("moments") or []), 3)
+check("...but only clippers who joined get the raw clips folder", "raw_clips" in pub, False)
+check("the list of campaigns stays light: moments only on the campaign itself", "moments" in earn.campaigns()[0], False)
 u = auth.signup("clipper@example.com", "test-pass-123", "Raj")[0]
 with db.engine.begin() as c:
     c.execute(db.earn_members.insert().values(campaign_id=camp["id"], user_id=u.id, joined_at=time.time()))
@@ -73,6 +85,45 @@ adm = earn.campaign(camp["id"], admin=True)
 check("the admin gets the moments as typed, to edit", adm["raw_moments"], MOMENTS)
 earn.save_campaign({"status": "ended"}, camp["id"])
 check("an ended campaign keeps them to itself", "moments" in earn.campaign(camp["slug"], uid=u.id), False)
+
+# ---- the admin sees how the timestamps are read; the app gets every open campaign's moments
+from fastapi.testclient import TestClient  # noqa: E402
+web = TestClient(server.app, base_url="http://127.0.0.1:8765")
+check("only an admin can ask how timestamps are read", web.post("/api/admin/earn/moments-preview", json={"moments": "1:00 x"},
+                                                              headers={"Origin": "http://127.0.0.1:8765"}).status_code, 404)
+check("...it says which stream each group opens", {k: v for k, v in earn.parse_moments("Day 3\n1:00 x", SOURCES)[0].items() if k in ("title", "url")},
+      {"title": "Day 3", "url": "https://www.youtube.com/live/xyz789ghi01"})
+earn.save_campaign({"status": "live"}, camp["id"])
+server._MOMENTS_CACHE.clear()
+pm = web.get("/api/earn/public/moments").json()
+check("the website lists the open campaigns' moments for the app, without signing in", [c["slug"] for c in pm["campaigns"]], [camp["slug"]])
+check("...only groups whose stream is known (they can be clipped)", all(g["url"] for g in pm["campaigns"][0]["moments"]))
+check("...and never the raw clips folder", "raw_clips" in str(pm), False)
+
+
+class Site:
+    status_code = 200
+
+    def __init__(self, data):
+        self._d = data
+
+    def json(self):
+        return self._d
+
+
+from unittest.mock import patch  # noqa: E402
+odd = {"campaigns": [pm["campaigns"][0], {"slug": "x<script>", "title": "Odd", "moments": [{"title": "t", "url": "javascript:alert(1)", "moments": [{"t": 1}]}]},
+                     {"nonsense": True}]}
+os.environ["CLIPKONTRAST_ACCOUNTS"] = "1"
+with patch("httpx.get", return_value=Site(odd)):
+    server._APP_MOMENTS.clear()
+    got = server.campaign_moments(type("Req", (), {"state": type("S", (), {"user": u})()})())
+check("the app shows the website's campaign moments", got["campaigns"][0]["title"], "Mizo stream clips")
+check("...an odd entry from the site is cleaned or skipped, never trusted", (got["campaigns"][1]["slug"], got["campaigns"][1]["moments"], len(got["campaigns"])),
+      ("xscript", [], 2))
+with patch("httpx.get", side_effect=OSError("offline")):
+    server._APP_MOMENTS.clear()
+    check("offline: no campaigns, nothing breaks", server.campaign_moments(type("Req", (), {"state": type("S", (), {"user": u})()})())["campaigns"], [])
 
 # ---- "Clip in app": only that part of a long stream is downloaded
 work = Path(tempfile.mkdtemp(prefix="pc-res-work-"))

@@ -1864,6 +1864,64 @@ def earn_overview(request: Request):
     return out
 
 
+_MOMENTS_CACHE: dict = {}
+
+
+@app.get("/api/earn/public/moments")
+def earn_open_moments():
+    """The best moments of the campaigns taking clips, for the ClipKontrast app's home screen. The same for everyone,
+    so it is worked out at most once a minute."""
+    hit = _MOMENTS_CACHE.get("v")
+    if hit and time.time() - hit[0] < 60:
+        return hit[1]
+    out = {"campaigns": earn.open_moments(), "earn_url": config.EARN_URL}
+    _MOMENTS_CACHE["v"] = (time.time(), out)
+    return out
+
+
+@app.post("/api/admin/earn/moments-preview")
+def earn_moments_preview(request: Request, body: dict = Body(...)):
+    """How the admin's pasted timestamps are read, while typing: which stream each group opens."""
+    _admin(request)
+    groups = earn.parse_moments(str(body.get("moments", ""))[:12000], str(body.get("sources", ""))[:4000])
+    return {"groups": [{"title": g["title"], "url": g["url"], "count": len(g["moments"])} for g in groups],
+            "count": sum(len(g["moments"]) for g in groups)}
+
+
+_APP_MOMENTS: dict = {}
+
+
+@app.get("/api/campaign-moments")
+def campaign_moments(request: Request):
+    """The clip maker's view of the Earn campaigns: their best moments, read from the ClipKontrast website (kept five
+    minutes), so they can be clipped from the home screen. Nothing when the website can't be reached."""
+    _me(request)
+    hit = _APP_MOMENTS.get("v")
+    if hit and time.time() - hit[0] < 300:
+        return hit[1]
+    import httpx
+    try:
+        r = httpx.get(config.EARN_URL + "/api/earn/public/moments", timeout=8, headers={"User-Agent": "ClipKontrast"})
+        data = r.json() if r.status_code == 200 else {}
+    except Exception:  # noqa: BLE001 - offline: no campaigns shown, nothing else changes
+        data = {}
+    camps = []
+    for c in (data.get("campaigns") or [])[:10] if isinstance(data, dict) else []:
+        try:
+            groups = [{"title": str(g["title"])[:120], "url": str(g["url"])[:300],
+                       "moments": [{"t": int(m["t"]), "end": int(m["end"]) if m.get("end") else None, "label": str(m.get("label") or "")[:140]}
+                                   for m in g["moments"][:200]]}
+                      for g in c["moments"][:40] if re.match(r"https://", str(g.get("url", "")))]
+            camps.append({"slug": re.sub(r"[^\w-]", "", str(c["slug"]))[:80], "title": str(c["title"])[:120],
+                          "creator_name": str(c.get("creator_name") or "")[:120], "notice": str(c.get("notice") or "")[:1000],
+                          "rate_per_1k": float(c.get("rate_per_1k") or 0), "moments": groups})
+        except (KeyError, TypeError, ValueError):
+            continue                       # one odd entry is skipped, never the page
+    out = {"campaigns": camps, "earn_url": config.EARN_URL}
+    _APP_MOMENTS["v"] = (time.time(), out)
+    return out
+
+
 @app.get("/api/earn/public/campaigns/{key}")
 def earn_campaign(request: Request, key: str):
     return _earn(earn.campaign, key, uid=_uid_or_none(request))

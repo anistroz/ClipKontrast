@@ -496,6 +496,7 @@ footer.site .fbottom{display:flex;justify-content:space-between;gap:12px;flex-wr
 .mom .ts{font-family:"Geist Mono",ui-monospace,monospace;font-size:13px;font-weight:600;background:var(--soft);color:var(--deep);border-radius:7px;padding:3px 8px;text-decoration:none;white-space:nowrap}
 .mom a.ts:hover{background:var(--brand)}
 .mom .mlabel{flex:1;font-size:14px;min-width:0;overflow-wrap:anywhere}
+.mom .mlabel.none{color:var(--faint)}
 </style>
 </head>
 <body>
@@ -818,22 +819,19 @@ function appLink(url, m) {
   return `${APP}#clip=${encodeURIComponent(url)}&from=${from}&to=${to}${m.label ? "&label=" + encodeURIComponent(m.label.slice(0, 80)) : ""}`;
 }
 function resources(c) {
-  const r = c.resources || {}, n = r.moments || 0;
-  if (!c.moments) {                       // not joined: what joining unlocks
-    if (!n && !r.raw_clips) return "";
-    return `<h4>Resource library</h4><div class="locked res-lock">🔒 Join the campaign to unlock ${[n ? `<b>${n} best moments</b> with timestamps` : "", r.raw_clips ? "<b>the raw clips folder</b>" : ""].filter(Boolean).join(" and ")}.</div>`;
-  }
-  if (!c.moments.length && !c.raw_clips) return "";
+  const r = c.resources || {}, n = r.moments || 0, moments = c.moments || [];
+  if (!moments.length && !r.raw_clips) return "";
   let h = `<h4>Resource library</h4>`;
+  if (!c.raw_clips && r.raw_clips) h += `<div class="locked res-lock">🔒 Join the campaign to unlock <b>the raw clips folder</b>: best moments already cut, ready to edit and post.</div>`;
   if (c.raw_clips) h += `<div class="res-raw"><div class="res-ic">📁</div><div><b>Raw clips</b><span>Best moments, already cut. Download, edit them your own way, post, then Send a clip.</span></div>
       <a class="btn sm primary" href="${esc(safeUrl(c.raw_clips))}" target="_blank" rel="noopener">Open folder ↗</a></div>
     ${c.raw_clips_embed ? `<details class="res-files"><summary>See the files here</summary><iframe src="${esc(c.raw_clips_embed)}" loading="lazy" title="Raw clips" referrerpolicy="no-referrer"></iframe></details>` : ""}`;
-  if (c.moments.length) {
+  if (moments.length) {
     h += `<div class="res-head"><b>Best moments</b><span>${n} timestamps from the streams.${IS_PHONE ? "" : ` <b>Clip in app</b> opens ClipKontrast on your computer with that moment ready (keep the app open). No app yet? <a href="/download">Download it free</a>.`}</span></div>`;
-    h += c.moments.map((g, gi) => `<details class="mom-g" ${gi === 0 ? "open" : ""}><summary><b>${esc(g.title)}</b><span>${g.moments.length} moments</span>${g.url ? `<a href="${esc(safeUrl(g.url))}" target="_blank" rel="noopener" class="mom-src">Stream ↗</a>` : ""}</summary>
+    h += moments.map((g, gi) => `<details class="mom-g" ${gi === 0 ? "open" : ""}><summary><b>${esc(g.title)}</b><span>${g.moments.length} moments</span>${g.url ? `<a href="${esc(safeUrl(g.url))}" target="_blank" rel="noopener" class="mom-src">Stream ↗</a>` : ""}</summary>
       ${g.moments.map(m => `<div class="mom">
         ${m.watch ? `<a class="ts" href="${esc(safeUrl(m.watch))}" target="_blank" rel="noopener" title="Watch from here">${hms(m.t)}${m.end ? "–" + hms(m.end) : ""}</a>` : `<span class="ts">${hms(m.t)}${m.end ? "–" + hms(m.end) : ""}</span>`}
-        <span class="mlabel">${esc(m.label || "Moment")}</span>
+        <span class="mlabel${m.label ? "" : " none"}">${esc(m.label || "Clip-worthy moment")}</span>
         ${g.url && !IS_PHONE ? `<a class="btn xs" href="${esc(appLink(g.url, m))}" target="_blank" rel="noopener" title="Opens the ClipKontrast app on this computer, ready to clip this moment">✂ Clip in app</a>` : ""}
       </div>`).join("")}</details>`).join("");
   }

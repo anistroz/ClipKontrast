@@ -375,7 +375,8 @@ def _stats(c, ids: list) -> dict:
 
 # ---------------------------------------------------------------- the resource library: best moments and raw clips
 _TS = r"(?:\d{1,2}:)?\d{1,2}:\d{2}"
-_MOMENT = re.compile(rf"^\s*({_TS})(?:\s*(?:-|–|—|to)\s*({_TS}))?\s*[-–—:|]?\s*(.*)$")
+_DASH = "-\u2010\u2011\u2012\u2013\u2014\u2015\u2212~"
+_MOMENT = re.compile(rf"^\s*({_TS})(?:\s*(?:[{_DASH}]|to)\s*({_TS}))?\s*[{_DASH}:|]?\s*(.*)$")
 _URL = re.compile(r"https?://\S+")
 
 
@@ -407,6 +408,15 @@ def watch_url(url: str, t: int) -> str:
     return url
 
 
+def _stream(url: str) -> str:
+    """A stream's link without a start time in it (a pasted YouTube link often has one: &t=992s)."""
+    p = urlparse(url)
+    if "youtube.com" in (p.hostname or "") or p.hostname == "youtu.be":
+        q = [x for x in p.query.split("&") if x and not x.startswith("t=")]
+        return p._replace(query="&".join(q)).geturl()
+    return url
+
+
 def parse_moments(text: str, sources: str = "") -> list:
     """The best moments, as pasted by the admin (from a mod's message, say): timestamps one per line, under a line
     that names the stream ("Day 3", "Previous stream 3.3 hrs", or a link). A stream named like one of "Streams and
@@ -414,13 +424,13 @@ def parse_moments(text: str, sources: str = "") -> list:
 
         [{"title", "url", "moments": [{"t", "end", "label", "watch"}]}]"""
     srcs = [_label_url(x) for x in (sources or "").splitlines() if x.strip()]
-    srcs = [(lab, u) for lab, u in srcs if u]
+    srcs = [(lab, _stream(u)) for lab, u in srcs if u]
     latest = srcs[-1] if srcs else ("", "")
 
     def find(title: str) -> str:
         m = _URL.search(title)
         if m:
-            return m.group(0)
+            return _stream(m.group(0))
         low = title.lower()
         for lab, u in srcs:
             if lab and (low.startswith(lab.lower()) or lab.lower() in low):
@@ -442,11 +452,35 @@ def parse_moments(text: str, sources: str = "") -> list:
             if end is not None and end <= t:
                 end = None
             cur["moments"].append({"t": t, "end": end, "label": m.group(3).strip()[:140], "watch": watch_url(cur["url"], t)})
+        elif _URL.fullmatch(line.strip("<> ")):        # a link on its own line: the stream of the times below
+            url = _stream(_URL.search(line).group(0))
+            if cur is not None and not cur["moments"]:
+                cur["url"] = url
+            else:
+                cur = {"title": next((lab for lab, u in srcs if u == url), "") or "Stream", "url": url, "moments": []}
+                groups.append(cur)
         else:
             title = _URL.sub("", line).strip(" |:-–") or line
-            cur = {"title": title[:120], "url": find(line), "moments": []}
+            # A heading that names no stream ("CLIP WORTHY TIMESTAMPS") is about the stream before it, or the newest.
+            url = find(line) or (groups[-1]["url"] if groups else latest[1])
+            cur = {"title": title[:120], "url": url, "moments": []}
             groups.append(cur)
     return [g for g in groups if g["moments"]][:40]
+
+
+def open_moments() -> list:
+    """Every campaign taking clips that has best moments: what the ClipKontrast app shows on its home screen, so a
+    clipper can clip a moment from it with one click."""
+    out = []
+    for c in campaigns():
+        if c["state"] not in ("open", "starts") or not c["resources"]["moments"]:
+            continue
+        full = campaign(c["slug"])
+        groups = [g for g in full.get("moments") or [] if g["url"]]
+        if groups:
+            out.append({"slug": c["slug"], "title": c["title"], "creator_name": c["creator_name"], "notice": c["notice"],
+                        "rate_per_1k": c["rate_per_1k"], "accent": c["accent"], "state": c["state"], "moments": groups})
+    return out[:10]
 
 
 def drive_embed(url: str) -> str:
@@ -455,7 +489,7 @@ def drive_embed(url: str) -> str:
     return f"https://drive.google.com/embeddedfolderview?id={m.group(1)}#grid" if m else ""
 
 
-def _camp_dict(r, st: dict, admin=False, member=False) -> dict:
+def _camp_dict(r, st: dict, admin=False, member=False, detail=True) -> dict:
     committed = round(st["committed"], 2)
     d = {"id": r.id, "slug": r.slug, "title": r.title, "creator_name": r.creator_name, "creator_url": r.creator_url,
          "tagline": r.tagline, "brief": r.brief, "rules": [x.strip() for x in r.rules.splitlines() if x.strip()],
@@ -473,10 +507,11 @@ def _camp_dict(r, st: dict, admin=False, member=False) -> dict:
     moments = parse_moments(r.moments, r.sources)
     # what the resource library holds, for everyone: people who haven't joined see what joining unlocks
     d["resources"] = {"moments": sum(len(g["moments"]) for g in moments), "raw_clips": bool(r.raw_clips)}
+    if detail and (admin or d["state"] != "ended"):
+        d["moments"] = moments              # the best moments are for everyone: the more people clip them, the better
     if admin or (member and d["state"] != "ended"):
         d["sources"] = [x.strip() for x in r.sources.splitlines() if x.strip()]
-        d["moments"] = moments
-        d["raw_clips"] = r.raw_clips
+        d["raw_clips"] = r.raw_clips        # the raw clips folder is what joining unlocks
         d["raw_clips_embed"] = drive_embed(r.raw_clips)
     if admin:
         try:
@@ -519,7 +554,7 @@ def campaigns(admin=False, uid: str = "") -> list:
         st = _stats(c, [r.id for r in rows])
         mine = {r[0] for r in c.execute(sa.select(db.earn_members.c.campaign_id).where(db.earn_members.c.user_id == uid))} if uid else set()
     order = {"live": 0, "soon": 1, "paused": 2, "draft": 3, "ended": 4}
-    out = [_camp_dict(r, st[r.id], admin, r.id in mine) for r in rows]
+    out = [_camp_dict(r, st[r.id], admin, r.id in mine, detail=False) for r in rows]
     # the order the admin dragged them into; campaigns never placed keep the automatic order among themselves
     out.sort(key=lambda d: (d["sort_order"], not d["open"], order.get(d["status"], 9), -d["clippers"], -d["clips"], -d["remaining"]))
     return out
