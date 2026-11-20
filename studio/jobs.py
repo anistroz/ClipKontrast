@@ -6,6 +6,7 @@ import math
 import queue
 import re
 import shutil
+import subprocess
 import threading
 import time
 import traceback
@@ -112,8 +113,8 @@ on_clip_ready: list = []   # callbacks (job, clip), run once when a clip first f
 
 DEFAULTS = {"max_clips": 6, "min_len": 15, "max_len": 60, "style": "bounce", "layout": "blur", "quality": 720,
             "range_start": None, "range_end": None, "captions": True, "lang": "auto", "caption_lang": "auto",
-            "zoom": True, "watermark": ""}
-CLIP_LOOK = ("style", "layout", "captions", "zoom", "watermark")     # what each clip carries from its video's settings
+            "zoom": True, "watermark": "", "tighten": True}
+CLIP_LOOK = ("style", "layout", "captions", "zoom", "watermark", "tighten")     # what each clip carries from its video's settings
 
 
 def clean_watermark(v) -> str:
@@ -129,9 +130,9 @@ def clean_options(options) -> dict:
     """Only known settings, each inside its allowed range. Raises ValueError on nonsense."""
     out = {}
     for k, v in (options if isinstance(options, dict) else {}).items():
-        if k in ("captions", "zoom"):
+        if k in ("captions", "zoom", "tighten"):
             if not isinstance(v, bool):
-                raise ValueError("Captions must be on or off." if k == "captions" else "Auto zoom must be on or off.")
+                raise ValueError({"captions": "Captions", "zoom": "Auto zoom", "tighten": "Cutting silences"}[k] + " must be on or off.")
             out[k] = v
             continue
         if k == "watermark":
@@ -307,7 +308,7 @@ def create(source: dict, options: dict, enqueue=True, creator=None, kind="video"
     if c:
         d = creators.root(c["id"]) / ("live" if kind == "live" else "videos") / jid
         base = {**DEFAULTS, **{k: c[k] for k in ("max_clips", "min_len", "max_len", "style", "layout", "captions", "lang", "caption_lang",
-                                                 "zoom", "watermark") if k in c}}
+                                                 "zoom", "watermark", "tighten") if k in c}}
     else:
         d, base, creator = config.user_dir(ctx.uid()) / "jobs" / jid, dict(DEFAULTS), None
     opts = {**base, **clean_options(options)}
@@ -365,7 +366,7 @@ def request_render(jid, cid, changes: dict):
     job = _jobs[jid]
     clip = next(c for c in job["clips"] if c["id"] == cid)
     new = dict(clip)
-    for k in ("captions", "zoom", "watermark"):
+    for k in ("captions", "zoom", "watermark", "tighten"):
         if k in changes:
             new.update(clean_options({k: changes[k]}))
     for k in ("start", "end"):
@@ -412,7 +413,7 @@ def render_one(job, clip, words):
                     if clip.get("camera") == "full" else
                     "No webcam was found in this part of the stream, so the whole picture is shown.")
         clip.update(out, layout_used=used, layout_note=note, status="done", version=clip.get("version", 0) + 1, error=None)
-        post = {k: clip[k] for k in ("title", "description", "hashtags", "hook", "start", "end", "score")}
+        post = {k: clip.get(k) for k in ("title", "description", "hashtags", "hook", "start", "end", "score")}
         (d / "clips" / f"{clip['id']}.json").write_text(json.dumps(post, indent=1), encoding="utf-8")
         if clip["version"] == 1:
             clip.setdefault("made_at", time.time())
@@ -817,6 +818,54 @@ def _use_camera(job, clip):
         clip["facecam"] = cam
 
 
+CHECK_CLIPS = 8           # at most this many clips of a video have their facecam looked at again by the AI
+
+
+def _cam_band(job, clip) -> bytes:
+    """The facecam part of a clip that was made, from its middle, as a small JPEG."""
+    f = Path(job["dir"]) / "clips" / str(clip.get("file") or "")
+    if not f.is_file() or not isinstance(clip.get("facecam"), list):
+        return b""
+    if clip.get("layout_used") == "split":
+        crop = f"crop={config.OUT_W}:{render.SPLIT_TOP}:0:0"
+    elif clip.get("layout_used") == "gameplay":
+        fw, fh = clip["facecam"][2], clip["facecam"][3]
+        ph = max(2, int(round(render.PIP_W * fh / max(1, fw))))
+        crop = f"crop={render.PIP_W}:{ph}:{config.OUT_W - render.PIP_W - render.PIP_MARGIN}:{render.PIP_MARGIN}"
+    else:
+        return b""
+    try:
+        meta = media.probe(f)
+        at = max(0.5, (meta.get("duration") or 4) / 2)
+        return subprocess.run(["ffmpeg", "-v", "error", "-ss", f"{at:.2f}", "-i", str(f), "-frames:v", "1", "-vf",
+                               f"{crop},scale=480:-2", "-q:v", "4", "-f", "image2pipe", "-vcodec", "mjpeg", "-"],
+                              capture_output=True, timeout=60, creationflags=media.NO_WINDOW).stdout or b""
+    except Exception:  # noqa: BLE001
+        return b""
+
+
+def _check_cameras(job, words):
+    """The AI looks at the facecam of each clip made with one (like an editor checking the cut before it's shown):
+    a clip whose facecam shows the game is made again with the streamer's remembered webcam, or, when there is
+    none, with the whole picture. Nothing changes when the AI can't look."""
+    fixed = 0
+    for c in [c for c in job["clips"] if c.get("status") == "done" and c.get("layout_used") in render.FACECAM_LAYOUTS][:CHECK_CLIPS]:
+        verdict = brain.is_streamer_cam(_cam_band(job, c))
+        if verdict is not False:
+            continue
+        w, h = _src_size(job, c)
+        mem = _remembered(job)
+        mem_px = _px(mem, w, h) if mem and w and h else None
+        if mem_px and _iou(mem_px, c["facecam"]) < CAM_AGREE:
+            c.update(facecam=mem_px, camera="box", camera_from="checked")
+        else:
+            c.pop("facecam", None)
+            c.update(camera="none", camera_from="checked")       # no trustworthy webcam here: the whole picture
+        render_one(job, c, words)
+        fixed += 1
+    return fixed
+
+
 def _agree_cameras(job, words):
     """After a video's clips are made: the place most clips found the webcam is the webcam. Clips whose own look
     disagreed are made again with it, so one cutscene can't leave a game character in the facecam."""
@@ -1112,6 +1161,7 @@ def _run_job(job):
             c.update(id=f"clip{len(job['clips']) + 1:02d}", start=round(c["start"] + shift, 2),
                      end=round(c["end"] + shift, 2), style=o["style"], layout=o["layout"],
                      captions=o.get("captions", True), zoom=o.get("zoom", True), watermark=o.get("watermark", ""),
+                     tighten=o.get("tighten", True),
                      status="queued", version=0)
             # Only the facecam layouts use a webcam, so it is only looked for then, and only once: a
             # stream with no webcam is not looked for again on every clip of it.
@@ -1194,6 +1244,8 @@ def _run_job(job):
     try:
         if _agree_cameras(job, words):
             notes.append("The facecam was set the same in every clip.")
+        if _check_cameras(job, words):
+            notes.append("A facecam showing the game was fixed.")
     except Exception:  # noqa: BLE001 - the clips are already made; this only improves them
         traceback.print_exc()
     mark("clips")

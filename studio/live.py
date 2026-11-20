@@ -581,7 +581,8 @@ class Session:
         self.n += 1
         c.update(id=f"clip{self.n:03d}", style=self.settings["style"], layout=self.settings["layout"],
                  captions=self.job["options"].get("captions", True), zoom=self.settings.get("zoom", True),
-                 watermark=self.settings.get("watermark", ""), status="queued", version=0, made_at=time.time())
+                 watermark=self.settings.get("watermark", ""), tighten=self.settings.get("tighten", True),
+                 status="queued", version=0, made_at=time.time())
         with self.lock:
             self.job["clips"].append(c)
         jobs.save(self.job)

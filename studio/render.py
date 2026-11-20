@@ -298,6 +298,30 @@ ZOOM = 0.12           # how far a punch-in goes (12% closer)
 ZOOM_MAX = 4          # at most this many in one clip
 
 
+_LOUD: dict = {}
+
+
+def clip_loudness(src, start, end):
+    """How loud the clip is every 50 ms (a quarter-second average), read once per clip and kept for the next caller."""
+    import numpy as np
+    key = (str(src), round(start, 2), round(end, 2))
+    if key in _LOUD:
+        return _LOUD[key]
+    try:
+        p = subprocess.run(["ffmpeg", "-v", "error", "-ss", f"{start:.2f}", "-t", f"{end - start:.2f}", "-i", str(src), "-vn",
+                            "-ac", "1", "-ar", "8000", "-f", "s16le", "-"], capture_output=True, timeout=90,
+                           creationflags=NO_WINDOW)
+        a = np.frombuffer(p.stdout[: len(p.stdout) // 2 * 2], np.int16).astype(np.float32)
+    except (OSError, subprocess.TimeoutExpired):
+        a = np.zeros(0, np.float32)
+    n = len(a) // 400
+    rms = np.convolve(np.sqrt((a[: n * 400].reshape(n, 400) ** 2).mean(axis=1)), np.ones(5) / 5, mode="same") if n else np.zeros(0)
+    if len(_LOUD) > 64:
+        _LOUD.clear()
+    _LOUD[key] = rms
+    return rms
+
+
 def zoom_moments(src, start, end) -> list:
     """The loudest moments of a clip (a shout, a laugh, the big reaction), in seconds from its start: where the
     picture punches in. At most one every few seconds, none in the first moment or the last."""
@@ -305,19 +329,10 @@ def zoom_moments(src, start, end) -> list:
     dur = end - start
     if dur < 6:
         return []
-    try:
-        p = subprocess.run(["ffmpeg", "-v", "error", "-ss", f"{start:.2f}", "-t", f"{dur:.2f}", "-i", str(src), "-vn",
-                            "-ac", "1", "-ar", "8000", "-f", "s16le", "-"], capture_output=True, timeout=90,
-                           creationflags=NO_WINDOW)
-    except (OSError, subprocess.TimeoutExpired):
+    step = 400                                          # 50 ms at 8 kHz
+    rms = clip_loudness(src, start, end)
+    if len(rms) < 40:
         return []
-    a = np.frombuffer(p.stdout[: len(p.stdout) // 2 * 2], np.int16).astype(np.float32)
-    step = 400                                          # 50 ms
-    n = len(a) // step
-    if n < 40:
-        return []
-    rms = np.sqrt((a[: n * step].reshape(n, step) ** 2).mean(axis=1))
-    rms = np.convolve(rms, np.ones(5) / 5, mode="same")  # a quarter of a second, so one click is not a moment
     floor = float(np.median(rms))
     if floor <= 1:
         return []                                       # silence: nothing to react to
@@ -334,6 +349,104 @@ def zoom_moments(src, start, end) -> list:
             continue
         picked.append(round(float(t), 2))
     return sorted(picked)
+
+
+FILLER = re.compile(r"^(u+m+|u+h+|u+h+m+|h+m+|e+r+m+|e+r+|a+h+|m+h*m+)[.,!?…]*$", re.I)
+SILENCE_MIN = 0.9          # a quiet stretch at least this long is shortened...
+SILENCE_KEEP = 0.25        # ...to this
+CUT_MIN = 0.25             # cuts shorter than this aren't worth a join
+FADE = 0.03                # every join fades the sound out and in, so no click is heard
+
+
+def tighten_plan(src, start, end, words) -> list:
+    """The parts of a clip to keep, in seconds from its start: everything except stretches that are really quiet
+    (by the sound, so a game's action with no talking is kept) and filler words (um, uh, hmm). [] when there is
+    nothing worth cutting, or too little would be left."""
+    import numpy as np
+    dur = end - start
+    rms = clip_loudness(src, start, end)
+    cuts = []
+    if len(rms) >= 20:
+        quiet_at = max(1.0, 0.30 * float(np.median(rms)))
+        quiet = rms < quiet_at
+        i = 0
+        while i < len(quiet):
+            if quiet[i]:
+                j = i
+                while j < len(quiet) and quiet[j]:
+                    j += 1
+                a, b = i * 0.05, j * 0.05
+                if b - a >= SILENCE_MIN and a > 0.3 and b < dur - 0.3:
+                    cuts.append((a + SILENCE_KEEP / 2, b - SILENCE_KEEP / 2))
+                i = j
+            else:
+                i += 1
+    for w in words:
+        s, e = w["s"] - start, w["e"] - start
+        if 0.3 < s < dur - 0.3 and e - s < 1.2 and FILLER.match(re.sub(r"[^\w.,!?…]", "", w["w"])):
+            cuts.append((s, e))
+    cuts = sorted((max(0.0, a), min(dur, b)) for a, b in cuts if b - a >= CUT_MIN)
+    merged = []
+    for a, b in cuts:
+        if merged and a <= merged[-1][1] + 0.05:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], b))
+        else:
+            merged.append((a, b))
+    merged = merged[:25]
+    if not merged:
+        return []
+    keep, at = [], 0.0
+    for a, b in merged:
+        if a - at > 0.05:
+            keep.append((round(at, 3), round(a, 3)))
+        at = b
+    if dur - at > 0.05:
+        keep.append((round(at, 3), round(dur, 3)))
+    if sum(b - a for a, b in keep) < 0.6 * dur:
+        return []                                       # that much quiet: better left as it is
+    return keep
+
+
+def _remap(t, keep):
+    """A time in the clip as it was, in the clip as it is after the cuts (None when it was cut out)."""
+    out = 0.0
+    for a, b in keep:
+        if t < a:
+            return None if out else out
+        if t <= b:
+            return out + (t - a)
+        out += b - a
+    return None
+
+
+def tightened_words(words, start, keep):
+    """The words moved to where they are said after the cuts; words that were cut out are dropped."""
+    out = []
+    for w in words:
+        mid = _remap((w["s"] + w["e"]) / 2 - start, keep)
+        if mid is None:
+            continue                                    # said inside a cut (a filler word): gone with it
+        s, e = _remap(w["s"] - start, keep), _remap(w["e"] - start, keep)
+        s = s if s is not None else mid
+        e = e if e is not None and e > s else s + 0.2
+        out.append(dict(w, s=round(start + s, 3), e=round(start + e, 3)))
+    return out
+
+
+def _tighten_filter(keep, layout_fc):
+    """Cut the clip down to `keep` (video and sound together, the sound faded at every join), then the layout."""
+    k = len(keep)
+    vs = "".join(f"[v{i}]" for i in range(k))
+    av = "".join(f"[a{i}]" for i in range(k))
+    parts = [f"[0:v]split={k}{vs}" if k > 1 else "[0:v]null[v0]", f"[0:a:0]asplit={k}{av}" if k > 1 else "[0:a:0]anull[a0]"]
+    for i, (a, b) in enumerate(keep):
+        d = b - a
+        parts.append(f"[v{i}]trim=start={a:.3f}:end={b:.3f},setpts=PTS-STARTPTS[w{i}]")
+        parts.append(f"[a{i}]atrim=start={a:.3f}:end={b:.3f},asetpts=PTS-STARTPTS,"
+                     f"afade=t=in:d={FADE},afade=t=out:st={max(0.0, d - FADE):.3f}:d={FADE}[s{i}]")
+    pairs = "".join(f"[w{i}][s{i}]" for i in range(k))
+    parts.append(f"{pairs}concat=n={k}:v=1:a=1[cv][ca]")
+    return ";".join(parts) + ";" + layout_fc.replace("[0:v]", "[cv]")
 
 
 def zoom_expr(moments) -> str:
@@ -417,9 +530,15 @@ def render_clip(src: Path, out_dir: Path, name: str, clip: dict, words: list, sr
         want = "blur"
     layout, fg_h, hook_y, cap_y = geometry(src_w, src_h, want)
     hook_y = _hook_y(layout, hook_y, face)
-    ass = build_ass(words if clip.get("captions", True) else [], start, end, clip.get("hook", ""), clip.get("style", "bounce"),
+    keep = tighten_plan(src, start, end, words) if clip.get("tighten") else []
+    shown = tightened_words(words, start, keep) if keep else words
+    length = sum(b - a for a, b in keep) if keep else end - start
+    ass = build_ass(shown if clip.get("captions", True) else [], start, start + length, clip.get("hook", ""), clip.get("style", "bounce"),
                     clip.get("highlight_words", []), hook_y, cap_y, watermark=clip.get("watermark", ""))
-    z = zoom_expr(zoom_moments(src, start, end)) if clip.get("zoom") else ""
+    moments = zoom_moments(src, start, end) if clip.get("zoom") else []
+    if keep:
+        moments = [m for m in (_remap(t, keep) for t in moments) if m is not None and 0.8 < m < length - 1.5]
+    z = zoom_expr(moments)
     # The clip is made in a short work folder and moved into place afterwards. The caption step of ffmpeg cannot
     # open files whose full path is longer than 260 characters on Windows, which a data folder deep inside other
     # folders easily reaches. Inside the work folder every name is short and relative (a drive colon would also
@@ -427,24 +546,34 @@ def render_clip(src: Path, out_dir: Path, name: str, clip: dict, words: list, sr
     work = Path(tempfile.mkdtemp(prefix="pk"))
     try:
         try:
-            return _render_in(work, src, out_dir, name, start, end, layout, fg_h, ass, face=face, z=z)
+            out = _render_in(work, src, out_dir, name, start, end, layout, fg_h, ass, face=face, z=z, keep=keep)
         except RuntimeError:
-            if not z:
+            if not z and not keep:
                 raise
-            # an older ffmpeg that can't zoom this way: the clip is made without the punch-ins, never not at all
-            return _render_in(work, src, out_dir, name, start, end, layout, fg_h, ass, face=face)
+            # a zoom or cuts this ffmpeg can't make: the clip is made without them, never not at all
+            ass = build_ass(words if clip.get("captions", True) else [], start, end, clip.get("hook", ""), clip.get("style", "bounce"),
+                            clip.get("highlight_words", []), hook_y, cap_y, watermark=clip.get("watermark", ""))
+            out = _render_in(work, src, out_dir, name, start, end, layout, fg_h, ass, face=face)
+            keep = []
+        out["tightened"] = round((end - start) - sum(b - a for a, b in keep), 1) if keep else 0
+        return out
     finally:
         shutil.rmtree(work, ignore_errors=True)
 
 
-def _render_in(work: Path, src: Path, out_dir: Path, name: str, start, end, layout, fg_h, ass: str, face=None, z="") -> dict:
+def _render_in(work: Path, src: Path, out_dir: Path, name: str, start, end, layout, fg_h, ass: str, face=None, z="", keep=None) -> dict:
     (work / f"{name}.ass").write_text(ass, encoding="utf-8")
     (work / "f").mkdir(exist_ok=True)
     for f in config.FONTS_DIR.glob("*.ttf"):
         shutil.copyfile(f, work / "f" / f.name)
     fc = _filter(layout, fg_h, face, z) + f"[v0]ass={name}.ass:fontsdir=f[v]"
+    if keep:            # silences and filler words cut out first; the sound evened out in the same graph
+        fc = _tighten_filter(keep, fc) + ";[ca]loudnorm=I=-14:TP=-1.5:LRA=11[a]"
+        sound = ["-map", "[a]"]
+    else:
+        sound = ["-map", "0:a:0", "-af", "loudnorm=I=-14:TP=-1.5:LRA=11"]
     base = ["ffmpeg", "-y", "-v", "error", "-ss", f"{start:.2f}", "-t", f"{end - start:.2f}", "-i", str(src),
-            "-filter_complex", fc, "-map", "[v]", "-map", "0:a:0", "-af", "loudnorm=I=-14:TP=-1.5:LRA=11",
+            "-filter_complex", fc, "-map", "[v]", *sound,
             "-c:a", "aac", "-b:a", "160k", "-ar", "48000", "-movflags", "+faststart", "-pix_fmt"]
     working = [e for e in HW_ENCODERS if _hw_ok.get(e[0]) is True]
     encoders = working[:1] or [e for e in HW_ENCODERS if _hw_ok.get(e[0]) is None]
@@ -470,7 +599,8 @@ def _render_in(work: Path, src: Path, out_dir: Path, name: str, start, end, layo
             _hw_ok[label] = False
     else:
         raise RuntimeError(f"Render failed: {err}")
-    cover_t = min(1.2, (end - start) / 2)
+    length = sum(b - a for a, b in keep) if keep else end - start
+    cover_t = min(1.2, length / 2)
     run(["ffmpeg", "-y", "-v", "error", "-ss", f"{cover_t:.2f}", "-i", f"{name}.mp4", "-frames:v", "1",
          "-q:v", "3", f"{name}.jpg"], cwd=work)
     for ext in ("mp4", "jpg", "ass"):

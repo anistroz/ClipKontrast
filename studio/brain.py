@@ -474,6 +474,31 @@ def look_for_facecam(jpeg: bytes, timeout=None) -> dict:
         return {"looked": True, "box": None}
     return {"looked": False, "box": None}
 
+CAM_CHECK = """This picture is the top part of a vertical gaming clip. It is meant to show the streamer's webcam: a real person
+filmed by a camera, usually sitting at their desk or in their room.
+Answer with one word. YES if it shows a real person on a webcam. NO if it shows the game (a game character, a cutscene,
+the game world, a menu, a map), a black or empty picture, or anything else."""
+
+
+def is_streamer_cam(jpeg: bytes, timeout=None):
+    """Looks at the facecam part of a clip that was made: True when it shows the streamer, False when it shows the
+    game (a cutscene's character fooled the search), None when the AI can't look (not set up, resting, no pictures)."""
+    if not config.ai_ready() or ai_resting() or not jpeg:
+        return None
+    try:
+        text, sent, wrote = ai.see(CAM_CHECK, jpeg, timeout or 40)
+    except Exception:  # noqa: BLE001 - a check that can't be made changes nothing
+        return None
+    if sent or wrote:
+        usage.record(sent, wrote, "Webcam: check a clip")
+    t = (text or "").strip().upper()
+    if re.match(r"^\W*YES\b", t):
+        return True
+    if re.match(r"^\W*NO\b", t):
+        return False
+    return None
+
+
 SIGNAL_JUDGE = """You judge a live stream ONLY from its reaction signals. You cannot hear the words or see the video.
 Each line is a 2-second slice: [seconds] L=how much louder than usual the streamer was (0 = normal,
 +2 or more = shouting or laughing hard, negative = quieter){chat_note}
