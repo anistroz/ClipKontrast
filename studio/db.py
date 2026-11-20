@@ -132,6 +132,8 @@ earn_campaigns = sa.Table(                                                    # 
     sa.Column("sort_order", sa.Integer, nullable=False, server_default="0"),  # where it is shown: the admin drags it into place
     sa.Column("results", sa.Text, nullable=False, server_default=""),         # an ended campaign's results, as JSON, for the showcase
     sa.Column("sources", sa.Text, nullable=False, server_default=""),         # one link per line: streams, VODs, drive folders
+    sa.Column("moments", sa.Text, nullable=False, server_default=""),         # the best moments: timestamps, under a line naming the stream
+    sa.Column("raw_clips", sa.String(300), nullable=False, server_default=""),   # a Drive folder of raw clips to edit and post
     sa.Column("platforms", sa.String(80), nullable=False, server_default="youtube,instagram,x"),
     sa.Column("required_tag", sa.String(80), nullable=False, server_default=""),   # must appear in the caption, e.g. @creator
     sa.Column("category", sa.String(40), nullable=False, server_default="Gaming"),

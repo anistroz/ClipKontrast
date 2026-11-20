@@ -204,7 +204,7 @@ def _yt_handle(channel_id: str) -> str:
 
 # ================================================================ campaigns
 _CAMP_FIELDS = {"title": 120, "creator_name": 120, "creator_url": 300, "tagline": 200, "brief": 6000, "rules": 4000,
-                "sources": 4000, "required_tag": 80, "category": 40, "notice": 1000}
+                "sources": 4000, "required_tag": 80, "category": 40, "notice": 1000, "moments": 12000, "raw_clips": 300}
 
 
 def _slug(title: str, taken: set) -> str:
@@ -298,6 +298,11 @@ def save_campaign(data: dict, cid: str = "") -> dict:
         vals["accent"] = data["accent"]
     if vals.get("creator_url") and not re.match(r"https?://", vals["creator_url"]):
         vals["creator_url"] = "https://" + vals["creator_url"]
+    if vals.get("raw_clips"):
+        u = vals["raw_clips"] if re.match(r"https?://", vals["raw_clips"]) else "https://" + vals["raw_clips"]
+        if not re.fullmatch(r"https://[\w.-]+\.[a-z]{2,}(/\S*)?", u, re.I):
+            raise EarnError("The raw clips folder must be a link, like https://drive.google.com/drive/folders/…")
+        vals["raw_clips"] = u
     vals["updated_at"] = _now()
     c_ = db.earn_campaigns.c
     with db.engine.begin() as c:
@@ -368,6 +373,88 @@ def _stats(c, ids: list) -> dict:
     return out
 
 
+# ---------------------------------------------------------------- the resource library: best moments and raw clips
+_TS = r"(?:\d{1,2}:)?\d{1,2}:\d{2}"
+_MOMENT = re.compile(rf"^\s*({_TS})(?:\s*(?:-|–|—|to)\s*({_TS}))?\s*[-–—:|]?\s*(.*)$")
+_URL = re.compile(r"https?://\S+")
+
+
+def _secs(t: str) -> int:
+    n = [int(x) for x in t.split(":")]
+    return n[0] * 3600 + n[1] * 60 + n[2] if len(n) == 3 else n[0] * 60 + n[1]
+
+
+def _label_url(line: str):
+    """A line of "Streams and footage": (label, link). "Day 1 | https://..." or just the link."""
+    m = _URL.search(line)
+    url = m.group(0) if m else ""
+    label = re.sub(r"\s*[|:–-]\s*$", "", line[: m.start()] if m else line).strip()
+    return label, url
+
+
+def watch_url(url: str, t: int) -> str:
+    """The stream's own page, opened at that second (YouTube and Twitch videos), or the page itself."""
+    if not url:
+        return ""
+    p = urlparse(url)
+    host = (p.hostname or "").lower()
+    if "youtube.com" in host or host == "youtu.be":
+        q = {k: v for k, v in parse_qs(p.query).items() if k != "t"}
+        query = "&".join(f"{k}={v[0]}" for k, v in q.items())
+        return p._replace(query=(query + "&" if query else "") + f"t={t}s", fragment="").geturl()
+    if "twitch.tv" in host and "/videos/" in p.path:
+        return p._replace(query=f"t={t // 3600}h{t % 3600 // 60}m{t % 60}s", fragment="").geturl()
+    return url
+
+
+def parse_moments(text: str, sources: str = "") -> list:
+    """The best moments, as pasted by the admin (from a mod's message, say): timestamps one per line, under a line
+    that names the stream ("Day 3", "Previous stream 3.3 hrs", or a link). A stream named like one of "Streams and
+    footage" gets its link, so each moment opens at its second. Timestamps above any name belong to the newest stream.
+
+        [{"title", "url", "moments": [{"t", "end", "label", "watch"}]}]"""
+    srcs = [_label_url(x) for x in (sources or "").splitlines() if x.strip()]
+    srcs = [(lab, u) for lab, u in srcs if u]
+    latest = srcs[-1] if srcs else ("", "")
+
+    def find(title: str) -> str:
+        m = _URL.search(title)
+        if m:
+            return m.group(0)
+        low = title.lower()
+        for lab, u in srcs:
+            if lab and (low.startswith(lab.lower()) or lab.lower() in low):
+                return u
+        return ""
+
+    groups, cur = [], None
+    for raw in (text or "").splitlines()[:600]:
+        line = re.sub(r"[\x00-\x1f\x7f]", "", raw).strip()
+        if not line:
+            continue
+        m = _MOMENT.match(line)
+        if m:
+            if cur is None:
+                cur = {"title": latest[0] or "Latest stream", "url": latest[1], "moments": []}
+                groups.append(cur)
+            t = _secs(m.group(1))
+            end = _secs(m.group(2)) if m.group(2) else None
+            if end is not None and end <= t:
+                end = None
+            cur["moments"].append({"t": t, "end": end, "label": m.group(3).strip()[:140], "watch": watch_url(cur["url"], t)})
+        else:
+            title = _URL.sub("", line).strip(" |:-–") or line
+            cur = {"title": title[:120], "url": find(line), "moments": []}
+            groups.append(cur)
+    return [g for g in groups if g["moments"]][:40]
+
+
+def drive_embed(url: str) -> str:
+    """A Google Drive folder shown inside the page (it must be shared with "Anyone with the link")."""
+    m = re.search(r"drive\.google\.com/drive/(?:u/\d+/)?folders/([\w-]{10,})", url or "")
+    return f"https://drive.google.com/embeddedfolderview?id={m.group(1)}#grid" if m else ""
+
+
 def _camp_dict(r, st: dict, admin=False, member=False) -> dict:
     committed = round(st["committed"], 2)
     d = {"id": r.id, "slug": r.slug, "title": r.title, "creator_name": r.creator_name, "creator_url": r.creator_url,
@@ -383,14 +470,21 @@ def _camp_dict(r, st: dict, admin=False, member=False) -> dict:
          "open": _is_open(r, committed), "state": _state(r, committed), "member": member, "sort_order": r.sort_order}
     if d["state"] == "ended":
         d["showcase"] = _showcase(r, st)            # an ended campaign is shown for what it achieved
+    moments = parse_moments(r.moments, r.sources)
+    # what the resource library holds, for everyone: people who haven't joined see what joining unlocks
+    d["resources"] = {"moments": sum(len(g["moments"]) for g in moments), "raw_clips": bool(r.raw_clips)}
     if admin or (member and d["state"] != "ended"):
         d["sources"] = [x.strip() for x in r.sources.splitlines() if x.strip()]
+        d["moments"] = moments
+        d["raw_clips"] = r.raw_clips
+        d["raw_clips_embed"] = drive_embed(r.raw_clips)
     if admin:
         try:
             res = json.loads(r.results or "{}")
         except ValueError:
             res = {}
-        d.update(pending=st["pending"], created_at=r.created_at, raw_rules=r.rules, raw_sources=r.sources, results=res)
+        d.update(pending=st["pending"], created_at=r.created_at, raw_rules=r.rules, raw_sources=r.sources, results=res,
+                 raw_moments=r.moments)
     return d
 
 

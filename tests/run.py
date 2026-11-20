@@ -74,6 +74,7 @@ def main() -> int:
                 ("never 'nothing found': the liveliest parts are clipped; Hindi listens to less", ["tests/test_safety_net.py"]),
                 ("live clipping in one step from the home screen", ["tests/test_live_quick.py"]),
                 ("faster: several clips at once, the quick model for Hindi, step times", ["tests/test_speed.py"]),
+                ("campaign resource library: raw clips, best moments, Clip in app", ["tests/test_resources.py"]),
                 ("Hindi and other languages: Whisper, detection, captions", ["tests/test_languages.py"]),
                 ("fetching a stretch of a long YouTube video", ["tests/test_downloads.py"]),
                 ("the Windows app updating itself", ["tests/test_selfupdate.py"]),

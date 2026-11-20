@@ -471,6 +471,31 @@ footer.site .fbottom{display:flex;justify-content:space-between;gap:12px;flex-wr
 .new-src{font-style:normal;background:var(--brand);color:var(--ink);border-radius:99px;padding:1px 8px;font-size:11px;font-weight:700;margin-left:6px}
 .done-big b.soon-num{font-size:32px;color:var(--frame-text)}
 .show-big b.soon-num{font-size:clamp(30px,4vw,44px);color:var(--frame-text)}
+.res-lock b{color:var(--text)}
+.res-raw{display:flex;align-items:center;gap:14px;padding:14px;border:1px solid var(--line-b);background:var(--soft);border-radius:12px}
+.res-raw .res-ic{font-size:26px}
+.res-raw>div:nth-child(2){flex:1;display:flex;flex-direction:column;gap:2px}
+.res-raw span{font-size:13.5px;color:var(--dim)}
+.res-files{margin-top:8px}
+.res-files summary{cursor:pointer;font-size:14px;font-weight:600;color:var(--deep);padding:6px 2px}
+.res-files iframe{width:100%;height:340px;border:1px solid var(--line);border-radius:12px;background:#fff}
+.res-head{display:flex;flex-direction:column;gap:2px;margin:16px 0 8px}
+.res-head span{font-size:13.5px;color:var(--dim)}
+.res-head a{color:var(--deep)}
+.mom-g,.res-files{padding:0;border-bottom:0}
+.mom-g{border:1px solid var(--line);border-radius:12px;margin-bottom:8px;overflow:hidden}
+.mom-g summary::after{font-size:20px}
+.res-files summary{justify-content:flex-start}
+.res-files summary::after{font-size:18px}
+.mom-g summary{display:flex;align-items:center;gap:10px;padding:11px 14px;cursor:pointer;background:var(--muted);list-style:none}
+.mom-g summary::-webkit-details-marker{display:none}
+.mom-g summary b{flex:1;font-size:14.5px}
+.mom-g summary span{font-size:12.5px;color:var(--dim)}
+.mom-src{font-size:13px;font-weight:600;color:var(--deep);text-decoration:none}
+.mom{display:flex;align-items:center;gap:12px;padding:9px 14px;border-top:1px solid var(--line)}
+.mom .ts{font-family:"Geist Mono",ui-monospace,monospace;font-size:13px;font-weight:600;background:var(--soft);color:var(--deep);border-radius:7px;padding:3px 8px;text-decoration:none;white-space:nowrap}
+.mom a.ts:hover{background:var(--brand)}
+.mom .mlabel{flex:1;font-size:14px;min-width:0;overflow-wrap:anywhere}
 </style>
 </head>
 <body>
@@ -782,6 +807,38 @@ function drawShowcase(c) {
     </div></div></div>`;
   document.body.style.overflow = "hidden";
 }
+// ---------------------------------------------------------------- the resource library: raw clips and best moments
+const IS_PHONE = /android|iphone|ipad|ipod/i.test(navigator.userAgent || "");
+const APP = "http://127.0.0.1:8765/app";
+const hms = t => { t = Math.max(0, Math.round(t)); const h = Math.floor(t / 3600), m = Math.floor(t % 3600 / 60), s = t % 60;
+  return (h ? h + ":" + String(m).padStart(2, "0") : m) + ":" + String(s).padStart(2, "0"); };
+// The ClipKontrast app on this computer, opened with just this moment ready to clip.
+function appLink(url, m) {
+  const from = Math.max(0, m.t - 8), to = m.end ? m.end + 4 : m.t + 75;
+  return `${APP}#clip=${encodeURIComponent(url)}&from=${from}&to=${to}${m.label ? "&label=" + encodeURIComponent(m.label.slice(0, 80)) : ""}`;
+}
+function resources(c) {
+  const r = c.resources || {}, n = r.moments || 0;
+  if (!c.moments) {                       // not joined: what joining unlocks
+    if (!n && !r.raw_clips) return "";
+    return `<h4>Resource library</h4><div class="locked res-lock">🔒 Join the campaign to unlock ${[n ? `<b>${n} best moments</b> with timestamps` : "", r.raw_clips ? "<b>the raw clips folder</b>" : ""].filter(Boolean).join(" and ")}.</div>`;
+  }
+  if (!c.moments.length && !c.raw_clips) return "";
+  let h = `<h4>Resource library</h4>`;
+  if (c.raw_clips) h += `<div class="res-raw"><div class="res-ic">📁</div><div><b>Raw clips</b><span>Best moments, already cut. Download, edit them your own way, post, then Send a clip.</span></div>
+      <a class="btn sm primary" href="${esc(safeUrl(c.raw_clips))}" target="_blank" rel="noopener">Open folder ↗</a></div>
+    ${c.raw_clips_embed ? `<details class="res-files"><summary>See the files here</summary><iframe src="${esc(c.raw_clips_embed)}" loading="lazy" title="Raw clips" referrerpolicy="no-referrer"></iframe></details>` : ""}`;
+  if (c.moments.length) {
+    h += `<div class="res-head"><b>Best moments</b><span>${n} timestamps from the streams.${IS_PHONE ? "" : ` <b>Clip in app</b> opens ClipKontrast on your computer with that moment ready (keep the app open). No app yet? <a href="/download">Download it free</a>.`}</span></div>`;
+    h += c.moments.map((g, gi) => `<details class="mom-g" ${gi === 0 ? "open" : ""}><summary><b>${esc(g.title)}</b><span>${g.moments.length} moments</span>${g.url ? `<a href="${esc(safeUrl(g.url))}" target="_blank" rel="noopener" class="mom-src">Stream ↗</a>` : ""}</summary>
+      ${g.moments.map(m => `<div class="mom">
+        ${m.watch ? `<a class="ts" href="${esc(safeUrl(m.watch))}" target="_blank" rel="noopener" title="Watch from here">${hms(m.t)}${m.end ? "–" + hms(m.end) : ""}</a>` : `<span class="ts">${hms(m.t)}${m.end ? "–" + hms(m.end) : ""}</span>`}
+        <span class="mlabel">${esc(m.label || "Moment")}</span>
+        ${g.url && !IS_PHONE ? `<a class="btn xs" href="${esc(appLink(g.url, m))}" target="_blank" rel="noopener" title="Opens the ClipKontrast app on this computer, ready to clip this moment">✂ Clip in app</a>` : ""}
+      </div>`).join("")}</details>`).join("");
+  }
+  return h;
+}
 // A line of "Streams and footage" may start with a label: "Day 1 | https://..." (or "Day 1 - https://...").
 function srcLink(line, newest) {
   const m = String(line).match(/^(.*?)\s*[|:–-]?\s*(https?:\/\/\S+)\s*$/);
@@ -859,6 +916,7 @@ async function openCampaign(slug) {
         <h4>Streams and footage to clip</h4>
         ${c.sources ? (c.sources.length ? `<div class="srcs">${c.sources.map((s, i) => srcLink(s, i === c.sources.length - 1 && c.sources.length > 1)).join("")}</div>` : `<div class="locked">Links will be posted here.</div>`)
           : `<div class="locked">🔒 Join the campaign to see which streams and videos to clip.</div>`}
+        ${resources(c)}
         <h4>Top clippers in this campaign</h4>
         ${c.leaderboard.length ? `<div class="mini-lb">${c.leaderboard.map((r, i) => `<div><span>${i + 1}. ${esc(r.name)}</span><span class="num">${short(r.views)} views · ${inr(r.earned)}</span></div>`).join("")}</div>` : `<div class="locked">No clips yet. Yours could be first.</div>`}
       </div>

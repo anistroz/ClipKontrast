@@ -603,6 +603,7 @@ def _fetch_piece(job, clip, full_audio):
 
 
 BLOCK = 10 * 60         # long videos are transcribed and clipped one block at a time
+SECTION_PAD = 20        # seconds downloaded either side of a part of a long video asked for
 PROGRESSIVE_FROM = 20 * 60
 SCAN_REGION = 150       # scan mode: seconds of audio listened to around each lively moment
 WHISPER_REGION = 90     # ...when Whisper listens (Hindi and other languages), which is slower
@@ -767,6 +768,7 @@ def _run_job(job):
         _set(job, stage="Getting the audio")
     fetch = ThreadPoolExecutor(1)
     video = None
+    section = tuple(job["section"]) if job.get("section") and job.get("source_path") and Path(job["source_path"]).is_file() else None
     if src["type"] == "url":
         meta = media.info(src["url"])
         if meta["kind"] != "video":
@@ -781,10 +783,24 @@ def _run_job(job):
             _set(job, thumb=True)
         usage.set_context(job["creator"], meta["title"])
         span = (o["range_end"] or meta["duration"]) - (o["range_start"] or 0)
-        pieces = span > LONG_VIDEO or meta["duration"] <= 0
-        if not pieces:  # shorter video: fetch all of it in the background while the audio is worked on
-            video = fetch.submit(media.download, src["url"], d, int(o["quality"]))
-        audio_file = media.download_audio(src["url"], d, lambda p: _set(job, progress=0.03 + 0.1 * p))
+        if o["range_end"] and meta["duration"] > 0 and span <= LONG_VIDEO and meta["duration"] - span > 120:
+            # Only a part of a long video was asked for (a moment from a campaign's timestamps, say): just that
+            # part is downloaded, with a little either side, and made into clips like a file of its own. A minute
+            # of a three-hour stream takes seconds instead of downloading the whole stream.
+            a_s = max(0.0, (o["range_start"] or 0) - SECTION_PAD)
+            b_s = min(meta["duration"], o["range_end"] + SECTION_PAD)
+            _set(job, stage="Getting that part of the video")
+            part = media.download_section(src["url"], d, "source", a_s, b_s, int(o["quality"]), exact=True)
+            info = media.probe(part)
+            section = (a_s, b_s)
+            _set(job, source_path=str(part), width=info["width"], height=info["height"], section=[a_s, b_s],
+                 duration=round(info["duration"] or (b_s - a_s), 2))
+            pieces, audio_file = False, part
+        else:
+            pieces = span > LONG_VIDEO or meta["duration"] <= 0
+            if not pieces:  # shorter video: fetch all of it in the background while the audio is worked on
+                video = fetch.submit(media.download, src["url"], d, int(o["quality"]))
+            audio_file = media.download_audio(src["url"], d, lambda p: _set(job, progress=0.03 + 0.1 * p))
     else:
         pieces, audio_file = False, Path(src["path"])
         info = media.probe(audio_file)
@@ -797,12 +813,13 @@ def _run_job(job):
     media.extract_audio(audio_file, wav)
     audio = media.load_audio(wav)
     wav.unlink(missing_ok=True)
-    if src["type"] == "url":
+    if src["type"] == "url" and not section:
         audio_file.unlink(missing_ok=True)
     if not job["duration"]:
         job["duration"] = len(audio) / 16000
-    lo = int((o["range_start"] or 0) * 16000)
-    hi = min(len(audio), int(o["range_end"] * 16000)) if o["range_end"] else len(audio)
+    sec0 = section[0] if section else 0.0          # with only a part downloaded, times are counted from its start
+    lo = max(0, int(((o["range_start"] or 0) - sec0) * 16000))
+    hi = min(len(audio), int((o["range_end"] - sec0) * 16000)) if o["range_end"] else len(audio)
     span = (hi - lo) / 16000
     db = media.loudness_per_second(audio[lo:hi])
 
@@ -812,6 +829,8 @@ def _run_job(job):
     def whole_video():
         """Wait for the background download once; retry it, or give up and use pieces."""
         with vlock:
+            if section:                      # only a part was downloaded, and it is the video
+                return job.get("source_path")
             if "path" not in vstate:
                 path = None
                 try:
@@ -867,6 +886,9 @@ def _run_job(job):
             yt = media.youtube_words(src["url"])
         except Exception:  # noqa: BLE001 - no transcript to borrow: ours is written as usual
             yt = None
+        if yt and section:                   # counted from the start of the part that was downloaded
+            yt = ([dict(w, s=round(w["s"] - section[0], 2), e=round(w["e"] - section[0], 2)) for w in yt[0]
+                   if section[0] <= w["s"] <= section[1]], yt[1])
         if yt and not _covers(yt[0], lo / 16000, hi / 16000):
             yt = None
         job["transcript_from"] = "youtube" if yt else "own"

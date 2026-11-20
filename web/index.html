@@ -606,6 +606,10 @@ a.lnk{color:var(--brand-ink);text-decoration:none;font-weight:600}
 .rep-dlg label.sw{align-items:flex-start}
 .rep-dlg label.sw input{margin-top:2px}
 .rep-dlg .lnk{border:0;background:none;padding:0;color:var(--brand-deep);font:inherit;font-weight:600;text-decoration:underline;cursor:pointer}
+.prerange{display:flex;align-items:center;gap:10px;margin:0 16px 10px;padding:10px 12px;border-radius:12px;background:var(--brand-soft);color:var(--brand-ink);font-size:13.5px;border:1px solid var(--brand-line)}
+.prerange svg{width:16px;height:16px;flex:none}
+.prerange span{flex:1}
+.prerange .rm{border:0;background:transparent;cursor:pointer;color:inherit;padding:2px;display:grid;place-items:center}
 /* ---------- clip a video, or a live stream */
 .modes{display:flex;gap:4px;padding:6px 6px 0;border-bottom:1px solid var(--line)}
 .modes button{display:inline-flex;align-items:center;gap:8px;border:0;background:transparent;font:inherit;font-size:13.5px;font-weight:600;color:var(--dim);padding:10px 14px;border-radius:10px 10px 0 0;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px}
@@ -1510,7 +1514,8 @@ function drawAdd(variant) {
       <div id="livePrev" class="live-prev"></div>
       <div class="live-how"><span><b>1</b>Paste the channel of the streamer you clip</span><span><b>2</b>Press <b>Start live clipping</b></span><span><b>3</b>While they stream, clips are made by themselves. Keep the app open.</span></div>`
     : `<div class="composer-input">${ic("link")}<input id="url" placeholder="Paste a YouTube, Twitch or Kick video link" autocomplete="off" aria-label="Video link"></div>
-    <div class="att" id="att"><div><div class="att-in" id="attIn"></div></div></div>`}
+    <div class="att" id="att"><div><div class="att-in" id="attIn"></div></div></div>
+    ${S.preRange && !c ? `<div class="prerange">${ic("scissors")}<span>Only the moment at <b>${hms(S.preRange.start)} – ${hms(S.preRange.end)}</b>${S.preRange.label ? ` · ${esc(S.preRange.label)}` : ""}</span><button type="button" class="rm" data-act="clearrange" aria-label="Clip the whole video instead">${ic("x")}</button></div>` : ""}`}
     ${lookPanel(c)}
     <div class="composer-bar">
       ${liveMode ? "" : `<button type="button" class="chip" data-act="pickfile">${ic("up")}Upload video</button>`}
@@ -1545,6 +1550,25 @@ function drawAdd(variant) {
   setTimeout(playLooks, 50);
 }
 const addMode = () => S.addMode || lsGet("ck_mode") || "video";
+/* "Clip in app" on a campaign's best moments (clipkontrast.com) opens this page as /app#clip=<link>&from=<s>&to=<s>:
+   the link goes in the box and only that moment is clipped. Read before anything changes the address. */
+const CLIP_HASH = location.hash.startsWith("#clip=") ? location.hash : "";
+const VIDEO_SITE = /^https:\/\/((www|m)\.)?(youtube\.com|youtu\.be|twitch\.tv|kick\.com)\//i;
+function hms(t) { t = Math.max(0, Math.round(t)); const h = Math.floor(t / 3600), m = Math.floor(t % 3600 / 60), x = t % 60;
+  return (h ? h + ":" + String(m).padStart(2, "0") : m) + ":" + String(x).padStart(2, "0"); }
+function takeClipLink(hash) {
+  if (!hash || !hash.startsWith("#clip=")) return false;
+  const q = new URLSearchParams(hash.slice(1));
+  const url = (q.get("clip") || "").trim(), from = Number(q.get("from")), to = Number(q.get("to"));
+  if (!VIDEO_SITE.test(url) || !(from >= 0) || !(to > from) || to - from > 600) { toast("That moment's link couldn't be opened here.", "bad"); return false; }
+  S.preRange = {start: from, end: to, label: (q.get("label") || "").slice(0, 80)};
+  S.addMode = "video"; lsSet("ck_mode", "video");
+  go("overview");
+  const input = $("#url"); if (input) { input.value = url; onLink(input); }
+  toast(`Moment ready: ${hms(from)} – ${hms(to)}. Pick a style and press Make clips.`, "ok");
+  return true;
+}
+addEventListener("hashchange", () => { if (takeClipLink(location.hash)) history.replaceState(null, "", location.pathname); });
 function setAddMode(m, url) {
   S.addMode = m; lsSet("ck_mode", m);
   if (url !== undefined) S.liveDraft = url;
@@ -1686,6 +1710,13 @@ function jobOptions() {
   lsSet("ck_style", o.style); lsSet("ck_layout", o.layout); lsSet("ck_caps", o.captions ? "1" : "0"); lsSet("ck_zoom", o.zoom ? "1" : "0"); lsSet("ck_wm", o.watermark);
   if (n("#o_from") !== null) o.range_start = n("#o_from") * 60;
   if (n("#o_to") !== null) o.range_end = n("#o_to") * 60;
+  if (S.preRange && !creatorId()) {        // one moment: one or two clips from just that stretch
+    const span = S.preRange.end - S.preRange.start;
+    o.range_start = S.preRange.start; o.range_end = S.preRange.end;
+    o.max_clips = span > 150 ? 2 : 1;
+    o.max_len = Math.max(10, Math.min(o.max_len, Math.floor(span)));
+    o.min_len = Math.max(5, Math.min(o.min_len, o.max_len - 5));
+  }
   return o;
 }
 /* ---------- attachments: nothing starts until Make clips is pressed.
@@ -1909,6 +1940,7 @@ async function makeClips() {
   A.files = A.files.filter(f => { if (f.state === "done") { URL.revokeObjectURL(f.src); return false; } return true; });
   A.busy = false; drawAtt();
   if (started) {
+    S.preRange = null;
     toast(`${started === 1 ? "Your video is" : started + " videos are"} being clipped now.`, "ok");
     if (!failed && S.view === "overview") go(who ? "c:" + who : "library"); else tick();
   } else if (failed) toast("Nothing was started. The reason is shown on the video.", "bad");
@@ -2564,6 +2596,7 @@ document.addEventListener("click", async e => {
     if (a === "tab") return setTab(d.t);
     if (a === "pickfile") return $("#file").click();
     if (a === "addmode") return setAddMode(d.m);
+    if (a === "clearrange") { S.preRange = null; return drawAdd(S.view === "overview" ? "hero" : "compact"); }
     if (a === "golivehome") return setAddMode("live");
     if (a === "addmore") { const u = $("#url"); return u && !u.value ? (u.focus(), toast("Paste another link, or drop a file anywhere on the box.")) : $("#file").click(); }
     if (a === "closedlg") return $("#clipdlg").close();
@@ -2769,12 +2802,14 @@ $("#main").addEventListener("scroll", () => $(".topbar").classList.toggle("stuck
   if (location.pathname.startsWith("/app/")) { const [v, tab] = fromPath(location.pathname); S.view = v; S.ctab = tab; }  // the address decides, before anything loads
   await tick();
   { const [v, tab] = location.pathname.startsWith("/app/") ? fromPath(location.pathname) : ["overview", "clips"]; go(v, tab, true); remember(S.view, S.ctab, "replace"); }
+  const fromSite = takeClipLink(CLIP_HASH);
+  if (fromSite) history.replaceState(null, "", location.pathname);
   try {  // a link pasted on the home page before signing up
-    const link = sessionStorage.getItem("clipkontrast_link");
+    const link = fromSite ? "" : sessionStorage.getItem("clipkontrast_link");
     if (link) { sessionStorage.removeItem("clipkontrast_link"); go("overview"); $("#url").value = link; onLink($("#url")); $("#url").focus(); toast("Your link is ready. Press Make clips.", "ok"); }
   } catch {}
   loop();
-  if (S.status.tour && !$("#formdlg").open) setTimeout(startTour, 500);   // once, the first time someone signs in
+  if (S.status.tour && !fromSite && !$("#formdlg").open) setTimeout(startTour, 500);   // once, the first time someone signs in
   checkNew(true);
   setInterval(async () => { try { S.status = await api("/api/status"); drawShell(); if (S.view === "overview") drawOverview(); checkNew(); } catch {} }, 15000);
 })();
