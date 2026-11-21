@@ -116,7 +116,9 @@ DEFAULTS = {"max_clips": 6, "min_len": 15, "max_len": 60, "style": "bounce", "la
             "range_start": None, "range_end": None, "captions": True, "lang": "auto", "caption_lang": "auto",
             "zoom": True, "watermark": "", "tighten": True, "cam_hint": "auto",
             "cam_box": None, "game_box": None, "split": "balanced",
-            "tag": False, "tag_handle": "", "tag_platforms": [], "tag_style": "clean", "tag_pos": "bottom_left"}
+            "tag": False, "tag_handle": "", "tag_platforms": [], "tag_style": "clean", "tag_pos": "bottom_left",
+            "exact": False}
+EXACT_MIN, EXACT_MAX = 3, 180          # an exact moment: one clip of exactly the part chosen, 3 seconds to 3 minutes
 TAG_KEYS = ("tag", "tag_handle", "tag_platforms", "tag_style", "tag_pos")      # the creator tag (studio/tag.py)
 CAM_PRESETS = {"tl": [0.0, 0.0, 0.28, 0.28], "tr": [0.72, 0.0, 0.28, 0.28], "bl": [0.0, 0.72, 0.28, 0.28],
                "br": [0.72, 0.72, 0.28, 0.28], "bc": [0.36, 0.72, 0.28, 0.28]}
@@ -158,6 +160,11 @@ def clean_options(options) -> dict:
         if k == "tag":
             if not isinstance(v, bool):
                 raise ValueError("The creator tag must be on or off.")
+            out[k] = v
+            continue
+        if k == "exact":
+            if not isinstance(v, bool):
+                raise ValueError("'Exactly this part' must be on or off.")
             out[k] = v
             continue
         if k == "tag_handle":
@@ -203,6 +210,13 @@ def clean_options(options) -> dict:
         out[k] = v
     if out.get("range_end") is not None and out["range_end"] <= out.get("range_start", 0):
         raise ValueError("The end of the chosen part must be after its start.")
+    if out.get("exact"):
+        if out.get("range_end") is None:
+            raise ValueError("Choose where the moment starts and ends.")
+        length = out["range_end"] - (out.get("range_start") or 0)
+        if not EXACT_MIN <= length <= EXACT_MAX:
+            raise ValueError(f"An exact moment is {EXACT_MIN} seconds to {EXACT_MAX // 60} minutes long. Choose a shorter part, "
+                             "or let the AI find the best clips inside it.")
     return out
 
 
@@ -1277,7 +1291,7 @@ def _run_job(job):
                                "put this link under Setup, and press Start recording instead.")
         _set(job, title=meta["title"], uploader=meta["uploader"], duration=meta["duration"],
              handle=meta.get("handle", ""), platform=meta.get("platform", ""))
-        if job.get("kind") != "live" and meta.get("live_status") in ("was_live", "post_live"):
+        if job.get("kind") != "live" and not o.get("exact") and meta.get("live_status") in ("was_live", "post_live"):
             chat_rep[0] = media.ChatReplay(src["url"], d)        # what viewers wrote, while the rest goes on
         if not job.get("thumb") and media.save_thumb(d, url=src["url"]):
             _set(job, thumb=True)
@@ -1529,6 +1543,10 @@ def _run_job(job):
             job["done_blocks"] = bi + 1
             save(job)
             continue
+        if o.get("exact"):                # the moment was chosen: no picking, only its words for the captions
+            job["done_blocks"] = bi + 1
+            save(job)
+            continue
         _set(job, stage="Finding the best moments" + where, word_count=len(words))
         left = int(o["max_clips"]) - len(job["clips"])
         if left <= 0 or len(bw) < 8:
@@ -1550,6 +1568,18 @@ def _run_job(job):
         job["done_blocks"] = bi + 1       # a restart from here on carries on with the next part
         save(job)
     mark("transcript")
+    if o.get("exact") and o.get("range_end") and not job["clips"]:
+        # An exact moment: one clip of exactly the part chosen, on the clock of the file it's cut from. The AI only
+        # writes its big text, title and post (when it's there): it doesn't move the start or the end.
+        s_rel, e_rel = (o["range_start"] or 0) - sec0, o["range_end"] - sec0
+        text = " ".join(w["w"] for w in words if s_rel - 0.5 <= w["s"] <= e_rel)
+        _set(job, stage="Writing the big text and the title", progress=max(job["progress"], 0.9))
+        about = brain.describe(text, job["title"], job["uploader"], game=game) if config.ai_ready() and not brain.ai_resting() \
+            else {"score": 0, "category": "other", "hook": "", "title": "", "description": "", "hashtags": [],
+                  "highlight_words": [], "reason": "The exact moment you chose."}
+        take([dict(about, start=round(max(0.0, s_rel), 2), end=round(e_rel, 2),
+                   reason=about.get("reason") or "The exact moment you chose.")], 0.0)
+        notes.append("Clipped exactly the part you chose.")
     if scan and not job["clips"] and words:
         _set(job, stage="Picking the best moments of the whole video", progress=max(job["progress"], 0.9))
         base = lo / 16000

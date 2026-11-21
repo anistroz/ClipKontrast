@@ -704,6 +704,39 @@ a.lnk{color:var(--brand-ink);text-decoration:none;font-weight:600}
 @media (max-width:720px){.tag-styles{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .lp .tx em.pl-warn,.lp .pl-warn{font-style:normal;color:#8A5300;white-space:normal}
 .lp .ok.pl{background:#FFF4DC;color:#8A5300}
+.lp .mset{flex:none;font-size:12px;font-weight:700;padding:5px 9px;border-radius:999px;border:1px solid var(--line-2);background:#fff;color:var(--brand-ink);cursor:pointer;display:inline-flex;gap:5px;align-items:center;white-space:nowrap}
+.lp .mset svg{width:14px;height:14px}
+.lp .mset.on{background:var(--brand);border-color:var(--brand)}
+.mcall{display:flex;align-items:center;gap:12px;margin:2px 0 6px;padding:10px 12px;border-radius:12px;border:1px dashed var(--brand-deep);background:var(--brand-soft);color:var(--brand-ink);font-size:13.5px}
+.mcall svg{width:18px;height:18px;flex:none}
+.mcall span{flex:1}
+.dlg.mo{width:720px;max-width:calc(100vw - 24px)}
+.mo-prev{position:relative;width:100%;max-width:min(520px,62vh);aspect-ratio:16/9;border-radius:12px;overflow:hidden;background:#000;margin:4px auto 14px}
+.mo-fine{font-size:12px;font-weight:700;color:var(--dim);margin:2px 4px 0}
+.mo-prev iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+.mo-noprev{font-size:12.5px;color:var(--dim);background:var(--muted);border-radius:10px;padding:10px 12px;margin:4px 0 14px}
+.dual{position:relative;height:34px;margin:6px 4px 2px}
+.dual .track{position:absolute;left:0;right:0;top:14px;height:6px;border-radius:3px;background:var(--line-2)}
+.dual .fill{position:absolute;top:14px;height:6px;border-radius:3px;background:var(--brand-deep)}
+.dual input[type=range]{position:absolute;left:0;width:100%;top:6px;margin:0;height:22px;background:none;pointer-events:none;-webkit-appearance:none;appearance:none}
+.dual input[type=range]::-webkit-slider-thumb{pointer-events:auto;-webkit-appearance:none;width:22px;height:22px;border-radius:50%;background:#fff;border:3px solid var(--brand-deep);cursor:grab;box-shadow:0 1px 4px rgba(0,0,0,.2)}
+.dual input[type=range]::-moz-range-thumb{pointer-events:auto;width:18px;height:18px;border-radius:50%;background:#fff;border:3px solid var(--brand-deep);cursor:grab}
+.dual input[type=range]:focus-visible::-webkit-slider-thumb{box-shadow:0 0 0 4px var(--brand-line)}
+.dual-ends{display:flex;justify-content:space-between;font-size:11px;color:var(--faint);margin:0 4px 12px}
+.mo-times{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.mo-t b{display:block;font-size:12px;margin-bottom:6px;color:var(--dim)}
+.mo-t .row{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.mo-t input{width:110px;font:inherit;font-size:18px;font-weight:700;letter-spacing:.02em;text-align:center;padding:7px 8px;border:1px solid var(--line-2);border-radius:10px}
+.mo-t input.bad{border-color:var(--bad);background:var(--bad-soft)}
+.mo-t button{border:1px solid var(--line-2);background:#fff;border-radius:8px;padding:5px 7px;font:inherit;font-size:12px;font-weight:700;cursor:pointer;color:var(--dim)}
+.mo-len{margin:14px 0 4px;font-size:13.5px}
+.mo-len b{font-size:15px}
+.mo-err{color:var(--bad);font-size:13px;min-height:18px;margin-top:4px}
+.mo-mode{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.mo-mode label{display:flex;gap:8px;align-items:flex-start;border:1px solid var(--line-2);border-radius:12px;padding:10px 12px;cursor:pointer;font-size:13px}
+.mo-mode label:has(input:checked){border-color:var(--brand-deep);background:var(--brand-soft)}
+.mo-mode small{display:block;color:var(--dim);font-weight:400;margin-top:2px}
+@media (max-width:640px){.mo-times,.mo-mode{grid-template-columns:1fr}}
 .lp .fset{flex:none;font-size:12px;font-weight:700;padding:5px 9px;border-radius:999px;border:1px solid var(--line-2);background:#fff;color:var(--brand-ink);cursor:pointer;display:inline-flex;gap:5px;align-items:center}
 .lp .fset svg{width:14px;height:14px}
 .lp .fset.on{background:var(--brand);border-color:var(--brand)}
@@ -1477,9 +1510,10 @@ function updateHow() {
 }
 /* "What's new": what the latest versions brought, for the people clipping (nothing about the website or the build).
    Change NEWS.id when the list changes: the line at the top shows again for everyone, until they close it. */
-const NEWS = {id: "2026-11-21e", items: [
-  {e: "🔥", t: "Clips that go viral", d: "Moments are picked where the streamer really reacted (screaming, laughing, the sound jumping) and where the stream's chat went wild, then every moment is checked side by side so only the best make it. The reaction right after a moment stays in the clip.", new: true},
-  {e: "💬", t: "English captions fixed", d: "English streams are never mistaken for Hindi any more, and every clip is checked on its own sound, so English clips always get English captions and Hindi clips get Hinglish.", new: true},
+const NEWS = {id: "2026-11-21f", items: [
+  {e: "⏱️", t: "Clip an exact moment", d: "Know when it happened? Paste the link, tap Exact moment, drag the start and end (or type them, like 1:02:30), and get a clip of exactly that part, fast. YouTube links show a preview right there.", act: "go", v: "overview", btn: "Try it", new: true},
+  {e: "🔥", t: "Clips that go viral", d: "Moments are picked where the streamer really reacted (screaming, laughing, the sound jumping) and where the stream's chat went wild, then every moment is checked side by side so only the best make it. The reaction right after a moment stays in the clip."},
+  {e: "💬", t: "English captions fixed", d: "English streams are never mistaken for Hindi any more, and every clip is checked on its own sound, so English clips always get English captions and Hindi clips get Hinglish."},
   {e: "🧠", t: "Know when your AI key runs out", d: "If your key hits its limit, ClipKontrast tells you: it switches to the free AI on your PC by itself, or shows you how to set it up in two steps.", act: "go", v: "settings", tab: "ai", btn: "AI settings", admin: true, new: true},
   {e: "🏷️", t: "Creator tag", d: "Put the streamer's channel on your clips, like /Mizoplays with the YouTube logo. The handle is found from the video by itself; pick YouTube, Instagram, Kick or Twitch logos and one of 4 looks. Under the layouts, turn on Creator tag.", act: "go", v: "overview", btn: "Try it"},
   {e: "🇮🇳", t: "Hinglish captions, fixed for good", d: "Hindi clips now get captions from a speech model made for Hinglish: \"bhai ye kya ho gaya\", right every time, no AI key needed. It downloads by itself the first time (about 800 MB).", new: true},
@@ -1931,6 +1965,134 @@ async function openFrame(kind, id, round = 0) {
     }
   };
 }
+/* Clip an exact moment: the start and the end, by slider (the whole video's length) or typed (1:02:30), with a
+   preview of a YouTube link at the start chosen (moved only when a slider is let go, so it stays light). "Exactly this
+   part" makes one clip of exactly it; "Best clips inside it" lets the AI pick from just that stretch. */
+function parseTime(v) {
+  v = String(v || "").trim().toLowerCase();
+  if (!v) return NaN;
+  const hms_ = v.match(/^(?:(\d+)h)?\s*(?:(\d+)m)?\s*(?:(\d+(?:\.\d+)?)s?)?$/);
+  if (/[hms]/.test(v) && hms_) return (+hms_[1] || 0) * 3600 + (+hms_[2] || 0) * 60 + (+hms_[3] || 0);
+  const p = v.split(":").map(Number);
+  if (p.some(x => !Number.isFinite(x) || x < 0) || p.length > 3) return NaN;
+  return p.reduce((a, x) => a * 60 + x, 0);
+}
+function ytId(url) { const m = String(url || "").match(/(?:[?&]v=|youtu\.be\/|\/live\/|\/shorts\/|\/embed\/)([\w-]{11})/); return m ? m[1] : ""; }
+function urlTime(url) { try { const t = new URL(url).searchParams.get("t"); return t ? parseTime(t) : NaN; } catch { return NaN; } }   // a link's own "&t=992s"
+const EXACT_MAX = 180, EXACT_MIN = 3;
+function momentOpts(item, opts) {
+  const r = item.range; if (!r) return {};
+  const span = r.end - r.start;
+  if (r.exact) return {range_start: r.start, range_end: r.end, exact: true, max_clips: 1};
+  const max_len = Math.max(10, Math.min(opts.max_len || 60, Math.floor(span)));
+  return {range_start: r.start, range_end: r.end, exact: false, max_clips: Math.max(1, Math.min(opts.max_clips || 6, Math.floor(span / 60) || 1)),
+          max_len, min_len: Math.max(5, Math.min(opts.min_len || 15, max_len - 5))};
+}
+function openMoment(kind, id) {
+  const A = att(), item = (kind === "link" ? A.links : A.files).find(x => x.id === id); if (!item) return;
+  const dur = Math.floor(itemLen(item)), d = $("#formdlg"), yid = kind === "link" ? ytId(item.url) : "";
+  const fromUrl = kind === "link" ? urlTime(item.url) : NaN;
+  let st = item.range ? item.range.start : (fromUrl >= 0 && fromUrl < dur ? Math.floor(fromUrl) : 0);
+  let en = item.range ? item.range.end : Math.min(dur, st + 30);
+  let exact = item.range ? item.range.exact : true;
+  const title = kind === "link" ? item.info?.title : item.file?.name;
+  d.innerHTML = `<div class="dlg mo"><h2>Clip an exact moment</h2>
+    <p class="help">${esc(title || "")} · ${hms(dur)} long. Drag the two handles, or type the times (like <b>1:02:30</b>). Use the small buttons to move a second at a time.</p>
+    ${yid ? `<div class="mo-prev"><iframe id="moPrev" title="Preview" allow="encrypted-media; picture-in-picture" referrerpolicy="strict-origin-when-cross-origin"></iframe></div>`
+          : `<div class="mo-noprev">${ic("eye")} A preview shows here for YouTube links. For this one, use the times you know.</div>`}
+    <div class="dual"><div class="track"></div><div class="fill" id="moFill"></div>
+      <input type="range" id="moA" min="0" max="${dur}" step="1" aria-label="Start">
+      <input type="range" id="moB" min="0" max="${dur}" step="1" aria-label="End"></div>
+    <div class="dual-ends"><span>0:00</span><span>${hms(dur)}</span></div>
+    <div class="mo-fine">Fine-tune: 5 minutes either side</div>
+    <div class="dual"><div class="track"></div><div class="fill" id="moFillF"></div>
+      <input type="range" id="moFa" step="1" aria-label="Start, fine">
+      <input type="range" id="moFb" step="1" aria-label="End, fine"></div>
+    <div class="dual-ends"><span id="moF0"></span><span id="moF1"></span></div>
+    <div class="mo-times">
+      <div class="mo-t"><b>Starts at</b><div class="row"><input id="moSa" inputmode="numeric" spellcheck="false" aria-label="Start time">
+        <button type="button" data-nudge="a" data-d="-5">−5s</button><button type="button" data-nudge="a" data-d="-1">−1s</button><button type="button" data-nudge="a" data-d="1">+1s</button><button type="button" data-nudge="a" data-d="5">+5s</button></div></div>
+      <div class="mo-t"><b>Ends at</b><div class="row"><input id="moSb" inputmode="numeric" spellcheck="false" aria-label="End time">
+        <button type="button" data-nudge="b" data-d="-5">−5s</button><button type="button" data-nudge="b" data-d="-1">−1s</button><button type="button" data-nudge="b" data-d="1">+1s</button><button type="button" data-nudge="b" data-d="5">+5s</button></div></div></div>
+    <div class="mo-len" id="moLen"></div>
+    <div class="mo-mode">
+      <label><input type="radio" name="moMode" value="exact" ${exact ? "checked" : ""}><span><b>Exactly this part</b><small>One clip, from your start to your end. 3 seconds to 3 minutes.</small></span></label>
+      <label><input type="radio" name="moMode" value="best" ${exact ? "" : "checked"}><span><b>Best clips inside it</b><small>The AI picks the best moments from just this stretch.</small></span></label></div>
+    <div class="mo-err" id="moErr" role="alert"></div>
+    <div class="dlg-foot cf-foot">${item.range ? `<button type="button" class="btn" data-act="mono">Clip the whole video</button>` : ""}<span class="grow"></span>
+      <button type="button" class="btn" data-act="mocancel">Cancel</button>
+      <button type="button" class="btn primary" data-act="mosave">${ic("scissors")}Use this moment</button></div></div>`;
+  if (!d.open) { d.returnValue = ""; d.showModal(); }
+  const ia = $("#moA"), ib = $("#moB"), sa = $("#moSa"), sb = $("#moSb");
+  let prevT = 0;
+  const preview = () => {                                   // the player jumps to the start, only when asked to
+    const f = $("#moPrev"); if (!f) return;
+    clearTimeout(prevT);
+    prevT = setTimeout(() => { f.src = `https://www.youtube-nocookie.com/embed/${yid}?start=${st}&end=${Math.max(en, st + 1)}&rel=0&modestbranding=1&playsinline=1`; }, 350);
+  };
+  const check = () => {
+    exact = d.querySelector("[name=moMode]:checked")?.value === "exact";
+    const len = en - st;
+    let err = "";
+    if (!(en > st)) err = "The end has to be after the start.";
+    else if (exact && len < EXACT_MIN) err = `An exact moment is at least ${EXACT_MIN} seconds.`;
+    else if (exact && len > EXACT_MAX) err = `An exact moment is at most ${EXACT_MAX / 60} minutes. Shorten it, or choose "Best clips inside it".`;
+    $("#moErr").textContent = err;
+    $("#moLen").innerHTML = `Clip length: <b>${hms(Math.max(0, len))}</b>${exact ? "" : " to choose from"}`;
+    return !err;
+  };
+  const fa = $("#moFa"), fb = $("#moFb");
+  let f0 = 0, f1 = dur;
+  const zoom = () => {                                      // the fine slider: 5 minutes either side of the moment
+    f0 = Math.max(0, Math.min(st, en) - 300); f1 = Math.min(dur, Math.max(st, en) + 300);
+    for (const el of [fa, fb]) { el.min = f0; el.max = f1; }
+    $("#moF0").textContent = hms(f0); $("#moF1").textContent = hms(f1);
+  };
+  const show = (from) => {
+    st = Math.max(0, Math.min(dur, Math.round(st))); en = Math.max(0, Math.min(dur, Math.round(en)));
+    if (from !== "fine" && (st < f0 || en > f1 || from !== undefined)) zoom();
+    ia.value = st; ib.value = en; fa.value = st; fb.value = en;
+    const ff = $("#moFillF"), fw = f1 - f0 || 1;
+    ff.style.left = (Math.min(st, en) - f0) / fw * 100 + "%"; ff.style.width = Math.abs(en - st) / fw * 100 + "%";
+    if (from !== "a") sa.value = hms(st);
+    if (from !== "b") sb.value = hms(en);
+    sa.classList.remove("bad"); sb.classList.remove("bad");
+    const fill = $("#moFill"), a = dur ? Math.min(st, en) / dur * 100 : 0, b = dur ? Math.max(st, en) / dur * 100 : 0;
+    fill.style.left = a + "%"; fill.style.width = (b - a) + "%";
+    check();
+  };
+  ia.addEventListener("input", () => { st = +ia.value; if (st >= en) { en = Math.min(dur, st + (exact ? 30 : 300)); } show(); });
+  ib.addEventListener("input", () => { en = +ib.value; if (en <= st) { st = Math.max(0, en - (exact ? 30 : 300)); } show(); });
+  ia.addEventListener("change", () => { show("main"); preview(); }); ib.addEventListener("change", () => { show("main"); preview(); });
+  fa.addEventListener("input", () => { st = Math.min(+fa.value, en - 1); show("fine"); });
+  fb.addEventListener("input", () => { en = Math.max(+fb.value, st + 1); show("fine"); });
+  fa.addEventListener("change", preview); fb.addEventListener("change", preview);
+  const typed = (inp, which) => {
+    const v = parseTime(inp.value);
+    if (!(v >= 0) || v > dur) { inp.classList.add("bad"); $("#moErr").textContent = `Type a time inside the video, from 0:00 to ${hms(dur)}.`; return; }
+    if (which === "a") st = v; else en = v;
+    show(which); preview();
+  };
+  sa.addEventListener("change", () => typed(sa, "a")); sb.addEventListener("change", () => typed(sb, "b"));
+  sa.addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); typed(sa, "a"); } });
+  sb.addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); typed(sb, "b"); } });
+  d.onclose = () => { d.onclick = null; clearTimeout(prevT); };
+  d.onclick = e => {
+    const n = e.target.closest("[data-nudge]");
+    if (n) { if (n.dataset.nudge === "a") st += +n.dataset.d; else en += +n.dataset.d; show("fine"); preview(); return; }
+    if (e.target.name === "moMode") return check();
+    const a = e.target.closest("[data-act]")?.dataset.act;
+    if (a === "mocancel") d.close();
+    else if (a === "mono") { delete item.range; d.close(); drawAtt(); toast("The whole video will be clipped.", "ok"); }
+    else if (a === "mosave") {
+      if (!check()) return;
+      item.range = {start: st, end: en, exact};
+      d.close(); drawAtt();
+      toast(exact ? `Moment set: ${hms(st)} – ${hms(en)}. Press Make clips.` : `Part set: ${hms(st)} – ${hms(en)}. The AI picks the best clips inside it.`, "ok");
+    }
+  };
+  zoom(); show(); preview();
+}
 async function saveCamFix(scope) {
   const d = $("#formdlg"), jid = d.dataset.jid, cid = d.dataset.cid;
   const body = scope === "none" ? {box: null} : {box: d.camBox.map(v => Math.round(v * 10000) / 10000)};
@@ -2160,9 +2322,15 @@ function frameBtn(A, kind, id, item) {
   const on = item?.frame;
   return `<button type="button" class="fset ${on ? "on" : ""}" data-act="frameset" data-kind="${kind}" data-id="${id}" title="Show where the webcam and the game are, on a frame of this video">${ic(on ? "check" : "eye")}${on ? (on.cam_hint === "none" ? "No webcam" : "Frame set") : "Set webcam & game"}</button>`;
 }
+const itemLen = item => item?.info?.duration || item?.dur || 0;
+function momentBtn(A, kind, id, item) {
+  if (A.busy || item?.info?.is_live || itemLen(item) < 10) return "";
+  const r = item.range;
+  return `<button type="button" class="mset ${r ? "on" : ""}" data-act="moment" data-kind="${kind}" data-id="${id}" title="Clip a moment you know: set where it starts and ends">${ic("clock")}${r ? `${hms(r.start)} – ${hms(r.end)}${r.exact ? "" : " · best inside"}` : "Exact moment"}</button>`;
+}
 function rowHtml(A, {id, kind, thumb, len, title, sub, side, bar, item}) {
   return `<div class="lp" data-row="${id}"><div class="th">${thumb}${len ? `<span class="du">${len}</span>` : ""}</div>
-    <div class="tx"><b title="${esc(title)}">${esc(title)}</b><span>${sub}</span></div>${frameBtn(A, kind, id, item)}${side || ""}
+    <div class="tx"><b title="${esc(title)}">${esc(title)}</b><span>${sub}</span></div>${momentBtn(A, kind, id, item)}${frameBtn(A, kind, id, item)}${side || ""}
     ${A.busy ? "" : `<button type="button" class="rm" data-rm="${kind}" data-id="${id}" aria-label="Remove ${esc(title)}">${ic("x")}</button>`}
     ${bar != null ? `<i class="pbar" style="width:${bar}%"></i>` : ""}</div>`;
 }
@@ -2186,6 +2354,10 @@ function drawAtt() {
     sub: f.state === "error" ? `<em>${esc(f.err)}</em>` : fmtSize(f.file.size) + " · uploaded file",
     side: f.state === "up" ? `<span class="ok up">${f.pct < 100 ? f.pct + "%" : "Starting"}</span>` : f.state === "error" ? "" : `<span class="ok">${ic("check")}Ready</span>`,
     bar: f.state === "up" ? f.pct : null, item: f})).join("");
+  const first = [...A.links.filter(l => l.state === "ok"), ...A.files].find(x => !x.info?.is_live && itemLen(x) >= 10 && !x.range);
+  if (first && !A.busy && ![...A.links, ...A.files].some(x => x.range))
+    h += `<div class="mcall">${ic("clock")}<span><b>Know when it happened?</b> Set the start and end, and get a clip of exactly that moment, fast.</span>
+      <button type="button" class="btn sm primary" data-act="moment" data-kind="${A.links.includes(first) ? "link" : "file"}" data-id="${first.id}">${ic("clock")}Clip an exact moment</button></div>`;
   const n = batchUsed(A);
   if (n && !A.busy && n < batchMax())
     h += `<button type="button" class="addrow" data-act="addmore">${ic("plus")}Add another video<span>${n} of ${batchMax()}</span></button>`;
@@ -2337,13 +2509,13 @@ async function makeClips() {
       l.sending = false; l.state = "done"; A.links = A.links.filter(x => x !== l); A.busy = false; drawAtt();
       return startLive(l.url, $("#goBtn"));
     }
-    try { await send("/api/jobs", {url: l.url, options: {...opts, ...(l.frame || {})}, creator: who}); l.state = "done"; started++; }
+    try { await send("/api/jobs", {url: l.url, options: {...opts, ...(l.frame || {}), ...momentOpts(l, opts)}, creator: who}); l.state = "done"; started++; }
     catch (e) { l.state = "bad"; l.msg = e.message; failed++; }
     l.sending = false; drawAtt();
   }
   for (const f of A.files) {
     f.state = "up"; f.pct = 0; drawAtt();
-    try { await sendFile(f, who, {...opts, ...(f.frame || {})}); f.state = "done"; started++; }
+    try { await sendFile(f, who, {...opts, ...(f.frame || {}), ...momentOpts(f, opts)}); f.state = "done"; started++; }
     catch (e) { f.state = "error"; f.err = e.message; failed++; }
     drawAtt();
   }
@@ -3066,6 +3238,7 @@ document.addEventListener("click", async e => {
     if (a === "addmode") return setAddMode(d.m);
     if (a === "camfix") return openCamFix();
     if (a === "frameset") return openFrame(d.kind, d.id);
+    if (a === "moment") return openMoment(d.kind, d.id);
     if (a === "lacheck") return drawLocalAi();
     if (a === "lapull") { await send("/api/local-ai/pull", {}); toast("Downloading the free AI model (about 2 GB). It keeps going in the background.", "ok"); return drawLocalAi(); }
     if (a === "camsave") return saveCamFix(d.scope);

@@ -77,6 +77,7 @@ def main() -> int:
                 ("the creator tag: the streamer's channel on the clip", ["tests/test_creator_tag.py"]),
                 ("viral moments: chat replay, final pick; telling people their AI stopped", ["tests/test_viral.py"]),
                 ("captions in the right language: English stays English, each clip checked", ["tests/test_caption_language.py"]),
+                ("clip an exact moment: start and end chosen, one clip of exactly that", ["tests/test_exact_moment.py"]),
                 ("facecam-on-top layout and caption styles, rendered", ["tests/test_layouts_styles.py"]),
                 ("new caption styles, Hindi script, your @handle, auto zoom", ["tests/test_looks.py"]),
                 ("never 'nothing found': the liveliest parts are clipped; Hindi listens to less", ["tests/test_safety_net.py"]),
