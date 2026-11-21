@@ -1,0 +1,66 @@
+# The Hinglish caption model: Oriserve's Whisper-Hindi2Hinglish-Apex (Apache-2.0), which hears Hindi and writes it in
+# Roman letters ("bhai ye kya ho gaya"), converted for faster-whisper (int8, for the CPU) and published here as release
+# files that ClipKontrast downloads once. It is checked on the model maker's own sample recordings before it is
+# published (packaging/hinglish_model_check.py); a model that fails the check is not published.
+name: Hinglish caption model
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag the model files go to (the app downloads from this tag)
+        default: hinglish-model-v1
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      REPO_ID: Oriserve/Whisper-Hindi2Hinglish-Apex
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Tools
+        run: |
+          pip install --index-url https://download.pytorch.org/whl/cpu torch
+          pip install "transformers==4.56.1" "ctranslate2>=4.5,<5" "faster-whisper==1.2.1" huggingface_hub soundfile
+
+      - name: Which version of the model
+        id: rev
+        run: |
+          echo "sha=$(python -c "from huggingface_hub import HfApi; print(HfApi().model_info('$REPO_ID').sha)")" >> "$GITHUB_OUTPUT"
+
+      - name: Convert for faster-whisper
+        run: |
+          ct2-transformers-converter --model "$REPO_ID" --revision "${{ steps.rev.outputs.sha }}" \
+            --output_dir hinglish --quantization int8 --copy_files tokenizer.json preprocessor_config.json
+          ls -la hinglish
+          python -c "import json; c=json.load(open('hinglish/config.json')); print('alignment heads:', len(c.get('alignment_heads') or []))"
+
+      - name: Check it on the model maker's sample recordings
+        run: python packaging/hinglish_model_check.py hinglish "$REPO_ID" "${{ steps.rev.outputs.sha }}"
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          cd hinglish
+          sha256sum model.bin config.json tokenizer.json vocabulary.json preprocessor_config.json > SHA256SUMS
+          echo "from $REPO_ID at ${{ steps.rev.outputs.sha }}" > SOURCE
+          cat SHA256SUMS SOURCE
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" model.bin config.json tokenizer.json vocabulary.json preprocessor_config.json SHA256SUMS SOURCE --clobber
+          else
+            gh release create "$TAG" model.bin config.json tokenizer.json vocabulary.json preprocessor_config.json SHA256SUMS SOURCE \
+              --title "Hinglish caption model" --latest=false \
+              --notes "The speech model ClipKontrast uses to write Hindi captions in Roman letters (Hinglish). Downloaded by the app by itself; nothing to do here. Based on Oriserve/Whisper-Hindi2Hinglish-Apex (Apache-2.0)."
+          fi
