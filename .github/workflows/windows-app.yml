@@ -45,13 +45,17 @@ jobs:
 
       - name: Version and what's new
         shell: pwsh
+        env:
+          # read from the environment, never pasted into the script: quotes in the notes can't break the build
+          CK_IN_VERSION: ${{ inputs.version }}
+          CK_IN_NOTES: ${{ inputs.notes }}
         run: |
-          if ("${{ github.ref_type }}" -eq "tag") { $v = "${{ github.ref_name }}".TrimStart("v") } else { $v = "${{ inputs.version }}" }
+          if ("${{ github.ref_type }}" -eq "tag") { $v = "${{ github.ref_name }}".TrimStart("v") } else { $v = "$env:CK_IN_VERSION" }
           if ($v -notmatch '^\d+(\.\d+){1,5}$') { throw "The version must be numbers with dots, like 2026.11.19.1 (got '$v')" }
           "CK_VERSION=$v" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           # What's new: only the lines typed in "notes" (never commit messages, which also describe the website,
           # the admin pages and the build: none of that is for the people using the app).
-          $notes = @("${{ inputs.notes }}".Split("|") | ForEach-Object { $_.Trim() } | Where-Object { $_ } | Select-Object -First 8)
+          $notes = @("$env:CK_IN_NOTES".Split("|") | ForEach-Object { $_.Trim() } | Where-Object { $_ } | Select-Object -First 8)
           $notes | Set-Content -Encoding utf8 release-notes.txt
           $body = if ($notes.Count) { $notes | ForEach-Object { "- $_" } } else { "ClipKontrast $v" }
           $body | Set-Content -Encoding utf8 release-body.txt
