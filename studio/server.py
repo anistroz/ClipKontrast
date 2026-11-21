@@ -2108,6 +2108,16 @@ async def earn_admin_cover(request: Request, cid: str, file: UploadFile = File(.
     return _earn(earn.campaign, cid, admin=True)
 
 
+@app.post("/api/update/check")
+def update_check(request: Request):
+    """The "Check for updates" button: asks right away instead of waiting for the next look."""
+    u = getattr(request.state, "user", None)
+    if not u or not u.is_admin:
+        raise HTTPException(404, "Not found.")
+    from . import updates
+    return updates.check_now()
+
+
 @app.post("/api/update/apply")
 def update_apply(request: Request):
     u = getattr(request.state, "user", None)

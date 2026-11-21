@@ -22,7 +22,10 @@ BRANCH = (config.env("CLIPKONTRAST_UPDATE_BRANCH") or "main").strip()
 ON = config.env("CLIPKONTRAST_UPDATE_CHECK", "1") != "0" and bool(re.fullmatch(r"[\w.\-]+/[\w.\-]+", REPO))
 EVERY = 60
 UA = {"User-Agent": "ClipKontrast-update-check"}
-_state = {"checked": 0.0, "result": None, "seen": "", "notes": None}
+_state = {"checked": 0.0, "result": None, "seen": "", "notes": None, "reached": False}
+_now = {"at": 0.0}
+_now_lock = threading.Lock()
+CHECK_GAP = 15                               # "Check for updates" pressed again sooner: the last answer is given
 _lock = threading.Lock()
 _started = False
 
@@ -94,7 +97,9 @@ def check(force: bool = False):
         try:
             top = newest() if here else ""
         except Exception:  # noqa: BLE001 - offline: what was known stays, and it is asked again in a minute
+            _state["reached"] = False
             return _state["result"]
+        _state["reached"] = bool(top)
         if not top or top == here:
             _state.update(result=None, seen=top)
             return None
@@ -121,6 +126,27 @@ def latest():
         from . import selfupdate
         return selfupdate.latest()
     return _state["result"] if ON else None
+
+
+def check_now() -> dict:
+    """The "Check for updates" button: look right away (at most once every CHECK_GAP seconds) and say what was found.
+    {"update": what the dashboard shows, or None; "current": this version; "reached": whether the answer came}"""
+    if config.INSTALLED:
+        from . import selfupdate
+        mod, here = selfupdate, config.APP_VERSION
+    else:
+        mod, here = None, (RUNNING[:7] if RUNNING else "")
+    if not (mod.ON if mod else ON and RUNNING):          # never looks, or can't tell (not a git folder)
+        return {"update": None, "current": here, "reached": False, "off": True}
+    with _now_lock:
+        due = time.time() - _now["at"] >= CHECK_GAP
+        if due:
+            _now["at"] = time.time()
+    if mod:
+        up = mod.check(force=due)
+        return {"update": up, "current": here, "reached": mod.reached()}
+    up = check(force=due)
+    return {"update": up, "current": here, "reached": bool(_state["reached"])}
 
 
 def start():

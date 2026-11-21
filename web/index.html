@@ -80,6 +80,25 @@ main{background:var(--bg);margin:8px 8px 8px 0;border-radius:var(--r-lg);height:
 .upd .cmd{display:flex;gap:8px;align-items:center}
 .upd .cmd code{flex:1;min-width:0;overflow-wrap:anywhere;font-size:12px;background:var(--muted);border-radius:8px;padding:9px 11px}
 .upd h3{font-size:13px;font-weight:600;color:var(--brand-ink);margin:0}
+/* "What's new": a thin line at the very top, with what the latest versions brought */
+.news{display:flex;align-items:center;gap:12px;margin:8px 28px 0;padding:8px 8px 8px 12px;border-radius:12px;background:var(--frame);color:var(--frame-text);font-size:13px;animation:rise .3s ease both}
+.news .nb{flex:none;font-size:11px;font-weight:800;letter-spacing:.08em;background:var(--brand);color:var(--brand-ink);border-radius:999px;padding:3px 9px}
+.news .ni{flex:1;min-width:0;display:flex;gap:6px;overflow:hidden;white-space:nowrap;-webkit-mask-image:linear-gradient(90deg,#000 90%,transparent);mask-image:linear-gradient(90deg,#000 90%,transparent)}
+.news .ni button{all:unset;cursor:pointer;flex:none;padding:3px 9px;border-radius:999px;background:var(--frame-2);font-weight:600}
+.news .ni button:hover,.news .ni button:focus-visible{background:#3A2E28;color:var(--brand)}
+.news .go{flex:none;font-weight:700}
+.news .x{flex:none;color:var(--frame-dim)}
+.news .x:hover{color:var(--frame-text);background:var(--frame-2)}
+.wn{width:560px}
+.wn ul{list-style:none;margin:6px 0 0;padding:0;display:grid;gap:10px;max-height:min(60vh,520px);overflow:auto}
+.wn li{display:flex;gap:12px;align-items:flex-start;padding:12px;border:1px solid var(--line);border-radius:var(--r)}
+.wn li .e{font-size:22px;line-height:1;flex:none;width:28px;text-align:center}
+.wn li div{flex:1;min-width:0}
+.wn li b{display:block;font-size:14px;color:var(--brand-ink)}
+.wn li span{display:block;font-size:13px;color:var(--dim);margin-top:2px}
+.wn li .btn{flex:none;align-self:center}
+.wn li .tagnew{display:inline-block;margin-top:0;font-size:10px;font-weight:800;letter-spacing:.06em;background:var(--brand);color:var(--brand-ink);border-radius:6px;padding:1px 6px;margin-left:6px;vertical-align:2px}
+@media (max-width:720px){.news{margin:8px 12px 0}.news .ni{display:none}.news .go{flex:1}}
 .vb{display:flex;align-items:center;gap:12px;margin:12px 28px 0;padding:12px 12px 12px 16px;border-radius:12px;background:#F5FDE0;color:#3F5600;font-size:14px;animation:rise .3s ease both}
 .vb svg{width:18px;height:18px;flex:none;color:var(--brand-deep)}
 .vb span{flex:1;min-width:0}
@@ -921,6 +940,7 @@ dialog[open]{animation:fadein .16s ease}
   </aside>
   <div class="scrim" data-act="menu"></div>
   <main id="main">
+    <div id="newsbar"></div>
     <header class="topbar"><button class="icon-btn menu" data-act="menu" id="menuBtn" aria-label="Open menu"></button>
       <span id="tpic"></span><div class="titles"><h1 id="title"></h1><p id="subtitle"></p></div><nav class="utabs" id="utabs" role="tablist" aria-label="Creator sections"></nav><div class="row" id="actions"></div></header>
     <div id="vbanner"></div>
@@ -963,6 +983,7 @@ const I = {
  "x": "<path d=\"M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z\"/>",
  "play": "<path d=\"M232.4,114.49,88.32,26.35a16,16,0,0,0-16.2-.3A15.86,15.86,0,0,0,64,39.87V216.13A15.94,15.94,0,0,0,80,232a16.07,16.07,0,0,0,8.36-2.35L232.4,141.51a15.81,15.81,0,0,0,0-27ZM80,215.94V40l143.83,88Z\"/>",
  "link": "<path d=\"M165.66,90.34a8,8,0,0,1,0,11.32l-64,64a8,8,0,0,1-11.32-11.32l64-64A8,8,0,0,1,165.66,90.34ZM215.6,40.4a56,56,0,0,0-79.2,0L106.34,70.45a8,8,0,0,0,11.32,11.32l30.06-30a40,40,0,0,1,56.57,56.56l-30.07,30.06a8,8,0,0,0,11.31,11.32L215.6,119.6a56,56,0,0,0,0-79.2ZM138.34,174.22l-30.06,30.06a40,40,0,1,1-56.56-56.57l30.05-30.05a8,8,0,0,0-11.32-11.32L40.4,136.4a56,56,0,0,0,79.2,79.2l30.06-30.07a8,8,0,0,0-11.32-11.31Z\"/>",
+ "sparkle": "<path d=\"M197.58,129.06,146,110l-19-51.62a15.92,15.92,0,0,0-29.88,0L78,110l-51.62,19a15.92,15.92,0,0,0,0,29.88L78,178l19,51.62a15.92,15.92,0,0,0,29.88,0L146,178l51.62-19a15.92,15.92,0,0,0,0-29.88ZM137,164.22a8,8,0,0,0-4.74,4.74L112,223.85,91.78,169A8,8,0,0,0,87,164.22L32.15,144,87,123.78A8,8,0,0,0,91.78,119L112,64.15,132.22,119a8,8,0,0,0,4.74,4.74L191.85,144ZM144,40a8,8,0,0,1,8-8h16V16a8,8,0,0,1,16,0V32h16a8,8,0,0,1,0,16H184V64a8,8,0,0,1-16,0V48H152A8,8,0,0,1,144,40ZM248,88a8,8,0,0,1-8,8h-8v8a8,8,0,0,1-16,0V96h-8a8,8,0,0,1,0-16h8V72a8,8,0,0,1,16,0v8h8A8,8,0,0,1,248,88Z\"/>",
  "up": "<path d=\"M224,144v64a8,8,0,0,1-8,8H40a8,8,0,0,1-8-8V144a8,8,0,0,1,16,0v56H208V144a8,8,0,0,1,16,0ZM93.66,77.66,120,51.31V144a8,8,0,0,0,16,0V51.31l26.34,26.35a8,8,0,0,0,11.32-11.32l-40-40a8,8,0,0,0-11.32,0l-40,40A8,8,0,0,0,93.66,77.66Z\"/>",
  "pause": "<path d=\"M200,32H160a16,16,0,0,0-16,16V208a16,16,0,0,0,16,16h40a16,16,0,0,0,16-16V48A16,16,0,0,0,200,32Zm0,176H160V48h40ZM96,32H56A16,16,0,0,0,40,48V208a16,16,0,0,0,16,16H96a16,16,0,0,0,16-16V48A16,16,0,0,0,96,32Zm0,176H56V48H96Z\"/>",
  "scissors": "<path d=\"M157.73,113.13A8,8,0,0,1,159.82,102L227.48,55.7a8,8,0,0,1,9,13.21l-67.67,46.3a7.92,7.92,0,0,1-4.51,1.4A8,8,0,0,1,157.73,113.13Zm80.87,85.09a8,8,0,0,1-11.12,2.08L136,137.7,93.49,166.78a36,36,0,1,1-9-13.19L121.83,128,84.44,102.41a35.86,35.86,0,1,1,9-13.19l143,97.87A8,8,0,0,1,238.6,198.22ZM80,180a20,20,0,1,0-5.86,14.14A19.85,19.85,0,0,0,80,180ZM74.14,90.13a20,20,0,1,0-28.28,0A19.85,19.85,0,0,0,74.14,90.13Z\"/>",
@@ -1264,7 +1285,7 @@ function openAcct() {
   const u = S.status.user;
   const on = S.status.accounts !== false;
   p.innerHTML = `${on ? `<div class="who2"><b>${esc(u.name)}</b><span>${esc(u.email)}</span></div>` : ""}
-    <button data-act="go" data-v="settings">${ic("cog")}Settings</button><button data-act="go" data-v="usage">${ic("chart")}AI usage</button><button data-act="tour">${ic("play")}Take the tour</button><button data-act="feedback">${ic("bug")}Report a problem</button>
+    <button data-act="go" data-v="settings">${ic("cog")}Settings</button><button data-act="go" data-v="usage">${ic("chart")}AI usage</button><button data-act="tour">${ic("play")}Take the tour</button><button data-act="whatsnew">${ic("sparkle")}What's new</button><button data-act="feedback">${ic("bug")}Report a problem</button>${u?.is_admin ? `<button data-act="updcheck">${ic("up")}Check for updates</button>` : ""}
     ${on ? `<button class="danger" data-act="logout">${ic("signout")}Sign out</button>` : ""}`;
   openPop(p, $("[data-act=acctmenu]"));
 }
@@ -1379,7 +1400,7 @@ function openFeedback(kind = "bug", context = "") {
 async function updateNow(btn) {
   if (btn) { btn.disabled = true; btn.textContent = "Updating…"; }
   try { await api("/api/update/apply", {method: "POST"}); } catch (e) { toast(e.message || "Couldn't start the update.", "bad"); if (btn) { btn.disabled = false; btn.textContent = "Update now"; } return; }
-  toast("Downloading the update. ClipKontrast restarts by itself in a moment, your clips stay as they are.", "good");
+  toast("Downloading the update. ClipKontrast restarts by itself in a moment, your clips stay as they are.", "ok");
   const before = S.status?.update?.current;
   for (let i = 0; i < 600; i++) {
     await new Promise(r => setTimeout(r, 1500));
@@ -1412,6 +1433,55 @@ function updateHow() {
   d.onclose = () => { if (d.returnValue === "later") { try { localStorage.setItem("clipkontrast_update_seen", up.latest); } catch {} drawShell(); } };
   d.returnValue = "ok"; d.showModal();
 }
+/* "What's new": what the latest versions brought, for the people clipping (nothing about the website or the build).
+   Change NEWS.id when the list changes: the line at the top shows again for everyone, until they close it. */
+const NEWS = {id: "2026-11-21", items: [
+  {e: "🎯", t: "Fix facecam", d: "Webcam in the wrong place? Open a clip, tap Fix facecam and drag the box onto it. Remembered for that streamer.", new: true},
+  {e: "🧠", t: "Free AI on your PC", d: "AI key ran out? Clips still get made, with a free AI that runs on your computer. No key, no limits.", act: "go", v: "settings", tab: "ai", btn: "Turn it on", admin: true, new: true},
+  {e: "🔄", t: "Check for updates", d: "One tap in the sidebar to see if a new version is out.", act: "updcheck", btn: "Check now", admin: true, new: true},
+  {e: "🎨", t: "11 caption styles", d: "With live previews, right under the link. Plus Auto zoom on big reactions and Cut silences.", act: "go", v: "overview", btn: "Try it"},
+  {e: "🔴", t: "Live clipping in 1 click", d: "Paste a channel on Home and press Start. Clips come while they stream.", act: "golivehome", btn: "Try it"},
+  {e: "⚡", t: "Faster clips", d: "Several clips are made at once, and long Hindi videos are listened to faster."},
+  {e: "🏷️", t: "Your @handle and Hindi script", d: "A watermark with your handle on every clip, and captions in हिंदी if you want."},
+  {e: "🐞", t: "Report a problem", d: "Something not working? Tell us from the sidebar, it gets fixed in the next update.", act: "feedback", btn: "Report"},
+]};
+const newsItems = () => NEWS.items.filter(n => !n.admin || S.status?.user?.is_admin);
+function newsSeen() { try { return localStorage.getItem("clipkontrast_news_seen") === NEWS.id; } catch { return false; } }
+function newsHide() { try { localStorage.setItem("clipkontrast_news_seen", NEWS.id); } catch {} }
+function drawNews() {
+  const box = $("#newsbar"); if (!box) return;
+  if (newsSeen() || !S.status?.user) return put(box, "");
+  const items = newsItems();
+  put(box, `<div class="news" role="status"><span class="nb">NEW</span>
+    <span class="ni">${items.map((n, i) => `<button type="button" data-act="whatsnew" data-i="${i}">${n.e} ${esc(n.t)}</button>`).join("")}</span>
+    <button class="btn sm primary go" data-act="whatsnew">See what's new</button>
+    <button class="icon-btn x" data-act="newshide" aria-label="Hide what's new">${ic("x")}</button></div>`);
+}
+function openWhatsNew() {
+  const d = $("#formdlg"); if (d.open) return;
+  d.innerHTML = `<form method="dialog" class="dlg wn"><h2>What's new in ClipKontrast</h2>
+    <ul>${newsItems().map(n => `<li><span class="e">${n.e}</span><div><b>${esc(n.t)}${n.new ? '<span class="tagnew">NEW</span>' : ""}</b><span>${esc(n.d)}</span></div>
+      ${n.act ? `<button type="button" class="btn sm" data-act="${esc(n.act)}"${n.v ? ` data-v="${esc(n.v)}"` : ""}${n.tab ? ` data-tab="${esc(n.tab)}"` : ""} data-wn="1">${esc(n.btn || "Open")}</button>` : ""}</li>`).join("")}</ul>
+    <div class="dlg-foot"><button class="btn primary" value="ok" autofocus>Nice!</button></div></form>`;
+  d.onclose = () => { newsHide(); drawNews(); };
+  d.returnValue = "ok"; d.showModal();
+}
+/* "Check for updates": asks right away (the app also looks by itself every few hours). */
+async function checkUpdates(btn) {
+  const label = btn ? btn.innerHTML : "";
+  if (btn) { btn.disabled = true; btn.innerHTML = `${ic("up")}<span class="label">Checking…</span>`; }
+  try {
+    const r = await api("/api/update/check", {method: "POST"});
+    if (r.update) {
+      S.status.update = r.update;
+      try { localStorage.removeItem("clipkontrast_update_seen"); } catch {}
+      drawShell(); updateHow();
+    } else if (r.off) toast("This copy of ClipKontrast doesn't check for updates by itself.", "");
+    else if (!r.reached) toast("Couldn't check right now. Check your internet and try again.", "bad");
+    else toast(`You have the newest version${r.current ? ` (${r.current})` : ""}. 🎉`, "ok");
+  } catch (e) { toast(e.message || "Couldn't check right now.", "bad"); }
+  finally { if (btn && btn.isConnected) { btn.disabled = false; btn.innerHTML = label; } }
+}
 function greeting() { const h = new Date().getHours(); return h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening"; }
 let lastInd = null;
 addEventListener("resize", () => { lastInd = null; const i = $("#utabs .ind"); if (i) i.remove(); moveInd(); });   // where the orange pill was, so it can slide from there to the new tab
@@ -1434,6 +1504,7 @@ function drawShell() {  const nav = (v, icon, label, extra = "") => `<button cla
       return w ? `<span class="working" title="${w} working now"><i></i>${w} working</span>` : S.jobs.length ? `<span class="count">${S.jobs.length}</span>` : ""; })()) +
     `<a class="nav-item" href="${esc(S.status.earn_url || "/earn")}" ${S.status.accounts === false ? 'target="_blank" rel="noopener"' : ""} title="Earn: paid clipping campaigns" style="text-decoration:none">${ic("money")}<span class="label">Earn</span><span class="count" style="background:var(--brand);color:var(--brand-ink,#1A2100)">New</span></a>` +
     `<button class="nav-item" data-act="feedback" title="Report a problem">${ic("bug")}<span class="label">Report a problem</span></button>` +
+    (S.status.user?.is_admin ? `<button class="nav-item" data-act="updcheck" title="Check for updates">${ic("up")}<span class="label">Check for updates</span></button>` : "") +
     `<h4><span>Creators</span></h4>` +
     S.creators.map(c => nav("c:" + c.id, cav(c), c.name,
       c.live_job ? `<span class="sb-tag rec" title="Recording now"><i></i>Rec</span>`
@@ -1483,6 +1554,7 @@ function drawShell() {  const nav = (v, icon, label, extra = "") => `<button cla
   const diskBar = !toolBar && S.status.disk_full && S.view !== "settings" ? `<div class="vb" role="alert">${ic("warn")}<span><b>The drive ClipKontrast saves to is almost full, so it can't take new videos.</b> Free up space on it, or move ClipKontrast's folder to a bigger drive.</span>${me?.is_admin ? `<button class="btn sm primary" data-act="go" data-v="settings" data-tab="storage">Open Storage</button>` : ""}</div>` : "";
   put($("#vbanner"), toolBar ? toolBar : diskBar ? diskBar : aiBar ? aiBar : upBar ? upBar : me && me.verified === false ? `<div class="vb" role="status">${ic("warn")}<span>Confirm your email to start clipping. We sent a 6-digit code to <b>${esc(me.email)}</b>.</span><form id="vcode" style="display:flex;gap:6px;align-items:center"><input name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="7" placeholder="123456" aria-label="6-digit code" style="width:110px;letter-spacing:3px;text-align:center"><button class="btn sm" type="submit">Confirm</button></form><button class="btn sm" data-act="resendverify">Send a new code</button></div>`
     : kk && kk.ready === false && S.view !== "usage" ? `<div class="vb" role="status">${ic("bolt")}<span>${me?.is_admin ? "Add your AI key to let the AI pick clips and write titles. Until then, clips are picked by loudness." : "The AI isn't set up on this server yet, so clips are picked by loudness."}</span>${me?.is_admin && S.view !== "settings" ? `<button class="btn sm primary" data-act="go" data-v="settings" data-tab="ai">${ic("plus")}Add AI key</button>` : ""}</div>` : "");
+  drawNews();
   put($("#tpic"), pic); $("#tpic").classList.toggle("live", !!(c && (c.live_job || liveOn(c).length)));
   put($("#utabs"), tabs); moveInd(); $(".topbar").classList.toggle("tabbed", !!tabs);
   put($("#title"), `<span>${esc(title)}</span>`); put($("#subtitle"), subHtml ?? esc(sub)); put($("#actions"), act);
@@ -2722,6 +2794,7 @@ document.addEventListener("click", async e => {
   const a = b.dataset.act, d = b.dataset;
   if (b.tagName === "A") e.preventDefault();
   try {
+    if (d.wn && $("#formdlg").open) $("#formdlg").close();        // a button in "What's new": close it, then go
     if (a === "go") { closePops(); return go(d.v, d.tab); }
     if (a === "aimodels") {
       b.disabled = true;
@@ -2900,7 +2973,10 @@ document.addEventListener("click", async e => {
     if (a === "tour") return startTour();
     if (a === "settab") { e.preventDefault(); S.stab = d.k; remember("settings", d.k); return drawSettings(); }
     if (a === "updhow") return updateHow();
+    if (a === "whatsnew") { closePops(); return openWhatsNew(); }
+    if (a === "newshide") { newsHide(); return drawNews(); }
     if (a === "updnow") return updateNow(b);
+    if (a === "updcheck") { closePops(); return checkUpdates(b.classList.contains("nav-item") ? b : null); }
     if (a === "updlater") { try { localStorage.setItem("clipkontrast_update_seen", S.status.update?.latest || ""); } catch {} return drawShell(); }
     if (a === "storopen") { await send("/api/storage/open"); return; }
     if (a === "storchange") { S.storOpen = !S.storOpen; S.storNew = ""; return drawSettings(); }

@@ -29,7 +29,7 @@ RESTART_CODE = 75                     # the launcher swaps in app.new and starts
 INSTALLER_CODE = 76                   # the launcher runs the downloaded installer
 ON = config.INSTALLED and bool(config.APP_VERSION) and config.env("CLIPKONTRAST_UPDATE_CHECK", "1") != "0"
 UA = {"User-Agent": "ClipKontrast-app-update"}
-_state = {"checked": 0.0, "result": None, "manifest": None}
+_state = {"checked": 0.0, "result": None, "manifest": None, "reached": False}
 _job = {"phase": "idle", "progress": 0.0, "error": ""}
 _lock = threading.Lock()
 _started = False
@@ -76,7 +76,9 @@ def check(force: bool = False):
             r = _get(config.UPDATE_MANIFEST, timeout=20)
             m = json.loads(r.content.decode("utf-8-sig")) if r.status_code == 200 else None
         except Exception:  # noqa: BLE001 - offline: asked again next time
+            _state["reached"] = False
             return _state["result"]
+        _state["reached"] = m is not None
         if not _valid(m) or _version(m["version"]) <= _version(config.APP_VERSION):
             _state.update(result=None, manifest=None)
             return None
@@ -90,6 +92,11 @@ def check(force: bool = False):
 
 def latest():
     return _state["result"] if ON else None
+
+
+def reached() -> bool:
+    """Whether the last look got an answer (False: offline, or the file couldn't be read)."""
+    return bool(_state["reached"])
 
 
 def progress() -> dict:
