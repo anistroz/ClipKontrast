@@ -233,5 +233,21 @@ check("...the page says how: download, unzip over the folder, the data folder st
 wf = (config.ROOT / ".github" / "workflows" / "windows-app.yml").read_text(encoding="utf-8")
 check("...and the zip carries its version", "--add-file=VERSION" in wf)
 
+# ---- the webcam isn't blurry: a layout that shows it fetches the video at 1080p
+check("webcam layouts fetch 1080p, the others keep the quality chosen",
+      (jobs._src_height({"quality": 720, "layout": "split"}), jobs._src_height({"quality": 720, "layout": "gameplay"}),
+       jobs._src_height({"quality": 720, "layout": "blur"}), jobs._src_height({"quality": 720, "layout": "blur"}, "split"),
+       jobs._src_height({"quality": 1080, "layout": "crop"})), (1080, 1080, 720, 1080, 1080))
+src_jobs = (config.ROOT / "studio" / "jobs.py").read_text(encoding="utf-8")
+check("...everywhere a video or a piece of it is fetched", 'int(o["quality"])' not in src_jobs and 'options"]["quality"]' not in src_jobs)
+
+# ---- a connection that kept dropping says so in plain words (not YouTube's notes about tokens)
+check("download timeouts and dropped connections: a plain message, what to do",
+      all(safe.friendly(RuntimeError(t)) == safe.NET_DROP for t in (
+          "[download] Got error: The read operation timed out (tried 5 ways) ([youtube] x: mweb client https formats require a GVS PO Token)",
+          "[download] Got error: Remote end closed connection without response (tried 5 ways) (SABR)")))
+check("...but a bot check with a timeout note behind it is still the bot check",
+      safe.friendly(RuntimeError("Sign in to confirm you are not a bot (tried 2 ways) (timed out)")) != safe.NET_DROP)
+
 print(f"  {len(fails)} failed" if fails else "  ALL PASSED")
 sys.exit(1 if fails else 0)

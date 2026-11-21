@@ -26,6 +26,9 @@ def friendly(e, limit=600) -> str:
         return "This stream or premiere hasn't started yet. Clip it once it's live (Clip a live stream), or after it's over."
     if re.search(r"live event has ended|live stream recording is not available|post.live", main, re.I):
         return POST_LIVE
+    if re.search(r"timed out|Remote end closed connection|Connection reset|forcibly closed|IncompleteRead|"
+                 r"Connection aborted|Connection broken|getaddrinfo failed|Temporary failure in name resolution", main, re.I):
+        return NET_DROP
     return tools.explain(e) or _PATH.sub("[file]", text[-limit:])
 
 
@@ -34,3 +37,6 @@ POST_LIVE = ("YouTube hasn't made this stream's replay available yet, so it can'
              "or none. What works now: upload the video file instead (the raw stream or clips from Drive), or clip it "
              "live next time with Clip a live stream.")
 
+NET_DROP = ("The connection kept dropping while this video was downloading, even after many tries. Check your internet "
+            "(a VPN or a busy Wi-Fi often causes it), then try again. For a very long stream, use Exact moment so only "
+            "the part you want is downloaded, or upload the video file instead.")

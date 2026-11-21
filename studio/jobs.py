@@ -780,6 +780,15 @@ def _clip_source(job, clip):
                        "Press Save and re-make clip to try again.")
 
 
+def _src_height(o: dict, layout=None) -> int:
+    """How tall a video is fetched. A layout that shows the streamer's webcam cuts that small corner out and makes it
+    a third of the clip, so it's fetched at 1080p whatever was chosen: from 720p the webcam came out blurry."""
+    want = int(o.get("quality") or 720)
+    if (layout or o.get("layout")) in render.FACECAM_LAYOUTS:
+        want = max(want, config.MAX_SOURCE_HEIGHT)
+    return want
+
+
 def _piece_again(job, clip):
     """Remaking a clip whose own piece of the video was never fetched (its first try failed) and whose whole video
     is not here: fetch the piece now, cut exactly at the asked time, so no sound matching is needed."""
@@ -791,7 +800,7 @@ def _piece_again(job, clip):
     until = clip["end"] + PAD if not job.get("duration") else min(job["duration"], clip["end"] + PAD)
     try:
         piece = media.download_section(src["url"], d / "clips", f"{clip['id']}.src", want, until,
-                                       int(job["options"]["quality"]), exact=True)
+                                       _src_height(job["options"], clip.get("layout")), exact=True)
         meta = media.probe(piece)
     except Exception as e:  # noqa: BLE001
         raise RuntimeError(f"Could not fetch this part of the video: {safe.friendly(e, 250)}") from e
@@ -808,7 +817,7 @@ def _fetch_piece(job, clip, full_audio):
     try:
         want = max(0.0, clip["start"] - PAD)
         piece = media.download_section(job["source"]["url"], d / "clips", f"{clip['id']}.src", want,
-                                       min(job["duration"], clip["end"] + PAD), int(o["quality"]))
+                                       min(job["duration"], clip["end"] + PAD), _src_height(o, clip.get("layout")))
         wav = d / "clips" / f"{clip['id']}.wav"
         media.extract_audio(piece, wav)
         part = media.load_audio(wav)
@@ -1325,7 +1334,7 @@ def _run_job(job):
             a_s = max(0.0, (o["range_start"] or 0) - SECTION_PAD)
             b_s = min(meta["duration"], o["range_end"] + SECTION_PAD)
             _set(job, stage="Getting that part of the video")
-            part = media.download_section(src["url"], d, "source", a_s, b_s, int(o["quality"]), exact=True)
+            part = media.download_section(src["url"], d, "source", a_s, b_s, _src_height(o), exact=True)
             info = media.probe(part)
             section = (a_s, b_s)
             _set(job, source_path=str(part), width=info["width"], height=info["height"], section=[a_s, b_s],
@@ -1334,7 +1343,7 @@ def _run_job(job):
         else:
             pieces = span > LONG_VIDEO or meta["duration"] <= 0
             if not pieces:  # shorter video: fetch all of it in the background while the audio is worked on
-                video = fetch.submit(media.download, src["url"], d, int(o["quality"]))
+                video = fetch.submit(media.download, src["url"], d, _src_height(o))
             audio_file = media.download_audio(src["url"], d, lambda p: _set(job, progress=0.03 + 0.1 * p))
     else:
         pieces, audio_file = False, Path(src["path"])
@@ -1393,7 +1402,7 @@ def _run_job(job):
                 except Exception as e:  # noqa: BLE001 - sites sometimes refuse a download
                     notes.append(f"Video download refused once ({str(e)[-80:]}), retrying")
                     try:
-                        path = media.download(src["url"], d, int(o["quality"]))
+                        path = media.download(src["url"], d, _src_height(o))
                     except Exception as e2:  # noqa: BLE001
                         notes.append(f"Whole-video download failed ({str(e2)[-80:]}), fetching clip parts instead")
                 if path:

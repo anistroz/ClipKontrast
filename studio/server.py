@@ -57,6 +57,16 @@ BOOT = f"{int(time.time()) % 100000:x}"     # part of every sync token, so pages
 async def _more_threads():
     import anyio.to_thread
     anyio.to_thread.current_default_thread_limiter().total_tokens = int(config.env("CLIPKONTRAST_REQUEST_THREADS", "64"))
+    # Windows: a browser tab closed mid-request makes asyncio print a long "WinError 10054" traceback into the log.
+    # Nothing is wrong when it does; it's left out so the log (and bug reports) show what matters.
+    import asyncio
+    loop = asyncio.get_running_loop()
+
+    def _quiet_resets(lp, c):
+        if isinstance(c.get("exception"), ConnectionResetError):
+            return
+        lp.default_exception_handler(c)
+    loop.set_exception_handler(_quiet_resets)
 
 
 @app.on_event("startup")
