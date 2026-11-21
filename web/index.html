@@ -714,6 +714,14 @@ a.lnk{color:var(--brand-ink);text-decoration:none;font-weight:600}
 .mo-prev{position:relative;width:100%;max-width:min(520px,62vh);aspect-ratio:16/9;border-radius:12px;overflow:hidden;background:#000;margin:4px auto 14px}
 .mo-fine{font-size:12px;font-weight:700;color:var(--dim);margin:2px 4px 0}
 .mo-prev iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+.mo-shots{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:4px 0 8px}
+.mo-shots figure{margin:0}
+.mo-shot{position:relative;aspect-ratio:16/9;border-radius:10px;overflow:hidden;background:#111;display:grid;place-items:center;color:#aaa;font-size:12.5px}
+.mo-shot img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.mo-shot.busy::after{content:"";position:absolute;inset:0;background:rgba(0,0,0,.35)}
+.mo-shots figcaption{font-size:12px;color:var(--dim);margin-top:4px;display:flex;justify-content:space-between}
+.mo-yt{display:flex;justify-content:flex-end;margin:-2px 0 10px}
+.mo-note{font-size:12.5px;color:#8A5300;min-height:16px;margin-top:4px}
 .mo-noprev{font-size:12.5px;color:var(--dim);background:var(--muted);border-radius:10px;padding:10px 12px;margin:4px 0 14px}
 .dual{position:relative;height:34px;margin:6px 4px 2px}
 .dual .track{position:absolute;left:0;right:0;top:14px;height:6px;border-radius:3px;background:var(--line-2)}
@@ -1862,12 +1870,12 @@ async function openCamFix() {
    Saved with this video only; once the clips are made it's remembered for the streamer too. */
 const SPLITS = {balanced: [720, "Balanced"], half: [960, "50 / 50"], small: [608, "Small webcam"], big: [1312, "Big webcam"]};
 const FE_AT = [0.35, 0.6, 0.15, 0.8, 0.45];
-function fileFrame(src, frac) {
+function fileFrame(src, frac, at) {
   return new Promise((ok, bad) => {
     const v = document.createElement("video"); v.muted = true; v.preload = "auto"; v.src = src;
     const fail = () => bad(new Error("Couldn't read a picture from this file."));
     v.onerror = fail;
-    v.onloadedmetadata = () => { v.currentTime = Math.max(0.5, (v.duration || 10) * frac); };
+    v.onloadedmetadata = () => { v.currentTime = at != null ? Math.min(Math.max(0, at), Math.max(0, (v.duration || 1) - 0.1)) : Math.max(0.5, (v.duration || 10) * frac); };
     v.onseeked = () => {
       const c = document.createElement("canvas"), k = Math.min(1, 960 / (v.videoWidth || 960));
       c.width = Math.round(v.videoWidth * k); c.height = Math.round(v.videoHeight * k);
@@ -1998,8 +2006,10 @@ function openMoment(kind, id) {
   const title = kind === "link" ? item.info?.title : item.file?.name;
   d.innerHTML = `<div class="dlg mo"><h2>Clip an exact moment</h2>
     <p class="help">${esc(title || "")} · ${hms(dur)} long. Drag the two handles, or type the times (like <b>1:02:30</b>). Use the small buttons to move a second at a time.</p>
-    ${yid ? `<div class="mo-prev"><iframe id="moPrev" title="Preview" allow="encrypted-media; picture-in-picture" referrerpolicy="strict-origin-when-cross-origin"></iframe></div>`
-          : `<div class="mo-noprev">${ic("eye")} A preview shows here for YouTube links. For this one, use the times you know.</div>`}
+    <div class="mo-shots">
+      <figure><div class="mo-shot" id="moShotA">Loading the picture…</div><figcaption><span>Start</span><b id="moCapA"></b></figcaption></figure>
+      <figure><div class="mo-shot" id="moShotB">Loading the picture…</div><figcaption><span>End</span><b id="moCapB"></b></figcaption></figure></div>
+    ${yid ? `<div class="mo-yt"><a class="btn sm" id="moYT" target="_blank" rel="noopener" href="#">${ic("play")}Watch on YouTube from the start</a></div>` : ""}
     <div class="dual"><div class="track"></div><div class="fill" id="moFill"></div>
       <input type="range" id="moA" min="0" max="${dur}" step="1" aria-label="Start">
       <input type="range" id="moB" min="0" max="${dur}" step="1" aria-label="End"></div>
@@ -2018,6 +2028,7 @@ function openMoment(kind, id) {
     <div class="mo-mode">
       <label><input type="radio" name="moMode" value="exact" ${exact ? "checked" : ""}><span><b>Exactly this part</b><small>One clip, from your start to your end. 3 seconds to 3 minutes.</small></span></label>
       <label><input type="radio" name="moMode" value="best" ${exact ? "" : "checked"}><span><b>Best clips inside it</b><small>The AI picks the best moments from just this stretch.</small></span></label></div>
+    <div class="mo-note" id="moNote"></div>
     <div class="mo-err" id="moErr" role="alert"></div>
     <div class="dlg-foot cf-foot">${item.range ? `<button type="button" class="btn" data-act="mono">Clip the whole video</button>` : ""}<span class="grow"></span>
       <button type="button" class="btn" data-act="mocancel">Cancel</button>
@@ -2025,14 +2036,34 @@ function openMoment(kind, id) {
   if (!d.open) { d.returnValue = ""; d.showModal(); }
   const ia = $("#moA"), ib = $("#moB"), sa = $("#moSa"), sb = $("#moSb");
   let prevT = 0;
-  const preview = () => {                                   // the player jumps to the start, only when asked to
-    const f = $("#moPrev"); if (!f) return;
-    clearTimeout(prevT);
-    prevT = setTimeout(() => { f.src = `https://www.youtube-nocookie.com/embed/${yid}?start=${st}&end=${Math.max(en, st + 1)}&rel=0&modestbranding=1&playsinline=1`; }, 350);
+  const shown = {a: -1, b: -1}, asked = {a: 0, b: 0};
+  const picture = async (side) => {                         // the real picture at that second: a file's, read here;
+    const t = side === "a" ? st : en, box = $(side === "a" ? "#moShotA" : "#moShotB");   // a link's, from the server
+    if (!box || shown[side] === t) return;
+    const n = ++asked[side];
+    box.classList.add("busy");
+    try {
+      const f = kind === "file" ? await fileFrame(item.src, 0, t) : await api(`/api/frame?url=${encodeURIComponent(item.url)}&t=${t}`);
+      if (n !== asked[side] || !box.isConnected) return;   // a newer time was asked for meanwhile
+      box.innerHTML = `<img src="${f.image}" alt="The video at ${hms(t)}">`; shown[side] = t;
+    } catch (e) {
+      if (n === asked[side] && box.isConnected) box.textContent = f_err(e);
+    } finally { if (n === asked[side]) box.classList.remove("busy"); }
   };
+  const f_err = e => (e && e.message && e.message.length < 120) ? e.message : "Couldn't get a picture of this second.";
+  const preview = () => {                                   // pictures, only once a time is set, never while dragging
+    $("#moCapA").textContent = hms(st); $("#moCapB").textContent = hms(en);
+    const yt = $("#moYT"); if (yt) yt.href = `https://youtu.be/${yid}?t=${st}`;
+    clearTimeout(prevT);
+    prevT = setTimeout(() => { picture("a"); picture("b"); }, kind === "file" ? 150 : 700);
+  };
+  let autoBest = false;
   const check = () => {
-    exact = d.querySelector("[name=moMode]:checked")?.value === "exact";
-    const len = en - st;
+    const len = en - st, radio = v => d.querySelector(`[name=moMode][value=${v}]`);
+    if (len > EXACT_MAX && radio("exact").checked) { radio("best").checked = true; autoBest = true; }
+    else if (autoBest && len <= EXACT_MAX && len >= EXACT_MIN) { radio("exact").checked = true; autoBest = false; }
+    exact = radio("exact").checked;
+    $("#moNote").textContent = autoBest && !exact ? `Longer than ${EXACT_MAX / 60} minutes, so the AI will pick the best clips inside it. For one exact clip, make it ${EXACT_MAX / 60} minutes or less.` : "";
     let err = "";
     if (!(en > st)) err = "The end has to be after the start.";
     else if (exact && len < EXACT_MIN) err = `An exact moment is at least ${EXACT_MIN} seconds.`;
@@ -2080,7 +2111,7 @@ function openMoment(kind, id) {
   d.onclick = e => {
     const n = e.target.closest("[data-nudge]");
     if (n) { if (n.dataset.nudge === "a") st += +n.dataset.d; else en += +n.dataset.d; show("fine"); preview(); return; }
-    if (e.target.name === "moMode") return check();
+    if (e.target.name === "moMode") { autoBest = false; return check(); }
     const a = e.target.closest("[data-act]")?.dataset.act;
     if (a === "mocancel") d.close();
     else if (a === "mono") { delete item.range; d.close(); drawAtt(); toast("The whole video will be clipped.", "ok"); }

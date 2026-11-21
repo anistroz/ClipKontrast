@@ -228,7 +228,7 @@ check("...but a note one of the other ways left behind doesn't decide it",
 from fastapi.testclient import TestClient  # noqa: E402
 from studio import server  # noqa: E402
 web = TestClient(server.app, base_url="http://127.0.0.1:8765")
-media.frame = lambda url, at=0.35: {"image": "data:image/jpeg;base64,AAAA", "w": 1280, "h": 720, "uploader": "Frame Channel", "at": at, "live": False}
+media.frame = lambda url, at=0.35, t=None: {"image": "data:image/jpeg;base64,AAAA", "w": 1280, "h": 720, "uploader": "Frame Channel", "at": at, "live": False}
 r = web.get("/api/frame", params={"url": "https://www.youtube.com/watch?v=abcdefghijk", "at": 0.6})
 check("a frame of a link comes back, to draw on", (r.status_code, r.json()["w"], r.json()["at"]), (200, 1280, 0.6))
 check("...with where the webcam and game were set for this streamer last time", (r.json()["last"].get("box"), r.json()["last"].get("split")),

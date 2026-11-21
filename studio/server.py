@@ -849,18 +849,18 @@ def link_preview(request: Request, url: str = ""):
 
 
 @app.get("/api/frame")
-def link_frame(request: Request, url: str = "", at: float = 0.35, creator: str = ""):
+def link_frame(request: Request, url: str = "", at: float = 0.35, creator: str = "", t: float = -1):
     """A frame of a video link, to set the webcam and the game on before the clips are made, with where they were
     set for this streamer last time (if they were)."""
     url = url.strip()[:500]
     if not media.site_allowed(url):
         raise HTTPException(400, "Paste a full link to a YouTube, Twitch or Kick video.")
     try:
-        auth.throttle(f"frame:{_me(request).id}", 10, 60)
+        auth.throttle(f"frame:{_me(request).id}", 30, 60)
     except auth.AuthError:
         raise HTTPException(429, "Too many pictures at once. Wait a moment.")
     try:
-        f = _lookup(media.frame, url, at)
+        f = _lookup(media.frame, url, at, t if 0 <= t < 48 * 3600 else None)
     except media.YouTubeBlocked as e:
         raise HTTPException(503, str(e))
     except ValueError as e:

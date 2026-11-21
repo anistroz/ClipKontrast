@@ -298,7 +298,7 @@ def _live_frame(url: str) -> bytes:
     return b""
 
 
-def frame(url: str, at: float = 0.35) -> dict:
+def frame(url: str, at: float = 0.35, t: float = None) -> dict:
     """One picture from a video link, to set the webcam and the game on before any clip is made.
     {"image": data URL, "w", "h" (the picture's size), "uploader", "at", "live", "thumb": True if it is only the
     video's thumbnail}
@@ -311,7 +311,7 @@ def frame(url: str, at: float = 0.35) -> dict:
     import tempfile
     url = url.strip()
     at = min(0.9, max(0.05, float(at)))
-    key = (url, round(at, 2))
+    key = (url, round(at, 2)) if t is None else (url, "t", int(t))
     if key in _FRAMES:
         return _FRAMES[key]
     p = _PREVIEWS.get(url) or preview(url)               # title, length, live or not (already looked up, usually)
@@ -320,7 +320,8 @@ def frame(url: str, at: float = 0.35) -> dict:
     if live:
         jpeg = _live_frame(url)
     else:
-        t = max(1.0, min(dur - 5.0, dur * at)) if dur > 10 else 0.0
+        t = (max(0.0, min(dur - 3.0, float(t))) if dur > 3 else 0.0) if t is not None else \
+            (max(1.0, min(dur - 5.0, dur * at)) if dur > 10 else 0.0)
         work = Path(tempfile.mkdtemp(prefix="ckf"))
         try:
             got = download_section(url, work, "frame", t, t + 3.0, height=720)

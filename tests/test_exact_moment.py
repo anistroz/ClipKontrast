@@ -84,13 +84,38 @@ with ctx.as_user(user.id):
 check("no AI: the clip is still made, exactly, just without a title", (job2["status"], [(x["start"], x["end"]) for x in job2["clips"]]),
       ("done", [(10.0, 25.0)]))
 
+# ---- the picture at an exact second, for the start and the end
+asked_at = []
+
+
+def fake_section(url, out_dir, stem, start, end, height=720, exact=False):
+    asked_at.append((round(start), round(end - start)))
+    dst = Path(out_dir) / f"{stem}.mp4"
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", "3", "-t", "3", "-i", str(src), "-c", "copy", str(dst)], check=True)
+    return dst
+
+
+media._PREVIEWS.clear(); media._FRAMES.clear()
+media.preview = lambda url: {"title": "t", "uploader": "x", "duration": 3 * 3600 + 25 * 60, "is_live": False, "thumb": ""}
+media.download_section = fake_section
+f = media.frame("https://www.youtube.com/watch?v=abcdefghijk", t=2816)
+check("a picture of the exact second asked for: three seconds from there are fetched", (asked_at, f["thumb"], f["w"] > 0), ([(2816, 3)], False, True))
+media.frame("https://www.youtube.com/watch?v=abcdefghijk", t=2816)
+check("...the same second again isn't fetched again", len(asked_at), 1)
+f = media.frame("https://www.youtube.com/watch?v=abcdefghijk", t=99999)
+check("...a second past the end: the last seconds", asked_at[-1][0], 3 * 3600 + 25 * 60 - 3)
+
 page = (config.ROOT / "web" / "index.html").read_text(encoding="utf-8")
 check("the page: an Exact moment button on each video and a callout under them",
       all(x in page for x in ('data-act="moment"', "function momentBtn", "Clip an exact moment", "Know when it happened?")))
 check("...sliders for the whole video and a fine-tune one, typed times and second buttons",
       all(x in page for x in ('id="moA"', 'id="moB"', 'id="moFa"', 'id="moFb"', 'id="moSa"', 'id="moSb"', "data-nudge", "function parseTime")))
-check("...a YouTube preview that moves only when a slider is let go",
-      all(x in page for x in ("youtube-nocookie.com/embed/", 'addEventListener("change", preview)')))
+check("...real pictures of the start and the end (YouTube refuses many embeds), fetched only once a time is set",
+      all(x in page for x in ('id="moShotA"', 'id="moShotB"', "/api/frame?url=", "&t=${t}", 'addEventListener("change", preview)'))
+      and "moPrev" not in page)
+check("...a file's pictures are read in the browser, at the exact second", "fileFrame(item.src, 0, t)" in page)
+check("...and Watch on YouTube from the start", "youtu.be/${yid}?t=${st}" in page)
+check("...longer than 3 minutes: switched to the best clips inside it, said plainly", "autoBest" in page and "so the AI will pick the best clips inside it" in page)
 check("...exactly this part, or the best clips inside it", all(x in page for x in ('value="exact"', 'value="best"', "function momentOpts")))
 import re as _re, shutil as _sh  # noqa: E402
 if _sh.which("node"):
