@@ -82,8 +82,10 @@ def resolve(url: str) -> dict:
     title = info.get("title") or ""
     if "(live)" in title and info.get("description"):  # Twitch puts the real stream title here
         title = str(info["description"]).splitlines()[0][:120]
+    from . import tag as _tag
     return {"urls": [f["url"] for f in fmts], "title": title,
-            "uploader": info.get("uploader") or info.get("channel") or ""}
+            "uploader": info.get("uploader") or info.get("channel") or "",
+            "handle": _tag.handle_from_info(info, url), "platform": _tag.platform_of(url)}
 
 
 def active():
@@ -264,6 +266,8 @@ class Session:
                 continue
             if not self.job.get("uploader"):
                 self.job.update(title=info["title"], uploader=info["uploader"])
+            if not self.job.get("handle") and info.get("handle"):
+                self.job.update(handle=info["handle"], platform=info.get("platform", ""))
             self.part += 1
             with self.lock:
                 self.seg_clock = max(self.seg_clock, self.samples / SR)
@@ -582,6 +586,7 @@ class Session:
         c.update(id=f"clip{self.n:03d}", style=self.settings["style"], layout=self.settings["layout"],
                  captions=self.job["options"].get("captions", True), zoom=self.settings.get("zoom", True),
                  watermark=self.settings.get("watermark", ""), tighten=self.settings.get("tighten", True),
+                 **{k: self.settings.get(k, jobs.DEFAULTS[k]) for k in jobs.TAG_KEYS},
                  status="queued", version=0, made_at=time.time())
         with self.lock:
             self.job["clips"].append(c)

@@ -74,6 +74,7 @@ def main() -> int:
                 ("cut silences and filler words; the AI checks each facecam", ["tests/test_tighten.py"]),
                 ("facecam set by hand, free local AI, moments without AI", ["tests/test_neon_ideas.py"]),
                 ("Hinglish captions model; webcam and game set before clipping", ["tests/test_hinglish_frame.py"]),
+                ("the creator tag: the streamer's channel on the clip", ["tests/test_creator_tag.py"]),
                 ("facecam-on-top layout and caption styles, rendered", ["tests/test_layouts_styles.py"]),
                 ("new caption styles, Hindi script, your @handle, auto zoom", ["tests/test_looks.py"]),
                 ("never 'nothing found': the liveliest parts are clipped; Hindi listens to less", ["tests/test_safety_net.py"]),

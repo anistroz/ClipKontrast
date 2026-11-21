@@ -20,7 +20,8 @@ DEFAULTS = {"name": "", "channel": "", "style": "bounce", "layout": "blur", "cap
             "game": "", "lang": "auto", "caption_lang": "auto",
             "trigger_words": "clip that, clip it",
             "autopost": False, "accounts": [], "post_min_score": 75, "post_gap_min": 45, "daily_cap": 6,
-            "privacy": "public", "post_footer": "", "rate_per_1k": 0.0, "channels": {}, "zoom": True, "watermark": "", "tighten": True}
+            "privacy": "public", "post_footer": "", "rate_per_1k": 0.0, "channels": {}, "zoom": True, "watermark": "", "tighten": True,
+            "tag": False, "tag_handle": "", "tag_platforms": [], "tag_style": "clean", "tag_pos": "bottom_left"}
 PLATFORMS = ("youtube", "twitch", "kick")
 
 
@@ -71,6 +72,12 @@ def _clean(data: dict) -> dict:
         elif k == "watermark":
             from .jobs import clean_watermark
             v = clean_watermark(v)
+        elif k in ("tag", "tag_handle", "tag_platforms", "tag_style", "tag_pos"):
+            from .jobs import clean_options
+            got = clean_options({k: v})
+            if k not in got:
+                continue
+            v = got[k]
         elif k == "channels":
             v = {p: str(u).strip()[:300] for p, u in (v.items() if isinstance(v, dict) else []) if p in PLATFORMS and str(u).strip()}
         elif k == "accounts":

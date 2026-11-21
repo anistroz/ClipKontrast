@@ -11,6 +11,7 @@ import numpy as np
 import soundfile as sf
 
 from . import config
+from . import tag as _tag
 
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
@@ -159,7 +160,9 @@ def info(url: str) -> dict:
             "thumbnail": i.get("thumbnail") or "", "kind": i.get("_type") or "video",
             "channel_url": i.get("channel_url") or i.get("uploader_url") or "",
             # "post_live": a stream that ended and whose replay YouTube hasn't finished making
-            "live_status": i.get("live_status") or ""}
+            "live_status": i.get("live_status") or "",
+            # the channel's handle and platform, for the creator tag on the clips
+            "handle": _tag.handle_from_info(i, url), "platform": _tag.platform_of(url)}
 
 
 def youtube_words(url: str):
@@ -251,7 +254,8 @@ def preview(url: str) -> dict:
         except Exception:
             thumb = ""
     out = {"title": i["title"][:200], "uploader": i["uploader"][:120], "duration": i["duration"],
-           "is_live": i["is_live"], "thumb": thumb, "post_live": i.get("live_status") == "post_live"}
+           "is_live": i["is_live"], "thumb": thumb, "post_live": i.get("live_status") == "post_live",
+           "handle": i.get("handle", ""), "platform": i.get("platform", "")}
     if len(_PREVIEWS) > 300:
         _PREVIEWS.pop(next(iter(_PREVIEWS)))
     _PREVIEWS[url] = out

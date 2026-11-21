@@ -564,17 +564,31 @@ def render_clip(src: Path, out_dir: Path, name: str, clip: dict, words: list, sr
     # folders easily reaches. Inside the work folder every name is short and relative (a drive colon would also
     # break the filter syntax).
     work = Path(tempfile.mkdtemp(prefix="pk"))
+    tag = None
+    t = clip.get("tag")
+    if isinstance(t, dict) and t.get("text"):
+        # the streamer's handle: drawn as a picture, placed clear of the captions, the @handle and the heading
+        from . import tag as tagmod
+        try:
+            im = tagmod.image(t["text"], t.get("platforms") or [], t.get("style", "clean"))
+            if im.width > W - 80:
+                im = im.resize((W - 80, max(1, int(im.height * (W - 80) / im.width))))
+            im.save(work / "t.png")
+            tag = tagmod.place(im.size, t.get("pos", "bottom_left"), cap_y, hook_y, bool(clip.get("watermark")))
+        except Exception as e:  # noqa: BLE001 - the clip is still made, without the tag
+            print(f"  Creator tag not drawn: {e}", flush=True)
+            tag = None
     try:
         try:
             out = _render_in(work, src, out_dir, name, start, end, layout, fg_h, ass, face=face, z=z, keep=keep,
-                             game=game, top_h=top_h)
+                             game=game, top_h=top_h, tag=tag)
         except RuntimeError:
             if not z and not keep:
                 raise
             # a zoom or cuts this ffmpeg can't make: the clip is made without them, never not at all
             ass = build_ass(words if clip.get("captions", True) else [], start, end, clip.get("hook", ""), clip.get("style", "bounce"),
                             clip.get("highlight_words", []), hook_y, cap_y, watermark=clip.get("watermark", ""))
-            out = _render_in(work, src, out_dir, name, start, end, layout, fg_h, ass, face=face, game=game, top_h=top_h)
+            out = _render_in(work, src, out_dir, name, start, end, layout, fg_h, ass, face=face, game=game, top_h=top_h, tag=tag)
             keep = []
         out["tightened"] = round((end - start) - sum(b - a for a, b in keep), 1) if keep else 0
         return out
@@ -583,18 +597,22 @@ def render_clip(src: Path, out_dir: Path, name: str, clip: dict, words: list, sr
 
 
 def _render_in(work: Path, src: Path, out_dir: Path, name: str, start, end, layout, fg_h, ass: str, face=None, z="", keep=None,
-               game=None, top_h=SPLIT_TOP) -> dict:
+               game=None, top_h=SPLIT_TOP, tag=None) -> dict:
     (work / f"{name}.ass").write_text(ass, encoding="utf-8")
     (work / "f").mkdir(exist_ok=True)
     for f in config.FONTS_DIR.glob("*.ttf"):
         shutil.copyfile(f, work / "f" / f.name)
     fc = _filter(layout, fg_h, face, z, game, top_h) + f"[v0]ass={name}.ass:fontsdir=f[v]"
+    extra = []
+    if tag:             # the creator tag (t.png, written by render_clip) laid over everything
+        fc = fc[:-3] + f"[va];[va][1:v]overlay={int(tag[0])}:{int(tag[1])}[v]"
+        extra = ["-i", "t.png"]
     if keep:            # silences and filler words cut out first; the sound evened out in the same graph
         fc = _tighten_filter(keep, fc) + ";[ca]loudnorm=I=-14:TP=-1.5:LRA=11[a]"
         sound = ["-map", "[a]"]
     else:
         sound = ["-map", "0:a:0", "-af", "loudnorm=I=-14:TP=-1.5:LRA=11"]
-    base = ["ffmpeg", "-y", "-v", "error", "-ss", f"{start:.2f}", "-t", f"{end - start:.2f}", "-i", str(src),
+    base = ["ffmpeg", "-y", "-v", "error", "-ss", f"{start:.2f}", "-t", f"{end - start:.2f}", "-i", str(src), *extra,
             "-filter_complex", fc, "-map", "[v]", *sound,
             "-c:a", "aac", "-b:a", "160k", "-ar", "48000", "-movflags", "+faststart", "-pix_fmt"]
     working = [e for e in HW_ENCODERS if _hw_ok.get(e[0]) is True]

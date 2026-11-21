@@ -25,6 +25,7 @@ from . import (accounts, ai, alerts, auth, brain, config, creators, ctx, db, ear
                profiles, render, safe, transcribe, usage, whisper)
 
 from . import tools as _tools  # noqa: E402
+from . import tag as tagmod  # noqa: E402
 
 
 def _quiet(fn):
@@ -517,6 +518,28 @@ def style_preview(name: str):
                         headers={"Cache-Control": "public, max-age=604800, stale-while-revalidate=86400"})
 
 
+_TAG_PREVIEWS: dict = {}
+
+
+@app.get("/api/tag-preview")
+def tag_preview(text: str = "", platforms: str = "", style: str = "clean"):
+    """The creator tag exactly as it will be drawn on a clip, as a PNG, for the style picker."""
+    handle = tagmod.clean_handle(text) or "streamer"
+    plats = tagmod.clean_platforms([p for p in platforms.split(",") if p])
+    style = style if style in tagmod.STYLES else "clean"
+    key = (handle, tuple(plats), style)
+    png = _TAG_PREVIEWS.get(key)
+    if png is None:
+        import io
+        buf = io.BytesIO()
+        tagmod.image(("@" if plats == ["instagram"] or not plats else "/") + handle, plats, style).save(buf, "PNG")
+        png = buf.getvalue()
+        if len(_TAG_PREVIEWS) > 300:
+            _TAG_PREVIEWS.pop(next(iter(_TAG_PREVIEWS)))
+        _TAG_PREVIEWS[key] = png
+    return Response(png, media_type="image/png", headers={"Cache-Control": "private, max-age=3600"})
+
+
 @app.get("/assets/{name}")
 def asset(name: str):
     if not re.fullmatch(r"[\w\-]+\.js", name) or not (WEB / name).is_file():
@@ -691,6 +714,7 @@ def status(request: Request):
             "earn_url": "/earn" if config.ACCOUNTS else config.EARN_URL + "/earn", "earn_only": config.EARN_ONLY,
             "youtube": accounts.youtube_ready(), "connect": {p: accounts.can_connect(p) for p in accounts.PLATFORM_NAMES}, "max_upload_mb": config.MAX_UPLOAD_MB, "upload_part_mb": config.UPLOAD_PART_MB, "max_batch": config.MAX_ACTIVE_JOBS_PER_USER,
             "styles": {k: v["label"] for k, v in render.STYLES.items()}, "layouts": render.LAYOUTS,
+            "tag": {"styles": tagmod.STYLES, "platforms": tagmod.PLATFORMS, "positions": tagmod.POSITIONS},
             "languages": whisper.LANGUAGES, "caption_langs": whisper.CAPTION_LANGS}
 
 
@@ -870,7 +894,8 @@ def create_from_link(body: dict = Body(...)):
         raise HTTPException(400, str(e) if isinstance(e, ValueError) else "Those options aren't valid.")
     seen = media._PREVIEWS.get(url)  # already looked up while the user was typing: show it straight away
     if seen:
-        job.update(title=seen["title"], uploader=seen["uploader"], duration=seen["duration"])
+        job.update(title=seen["title"], uploader=seen["uploader"], duration=seen["duration"],
+                   handle=seen.get("handle", ""), platform=seen.get("platform", ""))
         if media.save_thumb(jobs.job_dir(job["id"]), url=url):
             job["thumb"] = True
         jobs.save(job)

@@ -681,6 +681,19 @@ a.lnk{color:var(--brand-ink);text-decoration:none;font-weight:600}
 .fe-split{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px;align-items:center}
 .fe-split b{font-size:13px;margin-right:4px}
 .fe-load{display:grid;place-items:center;min-height:300px;color:var(--dim);font-size:14px;background:var(--muted);border-radius:12px}
+.tagrow{margin-top:12px;border-top:1px solid var(--line);padding-top:12px}
+.tagrow .look-h{margin:0}
+.tag-opts{display:grid;gap:10px;margin-top:10px}
+.tag-line{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.tag-line>b{font-size:13px;min-width:62px}
+.tag-line input{flex:1;min-width:180px;max-width:280px;border:1px solid var(--line-2);border-radius:10px;padding:7px 10px;font:inherit;font-size:13px}
+.tag-styles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.tsty{border:1px solid var(--line-2);border-radius:12px;background:#5A6E8C;padding:10px 8px 0;cursor:pointer;display:grid;gap:8px;justify-items:center;overflow:hidden}
+.tsty img{max-width:100%;height:30px;object-fit:contain}
+.tsty span{display:block;width:calc(100% + 16px);background:#fff;font-size:12px;font-weight:700;color:var(--brand-ink);padding:5px 0}
+.tsty[aria-pressed=true]{border-color:var(--brand-deep);box-shadow:0 0 0 3px var(--brand-line)}
+.tsty[aria-pressed=true] span{background:var(--brand)}
+@media (max-width:720px){.tag-styles{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .lp .tx em.pl-warn,.lp .pl-warn{font-style:normal;color:#8A5300;white-space:normal}
 .lp .ok.pl{background:#FFF4DC;color:#8A5300}
 .lp .fset{flex:none;font-size:12px;font-weight:700;padding:5px 9px;border-radius:999px;border:1px solid var(--line-2);background:#fff;color:var(--brand-ink);cursor:pointer;display:inline-flex;gap:5px;align-items:center}
@@ -1456,7 +1469,8 @@ function updateHow() {
 }
 /* "What's new": what the latest versions brought, for the people clipping (nothing about the website or the build).
    Change NEWS.id when the list changes: the line at the top shows again for everyone, until they close it. */
-const NEWS = {id: "2026-11-21b", items: [
+const NEWS = {id: "2026-11-21c", items: [
+  {e: "🏷️", t: "Creator tag", d: "Put the streamer's channel on your clips, like /Mizoplays with the YouTube logo. The handle is found from the video by itself; pick YouTube, Instagram, Kick or Twitch logos and one of 4 looks. Under the layouts, turn on Creator tag.", act: "go", v: "overview", btn: "Try it", new: true},
   {e: "🇮🇳", t: "Hinglish captions, fixed for good", d: "Hindi clips now get captions from a speech model made for Hinglish: \"bhai ye kya ho gaya\", right every time, no AI key needed. It downloads by itself the first time (about 800 MB).", new: true},
   {e: "🖼️", t: "Set webcam & game before clipping", d: "Pick Facecam top, then tap Set webcam & game on your video: drag a box onto the webcam and one over the game, choose 50/50 or Big webcam, and see the clip before it's made.", new: true},
   {e: "🎯", t: "Fix facecam", d: "Webcam in the wrong place? Open a clip, tap Fix facecam and drag the box onto it. Remembered for that streamer."},
@@ -1958,7 +1972,43 @@ function lookPanel(c) {
       <input type="hidden" id="o_cam" value="${esc(cam)}"><div class="seg-mini" role="group" aria-label="Where the webcam is">${CAM_CHOICES.map(([k, l]) =>
         `<button type="button" data-seg="o_cam" data-v="${k}" aria-pressed="${k === cam}">${l}</button>`).join("")}</div>
       <span class="sub">Auto finds it. Or tap <b>Set webcam &amp; game</b> on your video above to draw both yourself, before any clip is made.</span></div>
+    ${tagPanel(c)}
   </div>`;
+}
+/* The creator tag: the streamer's channel on every clip, as a logo and their handle ("/Mizoplays"). The handle
+   is filled in from the video's channel; type one to use it instead. No logo picked: the site the video is from. */
+function tagPanel(c) {
+  const T = S.status.tag || {styles: {}, platforms: {}, positions: {}};
+  const on = c ? !!c.tag : lsGet("ck_tag") === "1";
+  const style = (c?.tag_style || lsGet("ck_tag_style")) in T.styles ? (c?.tag_style || lsGet("ck_tag_style")) : "clean";
+  const pos = (c?.tag_pos || lsGet("ck_tag_pos")) in T.positions ? (c?.tag_pos || lsGet("ck_tag_pos")) : "bottom_left";
+  const plats = (c ? (c.tag_platforms || []) : (lsGet("ck_tag_plats") || "").split(",")).filter(p => p in T.platforms);
+  return `<div class="tagrow"><div class="look-h"><b>Creator tag</b><span class="sub">The streamer's channel on every clip, like <b>/Mizoplays</b> with the YouTube logo. Credit gets clips trusted.</span><span class="grow"></span>
+      <label class="mini-sw"><input type="checkbox" id="o_tag" ${on ? "checked" : ""}>Show it</label></div>
+    <div class="tag-opts" id="tagOpts"${on ? "" : " hidden"}>
+      <div class="tag-line"><b>Handle</b><input id="o_tag_handle" maxlength="40" spellcheck="false" value="${esc(c?.tag_handle || "")}" placeholder="From the video's channel">
+        <span class="sub" id="tagAuto"></span></div>
+      <div class="tag-line"><b>Logo</b><input type="hidden" id="o_tag_plats" value="${esc(plats.join(","))}"><div class="seg-mini" role="group" aria-label="Logos on the tag">${Object.entries(T.platforms).map(([k, l]) =>
+        `<button type="button" data-tagplat="${k}" aria-pressed="${plats.includes(k)}">${esc(l)}</button>`).join("")}</div>
+        <span class="sub">None picked: the logo of the site the video is from.</span></div>
+      <input type="hidden" id="o_tag_style" value="${esc(style)}"><div class="tag-styles" role="group" aria-label="Tag style">${Object.entries(T.styles).map(([k, l]) =>
+        `<button type="button" class="tsty" data-seg="o_tag_style" data-v="${k}" aria-pressed="${k === style}"><img alt="" data-tagprev="${k}"><span>${esc(l)}</span></button>`).join("")}</div>
+      <div class="tag-line"><b>Where</b><input type="hidden" id="o_tag_pos" value="${esc(pos)}"><div class="seg-mini" role="group" aria-label="Where the tag goes">${Object.entries(T.positions).map(([k, l]) =>
+        `<button type="button" data-seg="o_tag_pos" data-v="${k}" aria-pressed="${k === pos}">${esc(l)}</button>`).join("")}</div></div>
+    </div></div>`;
+}
+/* The style pictures show the tag as it will be drawn, with the handle typed (or found on the video) and the logos. */
+function tagPreviews() {
+  const opts = $("#tagOpts"); if (!opts) return;
+  const found = att().links.find(l => l.info?.handle)?.info, auto = found?.handle || "";
+  const typed = ($("#o_tag_handle")?.value || "").trim().replace(/^[@/]+/, "");
+  const plats = ($("#o_tag_plats")?.value || "") || (found?.platform && found.platform in (S.status.tag?.platforms || {}) ? found.platform : "youtube");
+  const a = $("#tagAuto"); if (a) a.textContent = !typed && auto ? `Found: ${auto}` : "";
+  const q = new URLSearchParams({text: typed || auto || "streamer", platforms: plats});
+  opts.querySelectorAll("[data-tagprev]").forEach(im => {
+    const src = `/api/tag-preview?${q}&style=${im.dataset.tagprev}`;
+    if (im.getAttribute("src") !== src) im.setAttribute("src", src);
+  });
 }
 /* On a creator's page the look is the creator's: their live clips use it too, so a choice here is saved for them. */
 let lookTimer = 0, lookPending = {};
@@ -2006,12 +2056,20 @@ document.addEventListener("click", e => {
     p.querySelector(".pv").textContent = po.querySelector(".pl").textContent; closePicks(); p.querySelector(".pick-btn").focus();
     p.querySelector("input[type=hidden]").dispatchEvent(new Event("change", {bubbles: true})); return; }
   if (!e.target.closest(".pick") || e.target.closest(".pick-new")) closePicks();
+  const tp = e.target.closest("[data-tagplat]");
+  if (tp) {
+    tp.setAttribute("aria-pressed", String(tp.getAttribute("aria-pressed") !== "true"));
+    const v = $$("[data-tagplat]").filter(b => b.getAttribute("aria-pressed") === "true").map(b => b.dataset.tagplat);
+    $("#o_tag_plats").value = v.join(","); tagPreviews();
+    if (creatorId()) saveLook({tag_platforms: v});
+    return;
+  }
   const sg = e.target.closest("[data-seg]");
   if (sg && !sg.disabled) { $("#" + sg.dataset.seg).value = sg.dataset.v;
     sg.parentElement.querySelectorAll("[data-seg]").forEach(b => b.setAttribute("aria-pressed", String(b === sg)));
     if (sg.classList.contains("sty")) playLooks();
     if (sg.dataset.seg === "o_layout") { const r = $(".camrow"); if (r) r.hidden = !["split", "gameplay"].includes(sg.dataset.v); drawAtt(); }
-    if (creatorId() && (sg.dataset.seg === "o_style" || sg.dataset.seg === "o_layout")) saveLook({[sg.dataset.seg.slice(2)]: sg.dataset.v});
+    if (creatorId() && ["o_style", "o_layout", "o_tag_style", "o_tag_pos"].includes(sg.dataset.seg)) saveLook({[sg.dataset.seg.slice(2)]: sg.dataset.v});
     return; }
   const st = e.target.closest("[data-step]");
   if (st) { const i = $("#" + st.dataset.step), s = Number(i.step) || 1, d = Number(st.dataset.d);
@@ -2033,8 +2091,12 @@ function jobOptions() {
              lang:$("#o_lang")?.value || "auto", caption_lang:$("#o_caplang")?.value || "auto",
              zoom:$("#o_zoom") ? $("#o_zoom").checked : true, tighten:$("#o_tight") ? $("#o_tight").checked : true,
              cam_hint:$("#o_cam")?.value || "auto",
+             tag:!!$("#o_tag")?.checked, tag_handle:($("#o_tag_handle")?.value || "").trim(),
+             tag_platforms:($("#o_tag_plats")?.value || "").split(",").filter(Boolean),
+             tag_style:$("#o_tag_style")?.value || "clean", tag_pos:$("#o_tag_pos")?.value || "bottom_left",
              watermark:($("#o_wm")?.value || "").trim()};
   lsSet("ck_style", o.style); lsSet("ck_layout", o.layout); lsSet("ck_caps", o.captions ? "1" : "0"); lsSet("ck_zoom", o.zoom ? "1" : "0"); lsSet("ck_tight", o.tighten ? "1" : "0"); lsSet("ck_cam", o.cam_hint); lsSet("ck_wm", o.watermark);
+  lsSet("ck_tag", o.tag ? "1" : "0"); lsSet("ck_tag_style", o.tag_style); lsSet("ck_tag_pos", o.tag_pos); lsSet("ck_tag_plats", o.tag_platforms.join(","));
   if (n("#o_from") !== null) o.range_start = n("#o_from") * 60;
   if (n("#o_to") !== null) o.range_end = n("#o_to") * 60;
   if (S.preRange && !creatorId()) {        // one moment: one or two clips from just that stretch
@@ -2119,6 +2181,7 @@ function drawAtt() {
     if (f && !f.dur) { f.dur = v.duration; const th = v.parentElement; if (!th.querySelector(".du")) th.insertAdjacentHTML("beforeend", `<span class="du">${fmtLen(f.dur)}</span>`); }
   }, {once: true}));
   $("#att")?.classList.toggle("has", !!h);
+  tagPreviews();
   const u = $("#url"); if (u) u.placeholder = A.links.length || A.files.length ? "Paste another link" : "Paste a YouTube, Twitch or Kick video link";
   const b = $("#goBtn");
   if (b) { b.disabled = A.busy;
@@ -2805,6 +2868,10 @@ function drawClipDlg(full) {
         <label class="sw"><input type="checkbox" data-f="tighten" ${c.tighten ? "checked" : ""}>Cut silences and filler words${c.tightened ? ` <small style="font-weight:400;color:var(--dim)">(${c.tightened}s cut)</small>` : ""}</label>
         <div class="two"><label class="sw"><input type="checkbox" data-f="zoom" ${c.zoom ? "checked" : ""}>Auto zoom</label>
           <label class="f">Watermark<input data-f="watermark" maxlength="40" value="${esc(c.watermark || "")}" placeholder="@yourname"></label></div>
+        <label class="sw"><input type="checkbox" data-f="tag" ${c.tag ? "checked" : ""}>Creator tag (the streamer's channel)</label>
+        <div class="two"><label class="f">Handle<input data-f="tag_handle" maxlength="40" value="${esc(c.tag_handle || "")}" placeholder="From the video's channel"></label>
+          <label class="f">Tag style<select data-f="tag_style">${opts(S.status.tag?.styles || {}, c.tag_style || "clean")}</select></label></div>
+        <label class="f">Tag place<select data-f="tag_pos">${opts(S.status.tag?.positions || {}, c.tag_pos || "bottom_left")}</select></label>
         ${c.layout_note ? `<p class="sub" style="margin-top:-4px">${esc(c.layout_note)}</p>` : ""}
         <div class="two"><label class="f">Start (seconds)<input data-f="start" type="number" step="0.5" value="${c.start}"></label>
           <label class="f">End (seconds)<input data-f="end" type="number" step="0.5" value="${c.end}"></label></div>
@@ -2903,6 +2970,8 @@ document.addEventListener("change", async e => {
     return;
   }
   if ((t.id === "o_captions" || t.id === "o_zoom" || t.id === "o_tight") && creatorId()) saveLook({[t.id === "o_tight" ? "tighten" : t.id.slice(2)]: t.checked});
+  if (t.id === "o_tag") { $("#tagOpts").hidden = !t.checked; if (t.checked) tagPreviews(); if (creatorId()) saveLook({tag: t.checked}); }
+  if (t.id === "o_tag_handle") { tagPreviews(); if (creatorId()) saveLook({tag_handle: t.value.trim()}); }
   if (t.hasAttribute("data-caption-toggle")) {
     if (t.id === "o_captions") t.dataset.overridden = "true";
     syncCaptionStyle(t);

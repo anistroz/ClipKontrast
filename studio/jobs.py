@@ -16,6 +16,7 @@ import numpy as np
 from pathlib import Path
 
 from . import brain, config, creators, ctx, facecam, games, load, media, quality, render, roman, safe, transcribe, usage, whisper
+from . import tag as tagmod
 
 class _FairQueue:
     """Whose video is next. Each person has their own line and the lines take turns, so someone who adds ten
@@ -114,10 +115,12 @@ on_clip_ready: list = []   # callbacks (job, clip), run once when a clip first f
 DEFAULTS = {"max_clips": 6, "min_len": 15, "max_len": 60, "style": "bounce", "layout": "blur", "quality": 720,
             "range_start": None, "range_end": None, "captions": True, "lang": "auto", "caption_lang": "auto",
             "zoom": True, "watermark": "", "tighten": True, "cam_hint": "auto",
-            "cam_box": None, "game_box": None, "split": "balanced"}
+            "cam_box": None, "game_box": None, "split": "balanced",
+            "tag": False, "tag_handle": "", "tag_platforms": [], "tag_style": "clean", "tag_pos": "bottom_left"}
+TAG_KEYS = ("tag", "tag_handle", "tag_platforms", "tag_style", "tag_pos")      # the creator tag (studio/tag.py)
 CAM_PRESETS = {"tl": [0.0, 0.0, 0.28, 0.28], "tr": [0.72, 0.0, 0.28, 0.28], "bl": [0.0, 0.72, 0.28, 0.28],
                "br": [0.72, 0.72, 0.28, 0.28], "bc": [0.36, 0.72, 0.28, 0.28]}
-CLIP_LOOK = ("style", "layout", "captions", "zoom", "watermark", "tighten")     # what each clip carries from its video's settings
+CLIP_LOOK = ("style", "layout", "captions", "zoom", "watermark", "tighten") + TAG_KEYS     # what each clip carries from its video's settings
 
 
 def clean_watermark(v) -> str:
@@ -151,6 +154,23 @@ def clean_options(options) -> dict:
             continue
         if k == "split":
             out[k] = v if v in render.SPLITS else "balanced"
+            continue
+        if k == "tag":
+            if not isinstance(v, bool):
+                raise ValueError("The creator tag must be on or off.")
+            out[k] = v
+            continue
+        if k == "tag_handle":
+            out[k] = tagmod.clean_handle(v)
+            continue
+        if k == "tag_platforms":
+            out[k] = tagmod.clean_platforms(v)
+            continue
+        if k == "tag_style":
+            out[k] = v if v in tagmod.STYLES else "clean"
+            continue
+        if k == "tag_pos":
+            out[k] = v if v in tagmod.POSITIONS else "bottom_left"
             continue
         if k in ("captions", "zoom", "tighten"):
             if not isinstance(v, bool):
@@ -333,7 +353,7 @@ def create(source: dict, options: dict, enqueue=True, creator=None, kind="video"
     if c:
         d = creators.root(c["id"]) / ("live" if kind == "live" else "videos") / jid
         base = {**DEFAULTS, **{k: c[k] for k in ("max_clips", "min_len", "max_len", "style", "layout", "captions", "lang", "caption_lang",
-                                                 "zoom", "watermark", "tighten", "cam_hint") if k in c}}
+                                                 "zoom", "watermark", "tighten", "cam_hint") + TAG_KEYS if k in c}}
     else:
         d, base, creator = config.user_dir(ctx.uid()) / "jobs" / jid, dict(DEFAULTS), None
     opts = {**base, **clean_options(options)}
@@ -391,7 +411,7 @@ def request_render(jid, cid, changes: dict):
     job = _jobs[jid]
     clip = next(c for c in job["clips"] if c["id"] == cid)
     new = dict(clip)
-    for k in ("captions", "zoom", "watermark", "tighten"):
+    for k in ("captions", "zoom", "watermark", "tighten") + TAG_KEYS:
         if k in changes:
             new.update(clean_options({k: changes[k]}))
     for k in ("start", "end"):
@@ -416,6 +436,19 @@ def request_render(jid, cid, changes: dict):
     _q.put(("clip", jid, cid))
 
 
+def _with_channel(job) -> dict:
+    """The job, with the streamer's handle and platform: the video's own channel, else (an uploaded file, say) the
+    creator's channel link."""
+    if job.get("handle") or not job.get("creator"):
+        return job
+    c = creators.get(job["creator"]) or {}
+    for p, url in (c.get("channels") or {}).items():
+        h = tagmod.clean_handle(url)
+        if h:
+            return dict(job, handle=h, platform=job.get("platform") or p)
+    return job
+
+
 def render_one(job, clip, words):
     d = Path(job["dir"])
     clip["status"] = "rendering"
@@ -426,6 +459,7 @@ def render_one(job, clip, words):
         src, meta = _clip_source(job, clip)
         off = clip.get("src_offset", 0.0) if clip.get("src") else 0.0
         local = dict(clip, start=clip["start"] - off, end=clip["end"] - off, hook=roman.to_roman(clip.get("hook") or ""))
+        local["tag"] = tagmod.spec(_with_channel(job), clip)          # the streamer's handle on it, if asked for
         near = _caption_words(job, clip, words, off, src) if clip.get("captions", True) else []
         # the size of the file this clip is really cut from (a piece can come in another size than the first one)
         out = render.render_clip(src, d / "clips", clip["id"], local, near, meta["width"] or job["width"],
@@ -1157,7 +1191,8 @@ def _run_job(job):
         if meta["is_live"]:
             raise RuntimeError("This link is a live stream, so it would never finish downloading. Open the creator, "
                                "put this link under Setup, and press Start recording instead.")
-        _set(job, title=meta["title"], uploader=meta["uploader"], duration=meta["duration"])
+        _set(job, title=meta["title"], uploader=meta["uploader"], duration=meta["duration"],
+             handle=meta.get("handle", ""), platform=meta.get("platform", ""))
         if not job.get("thumb") and media.save_thumb(d, url=src["url"]):
             _set(job, thumb=True)
         usage.set_context(job["creator"], meta["title"])
@@ -1358,7 +1393,7 @@ def _run_job(job):
             c.update(id=f"clip{len(job['clips']) + 1:02d}", start=round(c["start"] + shift, 2),
                      end=round(c["end"] + shift, 2), style=o["style"], layout=o["layout"],
                      captions=o.get("captions", True), zoom=o.get("zoom", True), watermark=o.get("watermark", ""),
-                     tighten=o.get("tighten", True),
+                     tighten=o.get("tighten", True), **{k: o.get(k, DEFAULTS[k]) for k in TAG_KEYS},
                      status="queued", version=0)
             # Only the facecam layouts use a webcam, so it is only looked for then, and only once: a
             # stream with no webcam is not looked for again on every clip of it.
