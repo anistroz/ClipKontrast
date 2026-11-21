@@ -1,0 +1,50 @@
+# Asks YouTube about one video the way ClipKontrast does (same yt-dlp, each of the ways of asking it uses), and
+# prints what each way says: live or not, how long, how many video files, and the error if it refuses. For finding
+# out why a link fails; changes nothing.
+name: YouTube link check
+
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: The video link
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Tools
+        run: |
+          pip install "$(grep -i '^yt-dlp==' requirements.txt)" "$(grep -i '^yt-dlp-ejs' requirements.txt)"
+          sudo apt-get install -y ffmpeg >/dev/null
+      - name: Ask each way
+        env:
+          URL: ${{ inputs.url }}
+        run: |
+          python - <<'EOF'
+          import os, yt_dlp
+          url = os.environ["URL"]
+          for client in (None, ["android_vr"], ["tv"], ["web_safari"], ["mweb"], ["ios"], ["web"]):
+              for lfs in (False, True):
+                  opts = {"quiet": True, "no_warnings": False, "noplaylist": True, "socket_timeout": 20, "live_from_start": lfs}
+                  if client:
+                      opts["extractor_args"] = {"youtube": {"player_client": client}}
+                  try:
+                      with yt_dlp.YoutubeDL(opts) as y:
+                          i = y.extract_info(url, download=False)
+                      f = i.get("formats") or []
+                      v = [x for x in f if x.get("vcodec") not in (None, "none")]
+                      print(f"{str(client):16} lfs={lfs!s:5} OK  live_status={i.get('live_status')} duration={i.get('duration')} "
+                            f"formats={len(f)} video={len(v)} protocols={sorted({x.get('protocol') for x in f})}")
+                  except Exception as e:
+                      print(f"{str(client):16} lfs={lfs!s:5} ERR {str(e)[:300]}")
+          EOF
