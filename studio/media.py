@@ -256,6 +256,54 @@ def preview(url: str) -> dict:
     return out
 
 
+_FRAMES: dict = {}
+
+
+def frame(url: str, at: float = 0.35) -> dict:
+    """One frame of a video link (the live picture, for a live stream), as an inline JPEG, to set the webcam and the
+    game on before any clip is made. Only that frame is fetched, not the video. `at`: how far into the video (0-1).
+    {"image": data URL, "w", "h" (the video's own size), "uploader", "at"}"""
+    import base64
+    url = url.strip()
+    at = min(0.9, max(0.05, float(at)))
+    key = (url, round(at, 2))
+    if key in _FRAMES:
+        return _FRAMES[key]
+    with _youtube_guard(url), _ydl({"format": "bv*[height<=720]/b[height<=720]/bv*/b"}) as ydl:
+        i = ydl.extract_info(url, download=False)
+    if (i.get("_type") or "video") != "video":
+        raise ValueError("That link is a channel or playlist, not a single video.")
+    fmt = (i.get("requested_formats") or [i])[0]
+    src = fmt.get("url") or i.get("url")
+    if not (isinstance(src, str) and src.startswith(("https://", "http://"))):
+        raise ValueError("Couldn't get a picture from this video.")
+    headers = {k: v for k, v in (fmt.get("http_headers") or i.get("http_headers") or {}).items()
+               if k.lower() in ("user-agent", "referer", "origin") and isinstance(v, str) and "\n" not in v and "\r" not in v}
+    dur = float(i.get("duration") or 0)
+    t = 0.0 if i.get("is_live") or not dur else max(1.0, min(dur - 2.0, dur * at))
+    cmd = ["ffmpeg", "-v", "error"]
+    if headers:
+        cmd += ["-headers", "".join(f"{k}: {v}\r\n" for k, v in headers.items())]
+    if t:
+        cmd += ["-ss", f"{t:.1f}"]
+    cmd += ["-i", src, "-frames:v", "1", "-vf", "scale=960:-2", "-pix_fmt", "yuvj420p", "-q:v", "4",
+            "-f", "image2pipe", "-vcodec", "mjpeg", "-"]
+    try:
+        jpeg = subprocess.run(cmd, capture_output=True, timeout=60, creationflags=NO_WINDOW).stdout or b""
+    except subprocess.TimeoutExpired:
+        jpeg = b""
+    if len(jpeg) < 1000:
+        raise ValueError("Couldn't get a picture from this video right now. Try again, or set the webcam after the clips are made.")
+    w, h = int(fmt.get("width") or i.get("width") or 0), int(fmt.get("height") or i.get("height") or 0)
+    out = {"image": "data:image/jpeg;base64," + base64.b64encode(jpeg).decode(), "w": w, "h": h,
+           "uploader": (i.get("uploader") or i.get("channel") or "")[:120], "at": round(at, 2), "live": bool(i.get("is_live"))}
+    if not i.get("is_live"):                    # a live picture changes: asked again each time
+        if len(_FRAMES) > 40:
+            _FRAMES.pop(next(iter(_FRAMES)))
+        _FRAMES[key] = out
+    return out
+
+
 def save_thumb(job_dir: Path, url: str = "", video: Path = None) -> bool:
     """A small picture for the video list: the link's own thumbnail, or a frame from an uploaded file."""
     import base64

@@ -666,6 +666,25 @@ a.lnk{color:var(--brand-ink);text-decoration:none;font-weight:600}
 .cf-box i{position:absolute;width:16px;height:16px;background:#fff;border:3px solid var(--brand);border-radius:4px}
 .cf-box i[data-h=tl]{left:-10px;top:-10px;cursor:nwse-resize}.cf-box i[data-h=br]{right:-10px;bottom:-10px;cursor:nwse-resize}
 .cf-box i[data-h=tr]{right:-10px;top:-10px;cursor:nesw-resize}.cf-box i[data-h=bl]{left:-10px;bottom:-10px;cursor:nesw-resize}
+/* Set webcam & game: before any clip, on a frame of the video, with a live 9:16 preview */
+.dlg.fe{width:1020px;max-width:calc(100vw - 24px)}
+.fe-grid{display:grid;grid-template-columns:1fr 200px;gap:16px;align-items:start}
+.fe-game{position:absolute;border:3px dashed #5AB8FF;cursor:move;touch-action:none}
+.fe-game span{position:absolute;left:6px;bottom:4px;font-size:12px;font-weight:800;color:#06263D;background:#5AB8FF;border-radius:6px;padding:1px 6px;pointer-events:none}
+.fe-game i{position:absolute;width:16px;height:16px;background:#fff;border:3px solid #5AB8FF;border-radius:4px}
+.fe-game i[data-h=tl]{left:2px;top:2px;cursor:nwse-resize}.fe-game i[data-h=br]{right:2px;bottom:2px;cursor:nwse-resize}
+.fe-game i[data-h=tr]{right:2px;top:2px;cursor:nesw-resize}.fe-game i[data-h=bl]{left:2px;bottom:2px;cursor:nesw-resize}
+.fe .cf-box{box-shadow:none;z-index:2}
+.fe-side{display:grid;gap:10px;justify-items:center}
+.fe-side canvas{width:180px;height:320px;border-radius:14px;background:#000;box-shadow:0 0 0 1px var(--line)}
+.fe-side small{font-size:11px;color:var(--dim);text-align:center}
+.fe-split{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px;align-items:center}
+.fe-split b{font-size:13px;margin-right:4px}
+.fe-load{display:grid;place-items:center;min-height:300px;color:var(--dim);font-size:14px;background:var(--muted);border-radius:12px}
+.lp .fset{flex:none;font-size:12px;font-weight:700;padding:5px 9px;border-radius:999px;border:1px solid var(--line-2);background:#fff;color:var(--brand-ink);cursor:pointer;display:inline-flex;gap:5px;align-items:center}
+.lp .fset svg{width:14px;height:14px}
+.lp .fset.on{background:var(--brand);border-color:var(--brand)}
+@media (max-width:720px){.fe-grid{grid-template-columns:1fr}.fe-side{grid-auto-flow:column}}
 .cf-foot{flex-wrap:wrap}
 .cf-foot .grow{flex:1}
 /* ---------- clip a video, or a live stream */
@@ -1435,10 +1454,12 @@ function updateHow() {
 }
 /* "What's new": what the latest versions brought, for the people clipping (nothing about the website or the build).
    Change NEWS.id when the list changes: the line at the top shows again for everyone, until they close it. */
-const NEWS = {id: "2026-11-21", items: [
-  {e: "🎯", t: "Fix facecam", d: "Webcam in the wrong place? Open a clip, tap Fix facecam and drag the box onto it. Remembered for that streamer.", new: true},
-  {e: "🧠", t: "Free AI on your PC", d: "AI key ran out? Clips still get made, with a free AI that runs on your computer. No key, no limits.", act: "go", v: "settings", tab: "ai", btn: "Turn it on", admin: true, new: true},
-  {e: "🔄", t: "Check for updates", d: "One tap in the sidebar to see if a new version is out.", act: "updcheck", btn: "Check now", admin: true, new: true},
+const NEWS = {id: "2026-11-21b", items: [
+  {e: "🇮🇳", t: "Hinglish captions, fixed for good", d: "Hindi clips now get captions from a speech model made for Hinglish: \"bhai ye kya ho gaya\", right every time, no AI key needed. It downloads by itself the first time (about 800 MB).", new: true},
+  {e: "🖼️", t: "Set webcam & game before clipping", d: "Pick Facecam top, then tap Set webcam & game on your video: drag a box onto the webcam and one over the game, choose 50/50 or Big webcam, and see the clip before it's made.", new: true},
+  {e: "🎯", t: "Fix facecam", d: "Webcam in the wrong place? Open a clip, tap Fix facecam and drag the box onto it. Remembered for that streamer."},
+  {e: "🧠", t: "Free AI on your PC", d: "AI key ran out? Clips still get made, with a free AI that runs on your computer. No key, no limits.", act: "go", v: "settings", tab: "ai", btn: "Turn it on", admin: true},
+  {e: "🔄", t: "Check for updates", d: "One tap in the sidebar to see if a new version is out.", act: "updcheck", btn: "Check now", admin: true},
   {e: "🎨", t: "11 caption styles", d: "With live previews, right under the link. Plus Auto zoom on big reactions and Cut silences.", act: "go", v: "overview", btn: "Try it"},
   {e: "🔴", t: "Live clipping in 1 click", d: "Paste a channel on Home and press Start. Clips come while they stream.", act: "golivehome", btn: "Try it"},
   {e: "⚡", t: "Faster clips", d: "Several clips are made at once, and long Hindi videos are listened to faster."},
@@ -1771,6 +1792,114 @@ async function openCamFix() {
   d.camBox = box;
   d.returnValue = ""; d.showModal();
 }
+/* Set webcam & game: before any clip is made, on a frame of the video. The webcam box (lime) becomes the top of a
+   "Facecam top" clip (or the corner picture of "Gameplay + facecam"); the game box (blue) is the part of the game
+   shown. How the frame is shared between them is chosen below, and the 9:16 preview shows the clip as it will be.
+   Saved with this video only; once the clips are made it's remembered for the streamer too. */
+const SPLITS = {balanced: [720, "Balanced"], half: [960, "50 / 50"], small: [608, "Small webcam"], big: [1312, "Big webcam"]};
+const FE_AT = [0.35, 0.6, 0.15, 0.8, 0.45];
+function fileFrame(src, frac) {
+  return new Promise((ok, bad) => {
+    const v = document.createElement("video"); v.muted = true; v.preload = "auto"; v.src = src;
+    const fail = () => bad(new Error("Couldn't read a picture from this file."));
+    v.onerror = fail;
+    v.onloadedmetadata = () => { v.currentTime = Math.max(0.5, (v.duration || 10) * frac); };
+    v.onseeked = () => {
+      const c = document.createElement("canvas"), k = Math.min(1, 960 / (v.videoWidth || 960));
+      c.width = Math.round(v.videoWidth * k); c.height = Math.round(v.videoHeight * k);
+      if (!c.width || !c.height) return fail();
+      c.getContext("2d").drawImage(v, 0, 0, c.width, c.height);
+      ok({image: c.toDataURL("image/jpeg", 0.85), w: v.videoWidth, h: v.videoHeight, last: {}});
+    };
+    setTimeout(fail, 20000);
+  });
+}
+async function openFrame(kind, id, round = 0) {
+  const A = att(), item = (kind === "link" ? A.links : A.files).find(x => x.id === id); if (!item) return;
+  const d = $("#formdlg"), layout = $("#o_layout")?.value || "split";
+  d.innerHTML = `<div class="dlg fe"><h2>Where are the webcam and the game?</h2><div class="fe-load">Getting a picture from the video…</div></div>`;
+  if (!d.open) { d.returnValue = ""; d.showModal(); }
+  let f;
+  try {
+    f = kind === "link" ? await api(`/api/frame?url=${encodeURIComponent(item.url)}&at=${FE_AT[round % FE_AT.length]}&creator=${encodeURIComponent(targetCreator())}`)
+                        : await fileFrame(item.src, FE_AT[round % FE_AT.length]);
+  } catch (e) { d.close(); return toast(e.message, "bad"); }
+  const hint = $("#o_cam")?.value, preset = {tl: [0, 0, .28, .28], tr: [.72, 0, .28, .28], bl: [0, .72, .28, .28], br: [.72, .72, .28, .28], bc: [.36, .72, .28, .28]}[hint];
+  const was = item._fe || item.frame || {}; delete item._fe;        // "Another moment" keeps the boxes drawn so far
+  const cam = (was.cam_box || f.last?.box || preset || [0.70, 0.02, 0.28, 0.28]).slice();
+  const game = (was.game_box || f.last?.game || [0, 0, 1, 1]).slice();
+  let split = was.split || f.last?.split || "balanced";
+  d.innerHTML = `<div class="dlg fe"><h2>Where are the webcam and the game?</h2>
+    <p class="help">Drag the <b style="color:var(--brand-deep)">Webcam</b> box onto the streamer's camera and the <b style="color:#1F7FC4">Game</b> box over the part of the game to show. Pull the corners to size them. The preview shows the clip.</p>
+    <div class="fe-grid"><div><div class="cf-stage" id="feStage"><img src="${f.image}" alt="A frame of the video" draggable="false">
+        <div class="fe-game" id="feGame"><i data-h="tl"></i><i data-h="tr"></i><i data-h="bl"></i><i data-h="br"></i><span>Game</span></div>
+        <div class="cf-box" id="feCam"><i data-h="tl"></i><i data-h="tr"></i><i data-h="bl"></i><i data-h="br"></i><span>Webcam</span></div></div>
+      ${layout === "split" ? `<div class="fe-split"><b>Share of the frame</b><div class="seg-mini" role="group" aria-label="Share of the frame">${Object.entries(SPLITS).map(([k, [, l]]) =>
+        `<button type="button" data-fesplit="${k}" aria-pressed="${k === split}">${l}</button>`).join("")}</div></div>` : ""}</div>
+      <div class="fe-side"><canvas id="fePrev" width="360" height="640" aria-label="Preview of the clip"></canvas><small>How the clip will look</small></div></div>
+    <div class="dlg-foot cf-foot"><button type="button" class="btn" data-act="feagain">Another moment</button>
+      <button type="button" class="btn" data-act="fenone">No webcam</button><span class="grow"></span>
+      <button type="button" class="btn" data-act="fecancel">Cancel</button>
+      <button type="button" class="btn primary" data-act="fesave">Use this</button></div></div>`;
+  const stage = $("#feStage"), img = new Image();
+  const place = (el, b) => Object.assign(el.style, {left: b[0] * 100 + "%", top: b[1] * 100 + "%", width: b[2] * 100 + "%", height: b[3] * 100 + "%"});
+  const draw = () => {
+    const c = $("#fePrev"); if (!c || !img.complete) return;
+    const g = c.getContext("2d"), W = c.width, H = c.height, iw = img.naturalWidth, ih = img.naturalHeight;
+    const cover = (b, x, y, w, h) => {           // a part of the frame, filling a band without stretching
+      const sx = b[0] * iw, sy = b[1] * ih, sw = b[2] * iw, sh = b[3] * ih, k = Math.max(w / sw, h / sh);
+      const cw = w / k, chh = h / k;
+      g.drawImage(img, sx + (sw - cw) / 2, sy + (sh - chh) / 2, cw, chh, x, y, w, h);
+    };
+    g.fillStyle = "#000"; g.fillRect(0, 0, W, H);
+    if (layout === "split") {
+      const top = Math.round(H * SPLITS[split][0] / 1920);
+      cover(cam, 0, 0, W, top); cover(game, 0, top, W, H - top);
+    } else {
+      cover(game, 0, 0, W, H);
+      const pw = W * 380 / 1080, ph = pw * (cam[3] * ih) / (cam[2] * iw), m = W * 26 / 1080;
+      g.drawImage(img, cam[0] * iw, cam[1] * ih, cam[2] * iw, cam[3] * ih, W - pw - m, m, pw, ph);
+    }
+  };
+  img.onload = draw; img.src = f.image;
+  const drag = (el, box) => {
+    let dr = null;
+    place(el, box);
+    el.addEventListener("pointerdown", e => {
+      e.preventDefault(); e.stopPropagation(); el.setPointerCapture(e.pointerId);
+      dr = {h: e.target.dataset.h || "move", x: e.clientX, y: e.clientY, b: box.slice(), r: stage.getBoundingClientRect()};
+    });
+    el.addEventListener("pointermove", e => {
+      if (!dr) return;
+      const dx = (e.clientX - dr.x) / dr.r.width, dy = (e.clientY - dr.y) / dr.r.height, b = dr.b.slice(), MIN = 0.06;
+      if (dr.h === "move") { b[0] = Math.min(1 - b[2], Math.max(0, b[0] + dx)); b[1] = Math.min(1 - b[3], Math.max(0, b[1] + dy)); }
+      else {
+        let [x0, y0, x1, y1] = [b[0], b[1], b[0] + b[2], b[1] + b[3]];
+        if (dr.h.includes("l")) x0 = Math.min(x1 - MIN, Math.max(0, x0 + dx)); else x1 = Math.max(x0 + MIN, Math.min(1, x1 + dx));
+        if (dr.h.includes("t")) y0 = Math.min(y1 - MIN, Math.max(0, y0 + dy)); else y1 = Math.max(y0 + MIN, Math.min(1, y1 + dy));
+        b.splice(0, 4, x0, y0, x1 - x0, y1 - y0);
+      }
+      box.splice(0, 4, ...b); place(el, box); draw();
+    });
+    el.addEventListener("pointerup", () => { dr = null; });
+  };
+  drag($("#feGame"), game); drag($("#feCam"), cam);
+  const r4 = b => b.map(v => Math.round(v * 10000) / 10000);
+  d.onclose = () => { d.onclick = null; };
+  d.onclick = e => {
+    const sp = e.target.closest("[data-fesplit]");
+    if (sp) { split = sp.dataset.fesplit; d.querySelectorAll("[data-fesplit]").forEach(x => x.setAttribute("aria-pressed", x === sp)); return draw(); }
+    const a = e.target.closest("[data-act]")?.dataset.act;
+    if (a === "fecancel") { d.close(); }
+    else if (a === "feagain") { item._fe = {cam_box: cam.slice(), game_box: game.slice(), split}; openFrame(kind, id, round + 1); }
+    else if (a === "fenone") { item.frame = {cam_hint: "none"}; d.close(); drawAtt(); toast("This video's clips show the whole picture, no webcam.", "ok"); }
+    else if (a === "fesave") {
+      const whole = game[0] < 0.005 && game[1] < 0.005 && game[2] > 0.99 && game[3] > 0.99;
+      item.frame = {cam_box: r4(cam), game_box: whole ? null : r4(game), split};
+      d.close(); drawAtt(); toast("Webcam and game set for this video. Make clips when you're ready.", "ok");
+    }
+  };
+}
 async function saveCamFix(scope) {
   const d = $("#formdlg"), jid = d.dataset.jid, cid = d.dataset.cid;
   const body = scope === "none" ? {box: null} : {box: d.camBox.map(v => Math.round(v * 10000) / 10000)};
@@ -1825,7 +1954,7 @@ function lookPanel(c) {
     <div class="camrow"${["split", "gameplay"].includes(layout) ? "" : " hidden"}><b>Webcam</b>
       <input type="hidden" id="o_cam" value="${esc(cam)}"><div class="seg-mini" role="group" aria-label="Where the webcam is">${CAM_CHOICES.map(([k, l]) =>
         `<button type="button" data-seg="o_cam" data-v="${k}" aria-pressed="${k === cam}">${l}</button>`).join("")}</div>
-      <span class="sub">Auto finds it. If it picks the wrong spot, choose the corner, or fix it on any clip.</span></div>
+      <span class="sub">Auto finds it. Or tap <b>Set webcam &amp; game</b> on your video above to draw both yourself, before any clip is made.</span></div>
   </div>`;
 }
 /* On a creator's page the look is the creator's: their live clips use it too, so a choice here is saved for them. */
@@ -1878,7 +2007,7 @@ document.addEventListener("click", e => {
   if (sg && !sg.disabled) { $("#" + sg.dataset.seg).value = sg.dataset.v;
     sg.parentElement.querySelectorAll("[data-seg]").forEach(b => b.setAttribute("aria-pressed", String(b === sg)));
     if (sg.classList.contains("sty")) playLooks();
-    if (sg.dataset.seg === "o_layout") { const r = $(".camrow"); if (r) r.hidden = !["split", "gameplay"].includes(sg.dataset.v); }
+    if (sg.dataset.seg === "o_layout") { const r = $(".camrow"); if (r) r.hidden = !["split", "gameplay"].includes(sg.dataset.v); drawAtt(); }
     if (creatorId() && (sg.dataset.seg === "o_style" || sg.dataset.seg === "o_layout")) saveLook({[sg.dataset.seg.slice(2)]: sg.dataset.v});
     return; }
   const st = e.target.closest("[data-step]");
@@ -1946,9 +2075,15 @@ function attach(list) {
 function canGo(A = att()) { return !A.busy && (A.files.length > 0 || A.links.some(l => l.state === "ok")); }
 
 /* one row style for everything: picture on the left, name and details, state on the right */
-function rowHtml(A, {id, kind, thumb, len, title, sub, side, bar}) {
+const facecamLayout = () => ["split", "gameplay"].includes($("#o_layout")?.value);
+function frameBtn(A, kind, id, item) {
+  if (A.busy || !facecamLayout() || item?.info?.is_live) return "";
+  const on = item?.frame;
+  return `<button type="button" class="fset ${on ? "on" : ""}" data-act="frameset" data-kind="${kind}" data-id="${id}" title="Show where the webcam and the game are, on a frame of this video">${ic(on ? "check" : "eye")}${on ? (on.cam_hint === "none" ? "No webcam" : "Frame set") : "Set webcam & game"}</button>`;
+}
+function rowHtml(A, {id, kind, thumb, len, title, sub, side, bar, item}) {
   return `<div class="lp" data-row="${id}"><div class="th">${thumb}${len ? `<span class="du">${len}</span>` : ""}</div>
-    <div class="tx"><b title="${esc(title)}">${esc(title)}</b><span>${sub}</span></div>${side || ""}
+    <div class="tx"><b title="${esc(title)}">${esc(title)}</b><span>${sub}</span></div>${frameBtn(A, kind, id, item)}${side || ""}
     ${A.busy ? "" : `<button type="button" class="rm" data-rm="${kind}" data-id="${id}" aria-label="Remove ${esc(title)}">${ic("x")}</button>`}
     ${bar != null ? `<i class="pbar" style="width:${bar}%"></i>` : ""}</div>`;
 }
@@ -1964,13 +2099,13 @@ function drawAtt() {
     const i = l.info;
     return rowHtml(A, {id: l.id, kind: "link", thumb: i.thumb ? `<img src="${i.thumb}" alt="">` : "", len: i.duration && !i.is_live ? fmtLen(i.duration) : "",
       title: i.title, sub: esc(i.uploader || "Video link"),
-      side: l.sending ? `<span class="ok up">Sending</span>` : i.is_live ? `<span class="ok live"><i></i>Live now · clipped live</span>` : `<span class="ok">${ic("check")}Ready</span>`});
+      side: l.sending ? `<span class="ok up">Sending</span>` : i.is_live ? `<span class="ok live"><i></i>Live now · clipped live</span>` : `<span class="ok">${ic("check")}Ready</span>`, item: l});
   }).join("");
   h += A.files.map(f => rowHtml(A, {id: f.id, kind: "file", thumb: `<video src="${f.src}#t=1" muted preload="metadata" playsinline></video>`,
     len: f.dur ? fmtLen(f.dur) : "", title: f.file.name,
     sub: f.state === "error" ? `<em>${esc(f.err)}</em>` : fmtSize(f.file.size) + " · uploaded file",
     side: f.state === "up" ? `<span class="ok up">${f.pct < 100 ? f.pct + "%" : "Starting"}</span>` : f.state === "error" ? "" : `<span class="ok">${ic("check")}Ready</span>`,
-    bar: f.state === "up" ? f.pct : null})).join("");
+    bar: f.state === "up" ? f.pct : null, item: f})).join("");
   const n = batchUsed(A);
   if (n && !A.busy && n < batchMax())
     h += `<button type="button" class="addrow" data-act="addmore">${ic("plus")}Add another video<span>${n} of ${batchMax()}</span></button>`;
@@ -2121,13 +2256,13 @@ async function makeClips() {
       l.sending = false; l.state = "done"; A.links = A.links.filter(x => x !== l); A.busy = false; drawAtt();
       return startLive(l.url, $("#goBtn"));
     }
-    try { await send("/api/jobs", {url: l.url, options: opts, creator: who}); l.state = "done"; started++; }
+    try { await send("/api/jobs", {url: l.url, options: {...opts, ...(l.frame || {})}, creator: who}); l.state = "done"; started++; }
     catch (e) { l.state = "bad"; l.msg = e.message; failed++; }
     l.sending = false; drawAtt();
   }
   for (const f of A.files) {
     f.state = "up"; f.pct = 0; drawAtt();
-    try { await sendFile(f, who, opts); f.state = "done"; started++; }
+    try { await sendFile(f, who, {...opts, ...(f.frame || {})}); f.state = "done"; started++; }
     catch (e) { f.state = "error"; f.err = e.message; failed++; }
     drawAtt();
   }
@@ -2833,6 +2968,7 @@ document.addEventListener("click", async e => {
     if (a === "pickfile") return $("#file").click();
     if (a === "addmode") return setAddMode(d.m);
     if (a === "camfix") return openCamFix();
+    if (a === "frameset") return openFrame(d.kind, d.id);
     if (a === "lacheck") return drawLocalAi();
     if (a === "lapull") { await send("/api/local-ai/pull", {}); toast("Downloading the free AI model (about 2 GB). It keeps going in the background.", "ok"); return drawLocalAi(); }
     if (a === "camsave") return saveCamFix(d.scope);

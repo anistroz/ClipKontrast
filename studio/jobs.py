@@ -113,7 +113,8 @@ on_clip_ready: list = []   # callbacks (job, clip), run once when a clip first f
 
 DEFAULTS = {"max_clips": 6, "min_len": 15, "max_len": 60, "style": "bounce", "layout": "blur", "quality": 720,
             "range_start": None, "range_end": None, "captions": True, "lang": "auto", "caption_lang": "auto",
-            "zoom": True, "watermark": "", "tighten": True, "cam_hint": "auto"}
+            "zoom": True, "watermark": "", "tighten": True, "cam_hint": "auto",
+            "cam_box": None, "game_box": None, "split": "balanced"}
 CAM_PRESETS = {"tl": [0.0, 0.0, 0.28, 0.28], "tr": [0.72, 0.0, 0.28, 0.28], "bl": [0.0, 0.72, 0.28, 0.28],
                "br": [0.72, 0.72, 0.28, 0.28], "bc": [0.36, 0.72, 0.28, 0.28]}
 CLIP_LOOK = ("style", "layout", "captions", "zoom", "watermark", "tighten")     # what each clip carries from its video's settings
@@ -128,10 +129,29 @@ def clean_watermark(v) -> str:
 LIMITS = {"max_clips": (1, 20), "min_len": (5, 120), "max_len": (10, 180), "quality": (360, 1080)}
 
 
+def clean_box(v):
+    """A box drawn on a frame of the video, as fractions of the picture [x, y, w, h], or None. Raises on nonsense."""
+    if v is None:
+        return None
+    if not (isinstance(v, (list, tuple)) and len(v) == 4 and all(isinstance(n, (int, float)) and not isinstance(n, bool)
+                                                                  and math.isfinite(n) for n in v)):
+        raise ValueError("That box isn't valid.")
+    x, y, w, h = (float(n) for n in v)
+    if w < 0.03 or h < 0.03 or x < -0.001 or y < -0.001 or x + w > 1.001 or y + h > 1.001:
+        raise ValueError("The box has to be inside the picture, and not tiny.")
+    return [round(max(0.0, x), 4), round(max(0.0, y), 4), round(min(w, 1 - max(0.0, x)), 4), round(min(h, 1 - max(0.0, y)), 4)]
+
+
 def clean_options(options) -> dict:
     """Only known settings, each inside its allowed range. Raises ValueError on nonsense."""
     out = {}
     for k, v in (options if isinstance(options, dict) else {}).items():
+        if k in ("cam_box", "game_box"):
+            out[k] = clean_box(v)
+            continue
+        if k == "split":
+            out[k] = v if v in render.SPLITS else "balanced"
+            continue
         if k in ("captions", "zoom", "tighten"):
             if not isinstance(v, bool):
                 raise ValueError({"captions": "Captions", "zoom": "Auto zoom", "tighten": "Cutting silences"}[k] + " must be on or off.")
@@ -177,7 +197,7 @@ def public(job) -> dict:
     """What the browser may see: no server paths, no owner id."""
     out = {k: v for k, v in job.items() if k not in HIDDEN}
     out["source"] = {k: v for k, v in job["source"].items() if k != "path"}
-    out["clips"] = [{k: v for k, v in c.items() if k not in ("src", "fixed_words", "fixed_for")} for c in job["clips"]]
+    out["clips"] = [{k: v for k, v in c.items() if k not in ("src", "fixed_words", "fixed_for", "hl_words", "hl_for")} for c in job["clips"]]
     ai = job.get("ai") or {}
     out["ai"] = {"tokens": ai.get("tokens", 0), "note": ai.get("note", ""), "used": bool(ai.get("model"))}   # never the model, never raw errors
     if job.get("status") == "queued":
@@ -406,7 +426,7 @@ def render_one(job, clip, words):
         src, meta = _clip_source(job, clip)
         off = clip.get("src_offset", 0.0) if clip.get("src") else 0.0
         local = dict(clip, start=clip["start"] - off, end=clip["end"] - off, hook=roman.to_roman(clip.get("hook") or ""))
-        near = _caption_words(job, clip, words, off) if clip.get("captions", True) else []
+        near = _caption_words(job, clip, words, off, src) if clip.get("captions", True) else []
         # the size of the file this clip is really cut from (a piece can come in another size than the first one)
         out = render.render_clip(src, d / "clips", clip["id"], local, near, meta["width"] or job["width"],
                                  meta["height"] or job["height"])
@@ -467,13 +487,56 @@ def _detect_language(job, audio) -> str:
     return "hi" if lang == "ur" else lang
 
 
-def _caption_words(job, clip, words, off):
+def _hinglish_mode(job) -> bool:
+    """Captions "as spoken" for a video in Hindi (or Urdu, which sounds the same): Hinglish, in Roman letters."""
+    want = (job.get("options") or {}).get("caption_lang") or "auto"
+    return want == "auto" and (job.get("lang") or "").lower().startswith(("hi", "ur"))
+
+
+def _hinglish_words(job, clip, src, off):
+    """This clip's words in Hinglish, written by the Hinglish model straight from the clip's own sound (timed on the
+    video's clock), or None: the model isn't downloaded yet (it starts downloading now, in the background), or it
+    couldn't hear anything. Kept with the clip, so remaking it (another style, say) doesn't listen again."""
+    span = [round(clip["start"], 2), round(clip["end"], 2), whisper.HL_TAG]
+    if clip.get("hl_for") == span and clip.get("hl_words"):
+        return clip["hl_words"]
+    if not whisper.hinglish_ready():
+        whisper.fetch_hinglish_soon()
+        return None
+    a = max(0.0, clip["start"] - off - 1.0)
+    b = clip["end"] - off + 1.0
+    wav = Path(job["dir"]) / f"{clip['id']}.hinglish.wav"
+    try:
+        media.run(["ffmpeg", "-y", "-v", "error", "-ss", f"{a:.2f}", "-t", f"{b - a:.2f}", "-i", str(src), "-vn",
+                   "-ac", "1", "-ar", "16000", "-c:a", "pcm_s16le", str(wav)])
+        got = whisper.hinglish(media.load_audio(wav))
+    except Exception as e:  # noqa: BLE001 - the captions are made the old way
+        print(f"  Clip {clip['id']}: Hinglish captions model didn't run ({str(e)[-160:]})", flush=True)
+        return None
+    finally:
+        wav.unlink(missing_ok=True)
+    if len(got) < 2:
+        return None
+    base = a + off
+    words = [dict(w, s=round(w["s"] + base, 2), e=round(w["e"] + base, 2)) for w in got]
+    clip.update(hl_words=words, hl_for=span)
+    return words
+
+
+def _caption_words(job, clip, words, off, src=None):
     want = (job.get("options") or {}).get("caption_lang")
     if want == "deva":
         # Hindi in its own script, as it was heard: no English fixing and no Roman letters. English words said in
         # it stay in English letters.
         return [dict(w, s=w["s"] - off, e=w["e"] - off) for w in words if clip["start"] - 1 <= w["s"] <= clip["end"] + 1]
     always_en = want == "en"
+    if src is not None and _hinglish_mode(job):
+        # Hindi said in this clip, in Roman letters, by the model made for exactly that: no spelling out of
+        # Devanagari and no AI, so it's right even when the AI key is out of credit.
+        hl = _hinglish_words(job, clip, src, off)
+        if hl:
+            near = [w for w in hl if clip["start"] - 1 <= w["s"] <= clip["end"] + 1]
+            return [dict(w, s=w["s"] - off, e=w["e"] - off) for w in roman.words(near)]
     span = [round(clip["start"], 2), round(clip["end"], 2), "en3" if always_en else "en2"]      # "en2": captions made always-English
     if clip.get("fixed_for") == span and clip.get("fixed_words") and not any(
             roman.needs_roman(w.get("w", "")) for w in clip["fixed_words"]):
@@ -811,11 +874,53 @@ def _learn(job, frac_box):
         _remember(job, med, len(agree))
 
 
+def _use_frame(job, clip, w, h):
+    """The part of the picture that is the game, and how the frame is shared, as set before the clips were made (or
+    remembered for this streamer from the last time they were set)."""
+    o = job.get("options") or {}
+    info = _remembered_info(job)
+    game = o.get("game_box") if o.get("game_box") else info.get("game")
+    if isinstance(game, list) and len(game) == 4 and w and h:
+        clip["game"] = _px(game, w, h)
+    else:
+        clip.pop("game", None)
+    split = o.get("split") if o.get("split") not in (None, "balanced") or not info.get("split") else info.get("split")
+    clip["split"] = split if split in render.SPLITS else "balanced"
+
+
+def _save_frame(job):
+    """Webcam and game set before the clips were made: remembered for this streamer, as if set by hand, once."""
+    o = job.get("options") or {}
+    if job.get("frame_saved") or not isinstance(o.get("cam_box"), list):
+        return
+    key = _cam_key(job)
+    if not key:
+        return
+    _remember(job, o["cam_box"], 99, manual=True)
+    cams = _cams()
+    if key in cams:
+        cams[key].update(game=o.get("game_box"), split=o.get("split") or "balanced")
+        try:
+            _cam_file().write_text(json.dumps(cams), encoding="utf-8")
+        except OSError:
+            pass
+    job["frame_saved"] = True
+
+
 def _use_camera(job, clip):
     """Find the camera for a clip with a facecam layout, and note what was found on it. A box that disagrees with
     where this streamer's webcam is remembered to be (or no box at all) gives way to the remembered place."""
     if clip.get("layout") not in render.FACECAM_LAYOUTS:
         return
+    box = (job.get("options") or {}).get("cam_box")
+    if isinstance(box, list):
+        # Set on a frame of the video before the clips were made: this is the webcam, nothing is searched for.
+        w, h = _src_size(job, clip)
+        if w and h:
+            clip.update(facecam=_px(box, w, h), camera="box", camera_from="manual")
+            _use_frame(job, clip, w, h)
+            _save_frame(job)
+            return
     info = _remembered_info(job)
     if info.get("manual") and info.get("none"):           # set by hand: this streamer shows no webcam
         clip.pop("facecam", None)
@@ -850,6 +955,7 @@ def _use_camera(job, clip):
     clip["camera"] = "box" if isinstance(cam, list) else (cam or "none")
     if isinstance(cam, list):
         clip["facecam"] = cam
+    _use_frame(job, clip, w, h)
 
 
 CHECK_CLIPS = 8           # at most this many clips of a video have their facecam looked at again by the AI
@@ -861,7 +967,7 @@ def _cam_band(job, clip) -> bytes:
     if not f.is_file() or not isinstance(clip.get("facecam"), list):
         return b""
     if clip.get("layout_used") == "split":
-        crop = f"crop={config.OUT_W}:{render.SPLIT_TOP}:0:0"
+        crop = f"crop={config.OUT_W}:{render.split_top(clip)}:0:0"
     elif clip.get("layout_used") == "gameplay":
         fw, fh = clip["facecam"][2], clip["facecam"][3]
         ph = max(2, int(round(render.PIP_W * fh / max(1, fw))))
@@ -1133,7 +1239,8 @@ def _run_job(job):
         if clip["status"] != "error":
             _use_camera(job, clip)          # webcam box, camera filling the picture, or none: for this clip
         yt_en = bool(yt and yt[1].lower().startswith("en"))
-        if clip["status"] != "error" and clip.get("captions", True) and (yt_en or rough[0]):
+        hl_writes = _hinglish_mode(job) and whisper.hinglish_ready()   # it writes this clip's captions itself
+        if clip["status"] != "error" and clip.get("captions", True) and (yt_en or rough[0]) and not hl_writes:
             # The clip was found with YouTube's transcript, or with the quick model. What is shown on screen comes
             # from our own full model, run on just this clip: full punctuation, nothing blanked out, timings to the word.
             a0, b0 = max(lo, int((clip["start"] - 1.5) * 16000)), min(hi, int((clip["end"] + 1.5) * 16000))
@@ -1172,6 +1279,8 @@ def _run_job(job):
     # captions are written.
     spoken, yt = _pick_language(job, o, yt, audio[lo:hi], resuming)
     use_whisper = [not whisper.is_english(spoken)]
+    if _hinglish_mode(job):
+        whisper.fetch_hinglish_soon()       # the Hinglish captions model, the first time: in the background
 
     def asr(part, on_progress=None, quick=False):
         """The transcript of a part of the audio, by the speech model for the language spoken."""

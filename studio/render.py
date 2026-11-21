@@ -111,6 +111,21 @@ LAYOUTS = {"blur": "Full frame + blurred fill", "zoom": "Zoomed in + blurred fil
            "split": "Facecam on top, gameplay below"}
 FACECAM_LAYOUTS = ("gameplay", "split")     # the layouts that need the webcam to be found first
 SPLIT_TOP = 720        # how tall the webcam part of the split layout is; the game takes the 1200 below it
+# How the split layout can share the frame between the webcam (top) and the game (below), as the webcam's height.
+SPLITS = {"balanced": 720, "half": 960, "small": 608, "big": 1312}      # small: webcam band 16:9; big: game band 16:9
+
+
+def split_top(clip: dict) -> int:
+    """How tall the webcam band is for this clip (the split chosen, or the usual one)."""
+    v = clip.get("split")
+    return SPLITS.get(v, SPLIT_TOP) if isinstance(v, str) else SPLIT_TOP
+
+
+def _box(v) -> list:
+    """A crop box [x, y, w, h] in the video's pixels, or None if it isn't one."""
+    if isinstance(v, (list, tuple)) and len(v) == 4 and all(isinstance(n, (int, float)) for n in v) and v[2] > 8 and v[3] > 8:
+        return [int(n) for n in v]
+    return None
 
 
 def _ts(t):
@@ -140,7 +155,7 @@ def _groups(words, per):
     return out
 
 
-def geometry(src_w, src_h, layout):
+def geometry(src_w, src_h, layout, top_h=SPLIT_TOP):
     """Where the video sits in the 1080x1920 frame, and where hook and captions go."""
     if src_h >= src_w and layout != "crop":
         layout = "crop"  # already vertical or square: nothing to gain from a blurred fill
@@ -153,7 +168,7 @@ def geometry(src_w, src_h, layout):
     top = (H - fg_h) // 2
     if layout == "split":
         # the heading sits on the line between face and game, the captions low on the game
-        return layout, fg_h, SPLIT_TOP, 1480
+        return layout, fg_h, top_h, min(1640, top_h + int((H - top_h) * 0.63))
     if layout in ("crop", "gameplay"):
         return layout, fg_h, 300, 1380
     return layout, fg_h, max(230, top - 190), min(1640, top + fg_h + 180)
@@ -464,17 +479,20 @@ def _zp(z, w, h):
     return f",zoompan=z='{z}':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s={w}x{h}:fps={config.OUT_FPS}"
 
 
-def _filter(layout, fg_h, facecam=None, z=""):
+def _filter(layout, fg_h, facecam=None, z="", game=None, top_h=SPLIT_TOP):
+    # The part of the picture that is the game, when it was set by hand: cut out first, then placed as usual.
+    g = _box(game)
+    gcrop = f"crop={g[2]}:{g[3]}:{g[0]}:{g[1]}," if g else ""
     if layout == "split" and facecam:
         # The webcam is cut out and fills the top of the frame; the game, cropped around its middle, fills the rest.
         # The webcam is cut to the shape of its band first, so the face is never stretched.
         fx, fy, fw, fh = (int(v) for v in facecam)
         if fw > 8 and fh > 8:
-            bottom = H - SPLIT_TOP
+            bottom = H - top_h
             return (f"[0:v]fps={config.OUT_FPS},split=2[g][c];"
-                    f"[c]crop={fw}:{fh}:{fx}:{fy},scale={W}:{SPLIT_TOP}:force_original_aspect_ratio=increase,"
-                    f"crop={W}:{SPLIT_TOP}{_zp(z, W, SPLIT_TOP)},setsar=1[top];"
-                    f"[g]scale={W}:{bottom}:force_original_aspect_ratio=increase,crop={W}:{bottom},setsar=1[bot];"
+                    f"[c]crop={fw}:{fh}:{fx}:{fy},scale={W}:{top_h}:force_original_aspect_ratio=increase,"
+                    f"crop={W}:{top_h}{_zp(z, W, top_h)},setsar=1[top];"
+                    f"[g]{gcrop}scale={W}:{bottom}:force_original_aspect_ratio=increase,crop={W}:{bottom},setsar=1[bot];"
                     f"[top][bot]vstack=inputs=2[v0];")
     if layout == "gameplay" and facecam:
         # The game fills the screen, and the webcam sits in the top corner of it, so a viewer sees
@@ -483,7 +501,7 @@ def _filter(layout, fg_h, facecam=None, z=""):
         if fw > 8 and fh > 8:
             pip_h = max(2, int(round(PIP_W * fh / fw)))
             return (f"[0:v]fps={config.OUT_FPS},split=2[base][fc];"
-                    f"[base]scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H}{_zp(z, W, H)},setsar=1[b];"
+                    f"[base]{gcrop}scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H}{_zp(z, W, H)},setsar=1[b];"
                     f"[fc]crop={fw}:{fh}:{fx}:{fy},scale={PIP_W}:{pip_h},setsar=1[p];"
                     f"[b][p]overlay={W - PIP_W - PIP_MARGIN}:{PIP_MARGIN}[v0];")
     if layout == "crop" or (layout in FACECAM_LAYOUTS and not facecam):
@@ -528,7 +546,9 @@ def render_clip(src: Path, out_dir: Path, name: str, clip: dict, words: list, sr
         # No webcam was found: the whole picture is shown, over a blurred fill. Cropping it to fill the screen
         # would cut off most of the game, which is where the action is.
         want = "blur"
-    layout, fg_h, hook_y, cap_y = geometry(src_w, src_h, want)
+    top_h = split_top(clip)
+    game = _box(clip.get("game"))
+    layout, fg_h, hook_y, cap_y = geometry(src_w, src_h, want, top_h)
     hook_y = _hook_y(layout, hook_y, face)
     keep = tighten_plan(src, start, end, words) if clip.get("tighten") else []
     shown = tightened_words(words, start, keep) if keep else words
@@ -546,14 +566,15 @@ def render_clip(src: Path, out_dir: Path, name: str, clip: dict, words: list, sr
     work = Path(tempfile.mkdtemp(prefix="pk"))
     try:
         try:
-            out = _render_in(work, src, out_dir, name, start, end, layout, fg_h, ass, face=face, z=z, keep=keep)
+            out = _render_in(work, src, out_dir, name, start, end, layout, fg_h, ass, face=face, z=z, keep=keep,
+                             game=game, top_h=top_h)
         except RuntimeError:
             if not z and not keep:
                 raise
             # a zoom or cuts this ffmpeg can't make: the clip is made without them, never not at all
             ass = build_ass(words if clip.get("captions", True) else [], start, end, clip.get("hook", ""), clip.get("style", "bounce"),
                             clip.get("highlight_words", []), hook_y, cap_y, watermark=clip.get("watermark", ""))
-            out = _render_in(work, src, out_dir, name, start, end, layout, fg_h, ass, face=face)
+            out = _render_in(work, src, out_dir, name, start, end, layout, fg_h, ass, face=face, game=game, top_h=top_h)
             keep = []
         out["tightened"] = round((end - start) - sum(b - a for a, b in keep), 1) if keep else 0
         return out
@@ -561,12 +582,13 @@ def render_clip(src: Path, out_dir: Path, name: str, clip: dict, words: list, sr
         shutil.rmtree(work, ignore_errors=True)
 
 
-def _render_in(work: Path, src: Path, out_dir: Path, name: str, start, end, layout, fg_h, ass: str, face=None, z="", keep=None) -> dict:
+def _render_in(work: Path, src: Path, out_dir: Path, name: str, start, end, layout, fg_h, ass: str, face=None, z="", keep=None,
+               game=None, top_h=SPLIT_TOP) -> dict:
     (work / f"{name}.ass").write_text(ass, encoding="utf-8")
     (work / "f").mkdir(exist_ok=True)
     for f in config.FONTS_DIR.glob("*.ttf"):
         shutil.copyfile(f, work / "f" / f.name)
-    fc = _filter(layout, fg_h, face, z) + f"[v0]ass={name}.ass:fontsdir=f[v]"
+    fc = _filter(layout, fg_h, face, z, game, top_h) + f"[v0]ass={name}.ass:fontsdir=f[v]"
     if keep:            # silences and filler words cut out first; the sound evened out in the same graph
         fc = _tighten_filter(keep, fc) + ";[ca]loudnorm=I=-14:TP=-1.5:LRA=11[a]"
         sound = ["-map", "[a]"]

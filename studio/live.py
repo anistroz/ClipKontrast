@@ -634,6 +634,8 @@ class Session:
                 self.facecam_checked = True
             if self.facecam_box:
                 clip["facecam"] = self.facecam_box
+                # the part of the game and the share of the frame set for this streamer before, if they were
+                jobs._use_frame(self.job, clip, *jobs._src_size(self.job, {"src": str(src)}))
         dur = segs[-1][2] - segs[0][1]
         offset = self._align(src, segs[0][1] + self.clock_fix, dur)
         self.clock_fix = offset - segs[0][1]  # the two clocks drift ~4 s an hour; start the next clip from here
@@ -654,6 +656,8 @@ class Session:
                 self.spoken = "hi" if got[0] == "ur" else got[0]
                 with self.lock:
                     self.job["lang"] = self.spoken
+                if jobs._hinglish_mode(self.job):
+                    whisper.fetch_hinglish_soon()      # Hinglish captions for its clips, once it has downloaded
             else:
                 self.whisper_ok, self.spoken = False, "en"
         if self.spoken and not whisper.is_english(self.spoken) and self.whisper_ok:

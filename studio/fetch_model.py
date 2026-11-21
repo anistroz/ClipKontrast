@@ -83,9 +83,11 @@ def _client(windows_certs: bool = False):
                         proxy=_proxy())
 
 
-def _download(url: str, dest, share: tuple = (0, 100)) -> None:
+def _download(url: str, dest, share: tuple = (0, 100), progress: dict = None) -> None:
     """Fetch `url` into `dest`, carrying on from what is already in `dest`. Tries again a few times, then raises.
-    `share` is the part of the progress bar this file fills."""
+    `share` is the part of the progress bar this file fills; `progress` the dict whose "percent" it fills (the speech
+    model's own, unless another download says otherwise)."""
+    progress = state if progress is None else progress
     import httpx
     last = None
     windows_certs = False
@@ -107,7 +109,7 @@ def _download(url: str, dest, share: tuple = (0, 100)) -> None:
                         f.write(chunk)
                         got += len(chunk)
                         if total:
-                            state["percent"] = min(99, int(share[0] + (share[1] - share[0]) * got / total))
+                            progress["percent"] = min(99, int(share[0] + (share[1] - share[0]) * got / total))
                 if total and got < total:
                     raise httpx.RemoteProtocolError("ended early")
                 return

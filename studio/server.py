@@ -820,6 +820,33 @@ def link_preview(request: Request, url: str = ""):
         raise HTTPException(422, "Couldn't open that video. Check the link is public and complete.")
 
 
+@app.get("/api/frame")
+def link_frame(request: Request, url: str = "", at: float = 0.35, creator: str = ""):
+    """A frame of a video link, to set the webcam and the game on before the clips are made, with where they were
+    set for this streamer last time (if they were)."""
+    url = url.strip()[:500]
+    if not media.site_allowed(url):
+        raise HTTPException(400, "Paste a full link to a YouTube, Twitch or Kick video.")
+    try:
+        auth.throttle(f"frame:{_me(request).id}", 10, 60)
+    except auth.AuthError:
+        raise HTTPException(429, "Too many pictures at once. Wait a moment.")
+    try:
+        f = _lookup(media.frame, url, at)
+    except media.YouTubeBlocked as e:
+        raise HTTPException(503, str(e))
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(422, "Couldn't get a picture from this video right now. Try again in a moment.")
+    cid = creator if creator and creators.get(creator) else None
+    info = jobs._remembered_info({"creator": cid, "uploader": f.get("uploader")})
+    last = {k: info.get(k) for k in ("box", "game", "split") if info.get(k)} if info.get("manual") else {}
+    return {**f, "last": last}
+
+
 @app.post("/api/jobs")
 def create_from_link(body: dict = Body(...)):
     _need_verified()
