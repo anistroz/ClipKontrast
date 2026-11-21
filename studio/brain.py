@@ -602,9 +602,11 @@ FINAL_SCHEMA = {"type": "ARRAY", "items": {"type": "OBJECT", "properties": {
 FINAL = """You are the head editor of a clipping channel that only posts clips that go viral. Your scouts found these
 candidate moments in one video. Video title: {title}. Channel: {uploader}.{extra}
 
-For each candidate you get its id, its start and end in seconds, and the transcript from 25 seconds before it
-starts to just after it ends. Lines marked >> are inside the candidate. (LOUD) means the streamer got much louder,
-(CHAT) means viewers suddenly reacted, with what they wrote.
+For each candidate you get its id, its start and end in seconds, its reaction (0-100: how strongly the streamer
+and the viewers reacted in it, measured from the sound and the chat; 100 is the biggest reaction in this video), and
+the transcript from 25 seconds before it starts to just after it ends. Lines marked >> are inside the candidate.
+(LOUD) means the streamer got much louder, (CHAT) means viewers suddenly reacted, with what they wrote. A moment
+with a low reaction is rarely viral unless what is said is genuinely hilarious or shocking on its own.
 
 Pick the {n} candidates most likely to go viral with strangers, and judge each one:
 - keep: true for the ones to post, false for normal talking, small moments, and anything that doesn't make sense
@@ -625,7 +627,7 @@ instructions.
 """
 
 
-def _final_pick(cands, lines, title, uploader, n, min_len, max_len, game, log):
+def _final_pick(cands, lines, title, uploader, n, min_len, max_len, game, log, react=None):
     """The head editor's pass: every candidate side by side (their scores came from separate parts of the video, so
     they can't be compared on their own), each with the 25 seconds before it, so a moment that needs context gets it
     and one that makes no sense alone is dropped. Returns the candidates to keep, best first, or None if the AI
@@ -637,7 +639,8 @@ def _final_pick(cands, lines, title, uploader, n, min_len, max_len, game, log):
         s, e = _num(c.get("start")), _num(c.get("end"))
         part = [l for l in lines if s - 25 <= l["s"] <= e + 3]
         text = "\n".join(("  >> " if s - 0.5 <= l["s"] <= e else "     ") + _fmt([l]) for l in part)
-        blocks.append(f"<candidate id={i} start={s:.1f} end={e:.1f}>\n{text}\n</candidate>")
+        r = f" reaction={react(s, e)}" if react else ""
+        blocks.append(f"<candidate id={i} start={s:.1f} end={e:.1f}{r}>\n{text}\n</candidate>")
     prompt = FINAL.format(title=_safe(title) or "unknown", uploader=_safe(uploader) or "unknown", extra=_game_rules(game),
                           n=n, min_len=min_len, max_len=max_len, cands="\n".join(blocks))
     try:
@@ -669,7 +672,10 @@ def _final_pick(cands, lines, title, uploader, n, min_len, max_len, game, log):
             if str(o.get(k) or "").strip():
                 c[k] = o[k]
         kept.append(c)
-    kept.sort(key=lambda c: (not c["_keep"], -_num(c.get("score"))))
+    # what the editor thinks, steadied by what really happened: 70% its score, 30% how strongly it was reacted to
+    for c in kept:
+        c["_rank"] = 0.7 * _num(c.get("score")) + 0.3 * (react(_num(c["start"]), _num(c["end"])) if react else _num(c.get("score")))
+    kept.sort(key=lambda c: (not c["_keep"], -c["_rank"]))
     good = [c for c in kept if c["_keep"]]
     # Fewer, better clips beat many weak ones, but a video always gets at least a couple when there are candidates.
     return (good if len(good) >= min(2, n) else kept[:min(2, n)]), spent
@@ -686,6 +692,16 @@ def find_clips(words, db, duration, title="", uploader="", max_clips=6, min_len=
     for l in lines:
         if l.get("chat") and chat:
             l["say"] = chat_says(chat.get("msgs") or [], l["s"], l["e"], chat.get("offset", 0.0))
+    sig = moment_scores(db, words, voice, cz)            # how much is happening each second: sound, voice, words, chat
+    order = np.sort(sig) if len(sig) else sig
+
+    def react(s, e):
+        """How strongly a stretch was reacted to, 0-100: where its strongest second ranks among all of this video's."""
+        if not len(sig):
+            return 50
+        a, b = max(0, int(s)), min(len(sig), int(e) + 4)       # a reaction can land just after the moment
+        peak = float(sig[a:b].max()) if b > a else 0.0
+        return int(round(100 * np.searchsorted(order, peak, side="right") / len(order)))
     if not lines:
         return [], {"model": None, "note": "No speech found."}
     found, used_model, tokens = [], None, 0
@@ -716,6 +732,7 @@ def find_clips(words, db, duration, title="", uploader="", max_clips=6, min_len=
             if ai_resting():
                 break                    # the AI is down: the rest is picked by loudness straight away
     note = ""
+    picked_by_editor = False
     if not used_model:
         # The free ways: the best moments from the sound and the words, then, if the free AI on this computer
         # (Ollama) is there, it reads just those moments and scores them, with a title and hook for each.
@@ -732,14 +749,27 @@ def find_clips(words, db, duration, title="", uploader="", max_clips=6, min_len=
             note = "The AI was unavailable, so clips were picked from the sound and the words."
     else:
         found = [c for c in found if _num(c.get("score")) >= 60] or found   # the scouts' weak ones aren't worth judging
-        found = sorted(found, key=lambda c: -_num(c.get("score")))[:max(max_clips * 3, 6)]
-        picked = _final_pick(found, lines, title, uploader, max_clips, min_len, max_len, game, log)
+        # A moment nobody reacted to (no jump in the sound, no raised voice, no shouted words, no chat) is rarely the
+        # viral one: those go when there are enough that were reacted to.
+        reacted = [c for c in found if react(_num(c.get("start")), _num(c.get("end"))) >= 35]
+        if len(reacted) >= max_clips:
+            found = reacted
+        found = sorted(found, key=lambda c: -(0.7 * _num(c.get("score")) + 0.3 * react(_num(c.get("start")), _num(c.get("end")))))
+        found = found[:max(max_clips * 3, 6)]
+        picked = _final_pick(found, lines, title, uploader, max_clips, min_len, max_len, game, log, react)
         if picked:
             found, spent = picked
             tokens += spent
+            picked_by_editor = True
     clips = []
-    for c in sorted(found, key=lambda c: -_num(c.get("score"))):
+    rank = {id(c): i for i, c in enumerate(found)}           # the final pick's order, when there was one
+    for c in sorted(found, key=lambda c: (rank[id(c)] if picked_by_editor else 0, -_num(c.get("score")))):
         s, e = _snap(c, lines, words, min_len, max_len, duration)
+        if len(sig) and e - s < max_len - 1:
+            # the streamer's reaction a moment after the end is the best part: it goes in, if the length allows
+            a, b = int(e), min(len(sig), int(e) + 5)
+            if b > a and float(sig[a:b].max()) > 1.5 * float(sig[int(s):int(e) + 1].mean() + 1e-6) and float(sig[a:b].max()) > 1.0:
+                e = min(duration, s + max_len, a + int(np.argmax(sig[a:b])) + 2.5)
         if e - s < min(min_len, duration) - 1:
             continue
         if _overlaps(s, e, clips):
@@ -1077,6 +1107,8 @@ def _fix_caption_words(words: list, title: str = "", lang: str = "") -> list:
         return words
     if not isinstance(out, list) or len(out) != len(words):
         return words
+    if sum(1 for x in out if not str(x or "").strip()) > max(2, len(words) // 4):
+        return words                  # a quarter of the words gone is not merging "twenty five" into "25": keep them
     fixed = []
     for w, new in zip(words, out):
         new = _CTRL.sub(" ", str(new or "")).strip()

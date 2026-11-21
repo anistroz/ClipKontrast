@@ -60,7 +60,8 @@ def _setup() -> list:
             f"Speech model (English): {speech}",
             f"Deno (for YouTube): {'yes' if js else 'no'}",
             f"Whisper (Hindi): {'installed' if whisper.installed() else 'not installed'}",
-            "Hinglish captions model: " + ("ready" if whisper.hinglish_ready() else
+            "Hinglish captions model: " + ((f"downloaded, but {whisper.hl_state['error']}" if whisper.hl_state["error"] else "ready")
+                                           if whisper.hinglish_ready() else
                                            f"downloading {whisper.hl_state['percent']}%" if whisper.hl_state["doing"] else
                                            f"not downloaded ({whisper.hl_state['error']})" if whisper.hl_state["error"] else
                                            "not downloaded yet"),

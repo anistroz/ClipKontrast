@@ -1477,8 +1477,9 @@ function updateHow() {
 }
 /* "What's new": what the latest versions brought, for the people clipping (nothing about the website or the build).
    Change NEWS.id when the list changes: the line at the top shows again for everyone, until they close it. */
-const NEWS = {id: "2026-11-21d", items: [
-  {e: "🔥", t: "Clips that go viral", d: "Moments are now picked the way top clippers do it: where the stream's chat went wild (on YouTube streams), the biggest reactions, and a final check of every moment side by side so only the best make it, each with the setup it needs to make sense.", new: true},
+const NEWS = {id: "2026-11-21e", items: [
+  {e: "🔥", t: "Clips that go viral", d: "Moments are picked where the streamer really reacted (screaming, laughing, the sound jumping) and where the stream's chat went wild, then every moment is checked side by side so only the best make it. The reaction right after a moment stays in the clip.", new: true},
+  {e: "💬", t: "English captions fixed", d: "English streams are never mistaken for Hindi any more, and every clip is checked on its own sound, so English clips always get English captions and Hindi clips get Hinglish.", new: true},
   {e: "🧠", t: "Know when your AI key runs out", d: "If your key hits its limit, ClipKontrast tells you: it switches to the free AI on your PC by itself, or shows you how to set it up in two steps.", act: "go", v: "settings", tab: "ai", btn: "AI settings", admin: true, new: true},
   {e: "🏷️", t: "Creator tag", d: "Put the streamer's channel on your clips, like /Mizoplays with the YouTube logo. The handle is found from the video by itself; pick YouTube, Instagram, Kick or Twitch logos and one of 4 looks. Under the layouts, turn on Creator tag.", act: "go", v: "overview", btn: "Try it"},
   {e: "🇮🇳", t: "Hinglish captions, fixed for good", d: "Hindi clips now get captions from a speech model made for Hinglish: \"bhai ye kya ho gaya\", right every time, no AI key needed. It downloads by itself the first time (about 800 MB).", new: true},

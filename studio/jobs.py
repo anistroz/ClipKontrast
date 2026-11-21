@@ -217,7 +217,8 @@ def public(job) -> dict:
     """What the browser may see: no server paths, no owner id."""
     out = {k: v for k, v in job.items() if k not in HIDDEN}
     out["source"] = {k: v for k, v in job["source"].items() if k != "path"}
-    out["clips"] = [{k: v for k, v in c.items() if k not in ("src", "fixed_words", "fixed_for", "hl_words", "hl_for")} for c in job["clips"]]
+    out["clips"] = [{k: v for k, v in c.items() if k not in ("src", "fixed_words", "fixed_for", "hl_words", "hl_for", "en_words",
+                                                              "en_for", "hi_words", "hi_for")} for c in job["clips"]]
     ai = job.get("ai") or {}
     out["ai"] = {"tokens": ai.get("tokens", 0), "note": ai.get("note", ""), "used": bool(ai.get("model"))}   # never the model, never raw errors
     if job.get("status") == "queued":
@@ -527,7 +528,37 @@ def _hinglish_mode(job) -> bool:
     return want == "auto" and (job.get("lang") or "").lower().startswith(("hi", "ur"))
 
 
-def _hinglish_words(job, clip, src, off):
+def _clip_sound(job, clip, src, off):
+    """The clip's own sound with a second either side (16 kHz), and the video's second it starts at."""
+    a = max(0.0, clip["start"] - off - 1.0)
+    b = clip["end"] - off + 1.0
+    wav = Path(job["dir"]) / f"{clip['id']}.sound.wav"
+    try:
+        media.run(["ffmpeg", "-y", "-v", "error", "-ss", f"{a:.2f}", "-t", f"{b - a:.2f}", "-i", str(src), "-vn",
+                   "-ac", "1", "-ar", "16000", "-c:a", "pcm_s16le", str(wav)])
+        return media.load_audio(wav), a + off
+    finally:
+        wav.unlink(missing_ok=True)
+
+
+def _clip_lang(job, clip, src, off, sound=None):
+    """The language spoken in this clip, heard from its own sound (kept with the clip), or the video's when that
+    can't be told. A video taken for Hindi can have English clips (or be wholly English, heard wrong): their captions
+    must not go to the Hindi model."""
+    span = [round(clip["start"], 2), round(clip["end"], 2)]
+    if clip.get("lang_for") == span and clip.get("cap_lang"):
+        return clip["cap_lang"]
+    try:
+        audio = sound[0] if sound else _clip_sound(job, clip, src, off)[0]
+        got = whisper.clip_language(audio)
+    except Exception:  # noqa: BLE001
+        got = None
+    lang = "hi" if got in ("hi", "ur") else got or (job.get("lang") or "en").split("-")[0]
+    clip.update(cap_lang=lang, lang_for=span)
+    return lang
+
+
+def _hinglish_words(job, clip, src, off, sound=None):
     """This clip's words in Hinglish, written by the Hinglish model straight from the clip's own sound (timed on the
     video's clock), or None: the model isn't downloaded yet (it starts downloading now, in the background), or it
     couldn't hear anything. Kept with the clip, so remaking it (another style, say) doesn't listen again."""
@@ -537,23 +568,53 @@ def _hinglish_words(job, clip, src, off):
     if not whisper.hinglish_ready():
         whisper.fetch_hinglish_soon()
         return None
-    a = max(0.0, clip["start"] - off - 1.0)
-    b = clip["end"] - off + 1.0
-    wav = Path(job["dir"]) / f"{clip['id']}.hinglish.wav"
     try:
-        media.run(["ffmpeg", "-y", "-v", "error", "-ss", f"{a:.2f}", "-t", f"{b - a:.2f}", "-i", str(src), "-vn",
-                   "-ac", "1", "-ar", "16000", "-c:a", "pcm_s16le", str(wav)])
-        got = whisper.hinglish(media.load_audio(wav))
+        audio, base = sound or _clip_sound(job, clip, src, off)
+        got = whisper.hinglish(audio)
     except Exception as e:  # noqa: BLE001 - the captions are made the old way
         print(f"  Clip {clip['id']}: Hinglish captions model didn't run ({str(e)[-160:]})", flush=True)
         return None
-    finally:
-        wav.unlink(missing_ok=True)
     if len(got) < 2:
         return None
-    base = a + off
     words = [dict(w, s=round(w["s"] + base, 2), e=round(w["e"] + base, 2)) for w in got]
     clip.update(hl_words=words, hl_for=span)
+    return words
+
+
+def _hindi_words(job, clip, sound):
+    """This clip's words heard again by Hindi Whisper, word by word, on the video's clock. Kept with the clip."""
+    span = [round(clip["start"], 2), round(clip["end"], 2)]
+    if clip.get("hi_for") == span and clip.get("hi_words"):
+        return clip["hi_words"]
+    try:
+        audio, base = sound
+        got = whisper.transcribe(audio, "hi")
+    except Exception as e:  # noqa: BLE001 - the words the video was heard with
+        print(f"  Clip {clip['id']}: Hindi speech model didn't run ({str(e)[-160:]})", flush=True)
+        return None
+    if len(got) < 2:
+        return None
+    words = [dict(w, s=round(w["s"] + base, 2), e=round(w["e"] + base, 2)) for w in got]
+    clip.update(hi_words=words, hi_for=span)
+    return words
+
+
+def _english_words(job, clip, src, off, sound=None):
+    """This clip's words heard again by the English speech model (Parakeet), timed on the video's clock: for an
+    English clip in a video that was taken for Hindi, whose transcript is Hindi Whisper's. Kept with the clip."""
+    span = [round(clip["start"], 2), round(clip["end"], 2)]
+    if clip.get("en_for") == span and clip.get("en_words"):
+        return clip["en_words"]
+    try:
+        audio, base = sound or _clip_sound(job, clip, src, off)
+        got = transcribe.transcribe(audio)
+    except Exception as e:  # noqa: BLE001 - the words as they were heard
+        print(f"  Clip {clip['id']}: English speech model didn't run ({str(e)[-160:]})", flush=True)
+        return None
+    if len(got) < 2:
+        return None
+    words = [dict(w, s=round(w["s"] + base, 2), e=round(w["e"] + base, 2)) for w in got]
+    clip.update(en_words=words, en_for=span)
     return words
 
 
@@ -564,14 +625,35 @@ def _caption_words(job, clip, words, off, src=None):
         # it stay in English letters.
         return [dict(w, s=w["s"] - off, e=w["e"] - off) for w in words if clip["start"] - 1 <= w["s"] <= clip["end"] + 1]
     always_en = want == "en"
+    lang = job.get("lang") or ""
     if src is not None and _hinglish_mode(job):
-        # Hindi said in this clip, in Roman letters, by the model made for exactly that: no spelling out of
-        # Devanagari and no AI, so it's right even when the AI key is out of credit.
-        hl = _hinglish_words(job, clip, src, off)
-        if hl:
-            near = [w for w in hl if clip["start"] - 1 <= w["s"] <= clip["end"] + 1]
-            return [dict(w, s=w["s"] - off, e=w["e"] - off) for w in roman.words(near)]
-    span = [round(clip["start"], 2), round(clip["end"], 2), "en3" if always_en else "en2"]      # "en2": captions made always-English
+        # A video taken for Hindi: each clip's own sound says which language it really is.
+        sound = None
+        try:
+            sound = _clip_sound(job, clip, src, off)
+        except Exception:  # noqa: BLE001 - can't read it again: the video's language and words are used
+            pass
+        clip_lang = _clip_lang(job, clip, src, off, sound) if sound else "hi"
+        if clip_lang == "hi":
+            # Hindi said in this clip, in Roman letters, by the model made for exactly that: no spelling out of
+            # Devanagari and no AI, so it's right even when the AI key is out of credit.
+            hl = _hinglish_words(job, clip, src, off, sound)
+            if hl:
+                near = [w for w in hl if clip["start"] - 1 <= w["s"] <= clip["end"] + 1]
+                return [dict(w, s=w["s"] - off, e=w["e"] - off) for w in roman.words(near)]
+            if sound:
+                # The Hinglish model couldn't write them (not downloaded yet, or it won't run on this computer): the
+                # clip is heard again by Hindi Whisper, word by word, never left to a long video's quick rough pass
+                # (whose timings are guessed), and spelled in Roman letters below as before.
+                fine = _hindi_words(job, clip, sound)
+                if fine:
+                    words = fine
+        elif clip_lang == "en" and sound:
+            # English after all: heard again by the English model, and captioned as English
+            en = _english_words(job, clip, src, off, sound)
+            if en:
+                words, lang = en, "en"
+    span = [round(clip["start"], 2), round(clip["end"], 2), ("en3" if always_en else "en2") + ("e" if lang == "en" else "")]
     if clip.get("fixed_for") == span and clip.get("fixed_words") and not any(
             roman.needs_roman(w.get("w", "")) for w in clip["fixed_words"]):
         raw = clip["fixed_words"]          # already tidied for this exact span: no second AI call
@@ -579,7 +661,7 @@ def _caption_words(job, clip, words, off, src=None):
         raw = [w for w in words if clip["start"] - 1 <= w["s"] <= clip["end"] + 1]
         try:
             usage.set_context(job.get("creator"), job.get("title") or "")
-            raw = brain.english_captions(raw, job.get("lang") or "", job.get("title") or "",
+            raw = brain.english_captions(raw, lang, job.get("title") or "",
                                          youtube_english=lambda: _english_part(job, clip), always_english=always_en)
             clip.update(fixed_words=raw, fixed_for=span)
         except Exception:  # noqa: BLE001 - captions still render with the words as heard
@@ -730,7 +812,7 @@ def _mmss(t: float) -> str:
 SCAN_SLICE = 15 * 60    # scan mode: every slice this long gets at least its liveliest moment
 
 
-def _hot_regions(db, max_clips: int, region: int = None, per_clip: int = 3, boost=None) -> list:
+def _hot_regions(db, max_clips: int, region: int = None, per_clip: int = 3, boost=None, voice=None) -> list:
     """Scan mode: the lively parts of a long video, picked from its loudness alone (seconds from its start).
 
     The liveliest moment of every 15 minutes is taken, so no part of the video is skipped, and then the liveliest
@@ -740,11 +822,10 @@ def _hot_regions(db, max_clips: int, region: int = None, per_clip: int = 3, boos
     n = len(db)
     if n < region * 2:
         return [(0, n)]
-    z = brain.loud_zscore(np.asarray(db, dtype=np.float32))
+    # How much is happening: not loudness alone (a game's explosions and music are loud too) but a sudden jump in
+    # it, a raised voice (2-4 kHz: shouting, screaming) and, when there is one, the chat suddenly reacting.
     k = 20                                              # how lively the 20 seconds around each second are
-    live = np.convolve(z, np.ones(k) / k, mode="same")
-    if boost is not None and len(boost) >= n:             # the chat: where viewers suddenly reacted
-        live = live + 0.8 * np.convolve(np.asarray(boost[:n], dtype=np.float32), np.ones(k) / k, mode="same")
+    live = np.convolve(brain.moment_scores(np.asarray(db, dtype=np.float32), (), voice, boost), np.ones(k) / k, mode="same")
     half = region // 2
     want = max(int(np.ceil(n / SCAN_SLICE)), max_clips * per_clip)
     want = min(want, max(1, int(n * 0.45) // region))      # never more than about half the video
@@ -1354,8 +1435,8 @@ def _run_job(job):
         # computer, so it listens to shorter stretches around fewer lively moments: the same clips, far sooner.
         early = chat_now(20)                               # the chat read so far points at lively parts too
         boost = early["z"] if early else None
-        hot = (_hot_regions(db, int(o["max_clips"]), WHISPER_REGION, 2, boost) if use_whisper[0]
-               else _hot_regions(db, int(o["max_clips"]), boost=boost))
+        hot = (_hot_regions(db, int(o["max_clips"]), WHISPER_REGION, 2, boost, voice) if use_whisper[0]
+               else _hot_regions(db, int(o["max_clips"]), boost=boost, voice=voice))
         blocks = [(lo + a * 16000, min(hi, lo + b * 16000)) for a, b in hot]
         rough[0] = bool(use_whisper[0] and whisper.quick_model())
     prog_base, acc = [], 0

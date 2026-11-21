@@ -32,26 +32,32 @@ class Info:
         self.language, self.language_probability = self.all_language_probs[0]
 
 
+class Seg:
+    def __init__(self, text):
+        self.text = text
+
+
 class FakeDetect:
-    def __init__(self, probs):
-        self.probs, self.calls = probs, 0
+    """Whisper's look at a stretch: how likely each language is, and the words it wrote."""
+    def __init__(self, probs, text=""):
+        self.probs, self.text, self.calls = probs, text, 0
 
     def transcribe(self, audio, **kw):
         self.calls += 1
-        return iter([]), Info(self.probs)
+        return iter([Seg(self.text)] if self.text else []), Info(self.probs)
 
 
 whisper.installed = lambda: True
 whisper.ENABLED = whisper.HL_ON = True            # tests/run.py turns Whisper off; here it's all stand-ins anyway
 real_get = whisper._get
 audio = (np.random.RandomState(0).normal(0, 3000, 16000 * 200)).astype(np.int16)
-m = FakeDetect({"en": 0.6, "hi": 0.3, "ur": 0.05, "es": 0.05})
+m = FakeDetect({"en": 0.6, "hi": 0.3, "ur": 0.05, "es": 0.05}, " भाई ये क्या हो गया bro")
 whisper._get = lambda note=None, name=None: m
-check("Hinglish (English on top, Hindi close behind): it's Hindi", whisper.detect(audio)[0], "hi")
+check("Hinglish (English on top, Hindi close behind, Hindi written): it's Hindi", whisper.detect(audio)[0], "hi")
 check("...listened to in three places, not one", m.calls, 3)
-m = FakeDetect({"en": 0.93, "hi": 0.04, "de": 0.03})
+m = FakeDetect({"en": 0.93, "hi": 0.04, "de": 0.03}, " what is going on here man")
 check("plain English stays English", whisper.detect(audio)[0], "en")
-m = FakeDetect({"ur": 0.7, "hi": 0.2, "en": 0.1})
+m = FakeDetect({"ur": 0.7, "hi": 0.2, "en": 0.1}, " یار یہ کیا ہو گیا بھائی")
 check("Urdu on top (Whisper often calls Hindi that): the video is still handled as Hindi", jobs._detect_language({}, audio), "hi")
 whisper._get = real_get
 

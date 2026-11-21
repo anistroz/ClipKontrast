@@ -21,6 +21,7 @@ a Hindi video is clipped), captions are made the old way.
 from __future__ import annotations
 
 import importlib
+import re
 import os
 import subprocess
 import sys
@@ -136,7 +137,7 @@ def _loudest(audio: np.ndarray, seconds: int = 30) -> np.ndarray:
     return audio[at:at + size]
 
 
-HINDI_SHARE = 0.25     # Hindi and Urdu together at least this likely: Hindi (Hinglish), whatever came out on top
+INDIC_SCRIPT = re.compile(r"[\u0900-\u097F\u0600-\u06FF]")     # Devanagari and Urdu letters
 
 
 def _lively(audio: np.ndarray, seconds: int = 30, n: int = 3) -> list:
@@ -148,31 +149,74 @@ def _lively(audio: np.ndarray, seconds: int = 30, n: int = 3) -> list:
     return [_loudest(audio[i * third:(i + 1) * third], seconds) for i in range(n)]
 
 
+def decide(samples) -> tuple:
+    """Which language, from Whisper's look at a few stretches: [(how likely each language is, the words it wrote)].
+
+    A stretch with no real speech in it (game sound, music) says nothing: Whisper names some language for it anyway,
+    often Urdu, and that once turned whole English streams into "Hindi". So only stretches where words were heard
+    vote, and what was written decides: Whisper writes Hindi in Devanagari (or Urdu script) and English in English
+    letters. With no speech anywhere, the likelihoods alone decide, and only a clear Hindi answer counts."""
+    def words(t):
+        return re.findall(r"\w+", t or "")
+    speech = [(p, t) for p, t in samples if len(words(t)) >= 3]
+    if not speech:
+        total: dict = {}
+        for p, _t in samples:
+            for k, v in (p or {}).items():
+                total[k] = total.get(k, 0.0) + float(v or 0) / max(1, len(samples))
+        if not total:
+            return "en", 0.0
+        hindi = total.get("hi", 0.0) + total.get("ur", 0.0)
+        top = max(total, key=total.get)
+        return ("hi", hindi) if hindi >= 0.5 else ("en" if top in ("hi", "ur") else top, total[top])
+    votes: dict = {}
+    for p, t in speech:
+        letters = [c for c in t if c.isalpha()]
+        indic = sum(1 for c in letters if INDIC_SCRIPT.match(c))
+        p = p or {}
+        top = max(p, key=p.get) if p else "en"
+        if letters and indic >= 0.3 * len(letters):
+            v = "hi"                                       # written in Hindi or Urdu letters: Hindi was spoken
+        elif top in ("hi", "ur"):
+            v = "hi" if p.get("hi", 0) + p.get("ur", 0) >= 0.6 else "en"
+        else:
+            v = top
+        votes[v] = votes.get(v, 0) + 1
+    lang = max(votes, key=lambda k: (votes[k], k == "en"))   # a tie goes to English: its captions are the safer guess
+    return lang, votes[lang] / len(speech)
+
+
+def _probe(m, audio: np.ndarray):
+    """Whisper's look at one stretch: (how likely each language is, the first words it wrote)."""
+    with _run_lock:
+        segs, info = m.transcribe(_float(audio), language=None, beam_size=1, vad_filter=True, without_timestamps=True,
+                                  condition_on_previous_text=False, max_new_tokens=40)
+        text = " ".join((getattr(s, "text", "") or "") for s in segs)
+    probs = dict(getattr(info, "all_language_probs", None) or [(info.language or "en", info.language_probability or 1.0)])
+    return probs, text
+
+
 def detect(audio: np.ndarray, note=None):
     """(language code, how sure from 0 to 1) of the speech in this audio, or None if Whisper can't be used.
-
-    Listens to three lively half minutes from across the audio, not one, and adds up how likely each language is.
-    Hinglish is the hard case: so many English words that English can come out on top, and the English speech model
-    then writes nonsense. When Hindi and Urdu together are likely enough (HINDI_SHARE), it is Hindi."""
+    Three lively half minutes from across it are listened to (see decide())."""
     if not ready(note):
         return None
     m = _get(note)
-    total: dict = {}
-    parts = _lively(audio)
-    for part in parts:
-        with _run_lock:
-            _segments, info = m.transcribe(_float(part), language=None, beam_size=1, vad_filter=True,
-                                           without_timestamps=True)
-        probs = dict(getattr(info, "all_language_probs", None) or [(info.language or "en", info.language_probability or 1.0)])
-        for k, v in probs.items():
-            total[k] = total.get(k, 0.0) + float(v or 0) / len(parts)
-    if not total:
-        return "en", 0.0
-    hindi = total.get("hi", 0.0) + total.get("ur", 0.0)
-    top = max(total, key=total.get)
-    if top not in ("hi", "ur") and hindi >= HINDI_SHARE:
-        return "hi", hindi
-    return top, total[top]
+    return decide([_probe(m, part) for part in _lively(audio)])
+
+
+def clip_language(audio: np.ndarray):
+    """The language spoken in one clip's sound ("hi", "en", ...), or None when Whisper isn't installed. Asked of each
+    clip of a Hindi video before its captions are written, so an English clip never goes to the Hindi model."""
+    if not (ENABLED and installed()):
+        return None
+    try:
+        m = _get()
+        mid = len(audio) // 2
+        part = audio[max(0, mid - 15 * SR): mid + 15 * SR]
+        return decide([_probe(m, part)])[0]
+    except Exception:  # noqa: BLE001 - can't tell: the video's language is used
+        return None
 
 
 # ---------------------------------------------------------------- Hinglish captions
@@ -260,7 +304,11 @@ def hinglish(audio: np.ndarray) -> list:
     with _lock:
         if "hinglish" not in _models:
             from faster_whisper import WhisperModel
-            _models["hinglish"] = WhisperModel(str(HL_DIR), device="cpu", compute_type="int8", cpu_threads=THREADS)
+            try:
+                _models["hinglish"] = WhisperModel(str(HL_DIR), device="cpu", compute_type="int8", cpu_threads=THREADS)
+            except Exception as e:  # noqa: BLE001 - said in the bug report; captions are made the other way
+                hl_state["error"] = f"It downloaded but won't run on this computer: {str(e)[-200:]}"
+                raise
         m = _models["hinglish"]
     words = []
     with _run_lock:

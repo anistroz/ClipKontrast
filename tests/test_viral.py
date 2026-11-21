@@ -139,6 +139,50 @@ check("the final pick couldn't be asked: the scouts' own picks are used, the bes
       len(found) >= 2 and any(c["start"] <= 600 <= c["end"] for c in found))
 brain.ask_ai = real_ask
 
+# ---- picks anchored to what really happened
+n = 1800
+db2 = np.full(n, -30.0, dtype=np.float32) + rs.normal(0, 0.4, n).astype(np.float32)
+db2[300:330] += 8                                   # the game blowing up: loud, nobody shouting
+voice2 = np.full(n, 0.05, dtype=np.float32)
+db2[1200:1206] += 4
+voice2[1200:1206] = 0.7                             # the streamer screaming: a little louder, a raised voice
+hot = jobs._hot_regions(db2, 1, 90, 1, None, voice2)
+check("the parts listened to: the streamer screaming counts, not just the game being loud", any(a <= 1203 <= b for a, b in hot))
+
+words3 = [{"w": "talking", "s": float(t), "e": t + 0.5} for t in range(0, 900, 2)]
+db3 = np.full(900, -30.0, dtype=np.float32) + rs.normal(0, 0.3, 900).astype(np.float32)
+voice3 = np.full(900, 0.05, dtype=np.float32)
+for t0 in (100, 400, 700):                          # three moments the streamer reacted to
+    db3[t0 + 10:t0 + 14] += 6
+    voice3[t0 + 10:t0 + 14] = 0.7
+judged = []
+
+
+def scout_many(prompt, schema=None, purpose="", timeout=None):
+    if purpose == "Video: final pick":
+        judged.append(prompt)
+        ids = [int(x) for x in __import__("re").findall(r"<candidate id=(\d+)", prompt)]
+        return ([{"id": i, "keep": True, "start": 0, "end": 0, "score": 80} for i in ids], "m1", 10)
+    return ([{"start": t, "end": t + 25, "score": 80, "hook": "H", "title": "t", "description": "", "hashtags": [], "reason": "r"}
+             for t in (100, 250, 400, 550, 700)], "m1", 10)
+
+
+brain.ask_ai = scout_many
+found, _info = brain.find_clips(words3, db3, 900.0, "t", "u", max_clips=3, min_len=15, max_len=40, log=lambda m: None, voice=voice3)
+check("the final pick is told how strongly each moment was reacted to", "reaction=" in judged[-1])
+check("moments nobody reacted to are left out when enough were reacted to", sorted(int((c["start"] + 1) // 100) for c in found), [1, 4, 7])
+
+words4 = [{"w": w, "s": 200 + i * 0.5, "e": 200.4 + i * 0.5} for i, w in enumerate(("so then he said that. " * 8).split())]
+db4 = np.full(400, -30.0, dtype=np.float32) + rs.normal(0, 0.3, 400).astype(np.float32)
+voice4 = np.full(400, 0.05, dtype=np.float32)
+db4[218:222] += 9
+voice4[218:222] = 0.8                               # the scream comes just after the line the clip ended on
+brain.ask_ai = lambda prompt, schema=None, purpose="", timeout=None: (
+    [{"start": 200, "end": 216, "score": 85, "hook": "H", "title": "t", "description": "", "hashtags": [], "reason": "r"}], "m1", 5)
+found, _info = brain.find_clips(words4, db4, 400.0, "t", "u", max_clips=1, min_len=10, max_len=40, log=lambda m: None, voice=voice4)
+check("the streamer's reaction right after the end goes in the clip", found and found[0]["end"] >= 219)
+brain.ask_ai = real_ask
+
 # ---- the whole pipeline: a YouTube stream with a chat replay
 import shutil, subprocess  # noqa: E402
 work = Path(tempfile.mkdtemp(prefix="pc-viral-work-"))
