@@ -1862,6 +1862,7 @@ function remember(v, tab, how = "push") {
   const url = pathFor(v, tab);
   if (location.pathname !== url) history[how === "replace" ? "replaceState" : "pushState"]({v, tab}, "", url);
 }
+setInterval(() => { if (!document.hidden && (S.view === "overview" || S.view === "campaigns")) loadCampaigns(); }, 5 * 60 * 1000);
 addEventListener("popstate", () => { const [v, tab] = fromPath(location.pathname); go(v, tab, true); });
 function go(v, tab, fromHistory) {
   if (v.startsWith("c:") && !S.creators.some(c => "c:" + c.id === v)) v = "overview";
@@ -2994,8 +2995,9 @@ const campSite = () => S.camps?.earn_url || "https://clipkontrast.com";
 const joinUrl = c => `${campSite()}/earn#c=${encodeURIComponent(c.slug)}`;
 const campLive = () => (S.camps?.live || []).filter(c => c.state !== "soon");
 async function loadCampaigns(force) {
-  if (!S.camps || force) {
-    try { S.camps = await api("/api/campaigns" + (force ? "?fresh=1" : "")); }
+  // read again every few minutes, so streams and moments the admin adds show up without restarting the app
+  if (!S.camps || force || Date.now() - (S.campsAt || 0) > 4 * 60 * 1000) {
+    try { S.camps = await api("/api/campaigns" + (force ? "?fresh=1" : "")); S.campsAt = Date.now(); }
     catch { S.camps = S.camps || {live: [], ended: [], totals: {}, reached: false}; }
   }
   drawShell(); drawHomeCampaigns(); drawCampaignsPage();
