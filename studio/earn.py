@@ -525,6 +525,56 @@ def open_moments() -> list:
     return out[:10]
 
 
+def _kind(url: str) -> str:
+    host = (urlparse(url).hostname or "").lower()
+    for k, names in (("youtube", ("youtube.com", "youtu.be")), ("kick", ("kick.com",)), ("twitch", ("twitch.tv",)),
+                     ("instagram", ("instagram.com",)), ("drive", ("drive.google.com",))):
+        if any(host == n or host.endswith("." + n) for n in names):
+            return k
+    return "other"
+
+
+def app_feed() -> dict:
+    """What the ClipKontrast app shows of the Earn campaigns, on its home screen and its Paid campaigns page:
+    each campaign taking clips with everything it can be clipped from (every stream and video the admin listed, with
+    its best moments), and the campaigns that ended, for what they paid out. The same for everyone; nothing about
+    any clipper. The raw clips folder stays for those who joined, on the website."""
+    live, ended = [], []
+    for c in campaigns():
+        st = c["state"]
+        if st in ("open", "starts", "soon"):
+            full = campaign(c["slug"])
+            streams = []
+            if st != "soon":                         # a campaign not revealed yet shows no more than its name
+                with db.engine.connect() as cn:
+                    r = cn.execute(sa.select(db.earn_campaigns.c.sources, db.earn_campaigns.c.moments)
+                                   .where(db.earn_campaigns.c.id == c["id"])).first()
+                for row in stream_rows(r.sources, r.moments) if r else []:
+                    if not row["url"]:
+                        continue
+                    streams.append({"name": row["name"], "url": row["url"], "kind": _kind(row["url"]), "latest": row["latest"],
+                                    "moments": [{"t": m["t"], "end": m["end"], "label": m["label"]} for m in row["moments"][:300]]})
+            live.append({k: full[k] for k in ("slug", "title", "creator_name", "creator_url", "tagline", "notice", "platforms",
+                                               "required_tag", "category", "rate_per_1k", "min_views", "max_per_clip", "budget",
+                                               "remaining", "used_pct", "state", "starts_at", "ends_at", "cover", "accent",
+                                               "clippers", "clips", "views", "hold_days")}
+                        | {"brief": full["brief"][:1500] if st != "soon" else "", "rules": full["rules"][:8] if st != "soon" else [],
+                           "streams": streams[:30]})
+        elif st == "ended":
+            sc = c.get("showcase") or {}
+            ended.append({"slug": c["slug"], "title": c["title"], "creator_name": c["creator_name"], "cover": c["cover"],
+                          "accent": c["accent"], "category": c["category"], "ends_at": c["ends_at"], "budget": c["budget"],
+                          "views": sc.get("views", 0), "clips": sc.get("clips", 0), "clippers": sc.get("clippers", 0),
+                          "top_views": sc.get("top_views", 0)})
+    live.sort(key=lambda c: {"open": 0, "starts": 1, "soon": 2}[c["state"]])
+    ended.sort(key=lambda c: (-(c["budget"] or 0), -(c["ends_at"] or 0)))     # the biggest first: what clippers earned here     # the one taking clips first; the admin's order within
+    ov = overview()
+    return {"live": live[:6], "ended": ended[:24],
+            "totals": {"paid_out": ov["paid_out"], "clippers": ov["clippers"], "live_budget": ov["live_budget"],
+                       "ended_budget": round(sum(x["budget"] or 0 for x in ended), 2), "ended_count": len(ended),
+                       "views": ov["views"]}}
+
+
 def drive_embed(url: str) -> str:
     """A Google Drive folder shown inside the page (it must be shared with "Anyone with the link")."""
     m = re.search(r"drive\.google\.com/drive/(?:u/\d+/)?folders/([\w-]{10,})", url or "")

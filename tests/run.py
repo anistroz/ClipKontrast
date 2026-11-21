@@ -81,6 +81,7 @@ def main() -> int:
                 ("recording only when asked: Stop sticks, closing the app stops, auto-record by hand", ["tests/test_recording_control.py"]),
                 ("a creator's last stream, ready to clip when they aren't live", ["tests/test_last_stream.py"]),
                 ("fixes for what clippers reported: chat, held files, bot checks, Gemini, tags, zip updates", ["tests/test_field_reports.py"]),
+                ("paid campaigns in the app: the website feed, pictures, Home and Paid campaigns, the admin editor", ["tests/test_campaigns_app.py", str(ROOT)]),
                 ("facecam-on-top layout and caption styles, rendered", ["tests/test_layouts_styles.py"]),
                 ("new caption styles, Hindi script, your @handle, auto zoom", ["tests/test_looks.py"]),
                 ("never 'nothing found': the liveliest parts are clipped; Hindi listens to less", ["tests/test_safety_net.py"]),

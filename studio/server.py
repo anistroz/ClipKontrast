@@ -2018,9 +2018,12 @@ def _open_browser_when_ready():
 def _earn(fn, *a, **k):
     """Runs an Earn action; problems the person can fix come back as a plain message."""
     try:
-        return fn(*a, **k)
+        out = fn(*a, **k)
     except earn.EarnError as e:
         raise HTTPException(400, str(e))
+    if fn in (earn.save_campaign, earn.delete_campaign, earn.set_order, earn.save_cover):
+        _APP_FEED.clear()                    # what the app shows follows the admin's change at once
+    return out
 
 
 def _uid_or_none(request: Request) -> str:
@@ -2070,6 +2073,20 @@ def earn_open_moments():
     return out
 
 
+_APP_FEED: dict = {}
+
+
+@app.get("/api/earn/public/app")
+def earn_app_feed():
+    """The campaigns as the ClipKontrast app shows them (home screen, Paid campaigns page). Kept a minute."""
+    hit = _APP_FEED.get("v")
+    if hit and time.time() - hit[0] < 60:
+        return hit[1]
+    out = {**earn.app_feed(), "earn_url": config.EARN_URL}
+    _APP_FEED["v"] = (time.time(), out)
+    return out
+
+
 @app.post("/api/admin/earn/moments-preview")
 def earn_moments_preview(request: Request, body: dict = Body(...)):
     """How the admin's pasted timestamps are read, while typing: which stream each group opens."""
@@ -2111,6 +2128,259 @@ def campaign_moments(request: Request):
     out = {"campaigns": camps, "earn_url": config.EARN_URL}
     _APP_MOMENTS["v"] = (time.time(), out)
     return out
+
+
+# ---------------------------------------------------------------- the campaigns in the app: home screen, Paid campaigns
+_APP_CAMPS: dict = {}
+_COVER_PATH = re.compile(r"/earn/cover/[\w\-]{3,30}\.jpg(?:\?v=\d{1,12})?")
+_SLUG = re.compile(r"[^\w-]")
+
+
+def _s(v, n):
+    return str(v if v is not None else "")[:n]
+
+
+def _f(v):
+    try:
+        x = float(v or 0)
+        return x if x == x and abs(x) < 1e12 else 0.0
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _when(v):
+    x = _f(v)
+    return x if x > 0 else None
+
+
+def _cover(v) -> str:
+    """A campaign's picture, through this app (the page may only show pictures from here): only the website's own."""
+    v = str(v or "")
+    return "/api/campaign-cover?p=" + quote(v, safe="") if _COVER_PATH.fullmatch(v) else ""
+
+
+def _moment(m) -> dict:
+    t = int(_f(m.get("t")))
+    end = int(_f(m.get("end"))) if m.get("end") else None
+    return {"t": t, "end": end if end and end > t else None, "label": _s(m.get("label"), 140)}
+
+
+def _app_stream(x) -> dict:
+    url = str(x.get("url") or "")
+    if not media.site_allowed(url) and not re.match(r"https://", url):
+        raise ValueError
+    kind = x.get("kind") if x.get("kind") in ("youtube", "kick", "twitch", "instagram", "drive", "other") else "other"
+    return {"name": _s(x.get("name") or x.get("title"), 120) or "Stream", "url": url[:300], "kind": kind,
+            "latest": bool(x.get("latest")), "clip": media.site_allowed(url),
+            "moments": [_moment(m) for m in (x.get("moments") or [])[:300] if isinstance(m, dict)]}
+
+
+def _app_live(c) -> dict:
+    st = c.get("state") if c.get("state") in ("open", "starts", "soon") else "open"
+    streams = []
+    for x in (c.get("streams") or [])[:30]:
+        try:
+            streams.append(_app_stream(x))
+        except (ValueError, TypeError, AttributeError):
+            continue
+    plats = [p for p in (c.get("platforms") or []) if p in ("youtube", "instagram", "x", "tiktok")]
+    return {"slug": _SLUG.sub("", _s(c["slug"], 80)), "title": _s(c["title"], 120), "creator_name": _s(c.get("creator_name"), 120),
+            "tagline": _s(c.get("tagline"), 200), "brief": _s(c.get("brief"), 1500), "notice": _s(c.get("notice"), 1000),
+            "rules": [_s(r, 300) for r in (c.get("rules") or [])[:8]], "platforms": plats,
+            "required_tag": _s(c.get("required_tag"), 80), "category": _s(c.get("category"), 40),
+            "rate_per_1k": _f(c.get("rate_per_1k")), "min_views": int(_f(c.get("min_views"))), "max_per_clip": _f(c.get("max_per_clip")),
+            "budget": _f(c.get("budget")), "remaining": _f(c.get("remaining")), "used_pct": min(100.0, _f(c.get("used_pct"))),
+            "state": st, "starts_at": _when(c.get("starts_at")), "ends_at": _when(c.get("ends_at")), "cover": _cover(c.get("cover")),
+            "accent": c["accent"] if re.fullmatch(r"#[0-9a-fA-F]{6}", str(c.get("accent") or "")) else "#C6F432",
+            "clippers": int(_f(c.get("clippers"))), "clips": int(_f(c.get("clips"))), "views": int(_f(c.get("views"))),
+            "hold_days": int(_f(c.get("hold_days"))), "streams": streams}
+
+
+def _app_ended(c) -> dict:
+    return {"slug": _SLUG.sub("", _s(c["slug"], 80)), "title": _s(c["title"], 120), "creator_name": _s(c.get("creator_name"), 120),
+            "category": _s(c.get("category"), 40), "cover": _cover(c.get("cover")),
+            "accent": c["accent"] if re.fullmatch(r"#[0-9a-fA-F]{6}", str(c.get("accent") or "")) else "#C6F432",
+            "ends_at": _when(c.get("ends_at")), "budget": _f(c.get("budget")), "views": int(_f(c.get("views"))),
+            "clips": int(_f(c.get("clips"))), "clippers": int(_f(c.get("clippers"))), "top_views": int(_f(c.get("top_views")))}
+
+
+def _feed_from_old_site(get) -> dict:
+    """A website not updated yet has no /api/earn/public/app: the same is put together from its Earn page and its
+    best moments (the streams without best moments can't be known that way)."""
+    ov = get("/api/earn/public/overview") or {}
+    moments = {c.get("slug"): c for c in ((get("/api/earn/public/moments") or {}).get("campaigns") or []) if isinstance(c, dict)}
+    live, ended = [], []
+    for c in ov.get("campaigns") or []:
+        if not isinstance(c, dict):
+            continue
+        if c.get("state") in ("open", "starts", "soon"):
+            m = moments.get(c.get("slug")) or {}
+            live.append({**c, "streams": [{"name": g.get("title"), "url": g.get("url"), "kind": "youtube" if media.is_youtube(str(g.get("url"))) else "other",
+                                           "moments": g.get("moments")} for g in (m.get("moments") or []) if isinstance(g, dict)]})
+        elif c.get("state") == "ended":
+            sc = c.get("showcase") or {}
+            ended.append({**c, "views": sc.get("views"), "clips": sc.get("clips"), "clippers": sc.get("clippers"), "top_views": sc.get("top_views")})
+    o = ov.get("overview") or {}
+    return {"live": live, "ended": ended, "totals": {"paid_out": o.get("paid_out"), "clippers": o.get("clippers"),
+                                                    "ended_budget": sum(_f(x.get("budget")) for x in ended), "ended_count": len(ended)}}
+
+
+@app.get("/api/campaigns")
+def app_campaigns(request: Request, fresh: int = 0):
+    """The paid campaigns, read from the ClipKontrast website (kept five minutes): what's taking clips now, with every
+    stream it can be clipped from, and what ended. Everything from the site is checked and cleaned here; nothing is
+    shown when the website can't be reached, and nothing else changes."""
+    _me(request)
+    hit = _APP_CAMPS.get("v")
+    if hit and time.time() - hit[0] < (60 if fresh else 300):
+        return hit[1]
+    import httpx
+
+    def get(path):
+        try:
+            r = httpx.get(config.EARN_URL + path, timeout=8, headers={"User-Agent": "ClipKontrast"})
+            d = r.json() if r.status_code == 200 else None
+            return d if isinstance(d, dict) else None
+        except Exception:  # noqa: BLE001 - offline, or not JSON
+            return None
+
+    data = get("/api/earn/public/app")
+    if data is None or not isinstance(data.get("live"), list):
+        data = _feed_from_old_site(get)
+    live, ended = [], []
+    for c in (data.get("live") or [])[:6]:
+        try:
+            live.append(_app_live(c))
+        except (KeyError, TypeError, AttributeError):
+            continue                       # one odd entry is skipped, never the page
+    for c in (data.get("ended") or [])[:24]:
+        try:
+            ended.append(_app_ended(c))
+        except (KeyError, TypeError, AttributeError):
+            continue
+    t = data.get("totals") if isinstance(data.get("totals"), dict) else {}
+    out = {"live": live, "ended": ended, "earn_url": config.EARN_URL,
+           "totals": {"paid_out": _f(t.get("paid_out")), "clippers": int(_f(t.get("clippers"))),
+                      "ended_budget": _f(t.get("ended_budget")) or sum(x["budget"] for x in ended), "ended_count": len(ended)},
+           "reached": bool(live or ended or t)}
+    _APP_CAMPS["v"] = (time.time(), out)
+    return out
+
+
+_IMG_CACHE: dict = {}
+
+
+def _img_cached(key: str, fetch):
+    """A picture fetched once and kept: in memory (the last 200) and in the working folder (a day)."""
+    hit = _IMG_CACHE.get(key)
+    if hit:
+        return hit
+    d = config.TMP_DIR / "pictures"
+    f = d / (hashlib.sha1(key.encode()).hexdigest() + ".img")
+    data = b""
+    try:
+        if f.is_file() and time.time() - f.stat().st_mtime < 86400:
+            data = f.read_bytes()
+    except OSError:
+        data = b""
+    if not data:
+        data = fetch() or b""
+        if not data:
+            return None
+        try:
+            d.mkdir(parents=True, exist_ok=True)
+            f.write_bytes(data)
+        except OSError:
+            pass
+    kind = _img_kind(data)
+    if not kind:
+        return None
+    if len(_IMG_CACHE) > 200:
+        _IMG_CACHE.pop(next(iter(_IMG_CACHE)))
+    _IMG_CACHE[key] = (data, kind)
+    return _IMG_CACHE[key]
+
+
+def _img_kind(data: bytes) -> str:
+    if data[:3] == b"\xff\xd8\xff":
+        return "image/jpeg"
+    if data[:8] == b"\x89PNG\r\n\x1a\n":
+        return "image/png"
+    if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return "image/webp"
+    return ""
+
+
+def _get_img(url: str) -> bytes:
+    import httpx
+    try:
+        r = httpx.get(url, timeout=8, headers={"User-Agent": "Mozilla/5.0 ClipKontrast"}, follow_redirects=False)
+        return r.content if r.status_code == 200 and len(r.content) <= 3_000_000 and _img_kind(r.content) else b""
+    except Exception:  # noqa: BLE001
+        return b""
+
+
+def _picture(hit):
+    if not hit:
+        raise HTTPException(404)
+    return Response(hit[0], media_type=hit[1], headers={"Cache-Control": "private, max-age=86400"})
+
+
+@app.get("/api/campaign-cover")
+def campaign_cover(request: Request, p: str = ""):
+    """A campaign's picture from the ClipKontrast website: only its own campaign pictures, never another address."""
+    _me(request)
+    if not _COVER_PATH.fullmatch(p or ""):
+        raise HTTPException(404)
+    return _picture(_img_cached("cover:" + p, lambda: _get_img(config.EARN_URL + p)))
+
+
+def _yt_id(url: str) -> str:
+    u = urlparse(url)
+    host = (u.hostname or "").lower()
+    if host == "youtu.be" or host.endswith(".youtu.be"):
+        m = re.match(r"^/([\w-]{11})", u.path)
+    else:
+        m = re.match(r"^/(?:live|shorts|embed)/([\w-]{11})", u.path) or re.search(r"(?:^|&)v=([\w-]{11})", u.query)
+    return m.group(1) if m else ""
+
+
+def link_thumb_bytes(url: str) -> bytes:
+    """The picture of a video link: a YouTube video's from its id (no asking YouTube about the video), any other
+    site's (Kick, Twitch) the one its page names."""
+    if media.is_youtube(url):
+        vid = _yt_id(url)
+        if not vid:
+            return b""
+        return _get_img(f"https://i.ytimg.com/vi/{vid}/hqdefault.jpg") or _get_img(f"https://i.ytimg.com/vi/{vid}/mqdefault.jpg")
+    try:
+        t = media.preview(url).get("thumb") or ""
+    except Exception:  # noqa: BLE001 - no picture: the page shows the site's own badge instead
+        return b""
+    import base64
+    try:
+        return base64.b64decode(t.split(",", 1)[1]) if t.startswith("data:image/") else b""
+    except (ValueError, IndexError):
+        return b""
+
+
+@app.get("/api/link-thumb")
+def link_thumb(request: Request, url: str = ""):
+    """The picture of a stream or video link (the campaigns' streams, the admin's stream boxes). Only links to the
+    video sites ClipKontrast clips from. On the website, only the admin may ask (it isn't a picture fetcher for all)."""
+    me_ = _me(request)
+    if config.ACCOUNTS and not me_.is_admin:
+        raise HTTPException(404)
+    url = (url or "").strip()[:500]
+    if not media.site_allowed(url):
+        raise HTTPException(404)
+    key = "thumb:" + url
+    if key not in _IMG_CACHE:
+        try:
+            auth.throttle(f"thumb:{me_.id}", 60, 60)
+        except auth.AuthError:
+            raise HTTPException(429, "Too many pictures at once.")
+    return _picture(_img_cached(key, lambda: link_thumb_bytes(url)))
 
 
 @app.get("/api/earn/public/campaigns/{key}")

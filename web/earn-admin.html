@@ -129,10 +129,14 @@ ol.steps{padding-left:18px;color:var(--dim);display:grid;gap:6px;margin:10px 0 0
 .mprev .ok{color:var(--deep)}.mprev .warn{color:#9A5B00}
 .mprev a{color:inherit}
 .srow{border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:10px;display:flex;flex-direction:column;gap:8px}
-.srow-h{display:grid;grid-template-columns:minmax(120px,1fr) 2.2fr auto;gap:8px;align-items:center}
+.srow-h{display:grid;grid-template-columns:96px minmax(120px,1fr) 2.2fr auto;gap:8px;align-items:center}
+.s-thumb{width:96px;aspect-ratio:16/9;border-radius:8px;background:#17110E center/cover no-repeat;position:relative;overflow:hidden;display:grid;place-items:center;color:rgba(255,255,255,.45);font-size:10.5px;font-weight:600;text-align:center;line-height:1.2}
+.s-thumb img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.s-thumb img.broken{display:none}
+.inapp{display:flex;gap:10px;align-items:flex-start;background:#F5FDE0;border:1px solid #E3F7A8;color:#2B3A00;border-radius:12px;padding:10px 12px;font-size:13px;margin:0 0 12px}
 .srow textarea{min-height:70px;font-size:13.5px}
 .s-info{font-size:12.5px;color:var(--dim)}
-@media (max-width:700px){.srow-h{grid-template-columns:1fr}}
+@media (max-width:700px){.srow-h{grid-template-columns:1fr}.s-thumb{width:160px}}
 .srow textarea.inp{height:auto;padding:8px 12px;line-height:1.5;resize:vertical}
 .s-url.need{border-color:#E8A100;background:#FFF8E6}
 </style>
@@ -262,6 +266,7 @@ function openForm(c) {
       <div class="sect">Resource library</div>
       <div class="field"><label>Raw clips folder (Google Drive)</label><input name="raw_clips" value="${esc(c.raw_clips || "")}" placeholder="https://drive.google.com/drive/folders/…"><div class="hint">Moments already cut, for clippers to edit their own way. Share the folder as <b>Anyone with the link can view</b>, so its files show right on the campaign. Only clippers who joined see it.</div></div>
       <div class="sect">Streams and videos to clip</div>
+      <div class="inapp"><b>📱</b><span>While the campaign is <b>Live</b> (or Opening soon), it's shown in the ClipKontrast app too: on everyone's Home screen and under <b>Paid campaigns</b>, with its pool, rate and end date, every stream below with its picture and a <b>Clip it</b> button, and its best moments. Ended campaigns show there under <b>Our previous campaigns</b>, with their budget and results. Changes show in the app within a few minutes.</span></div>
       <p class="hint" style="margin:-6px 0 10px">One box per stream or video, oldest first (the last one is marked <b>Latest</b>). Paste a stream's best moments in its own box, straight from the mod's message. Each time then opens that stream at that second, and clippers can clip it in the app with one click. Clippers who joined see every stream; everyone sees the ones with best moments.</p>
       <div id="streams">${streamRows(c).map(streamRow).join("")}</div>
       <button type="button" class="btn" data-act="addstream" style="margin-top:8px">+ Add a stream or video</button>
@@ -440,12 +445,20 @@ function streamRows(c) {
 function streamRow(r) {
   const n = (r.timestamps || "").split("\n").filter(l => TS_LINE.test(l)).length;
   return `<div class="srow">
-    <div class="srow-h"><input class="inp s-name" value="${esc(r.name || "")}" placeholder="Name, e.g. Day 2" maxlength="60">
+    <div class="srow-h"><div class="s-thumb" title="The picture clippers see in the app">${thumbImg(r.url)}</div><input class="inp s-name" value="${esc(r.name || "")}" placeholder="Name, e.g. Day 2" maxlength="60">
       <input class="inp s-url${r.url ? "" : " need"}" value="${esc(r.url || "")}" placeholder="Link: https://youtube.com/live/…" maxlength="300">
       <button type="button" class="btn xs" data-act="delstream" title="Remove this stream">Remove</button></div>
     <textarea class="inp s-ts" rows="4" placeholder="Best moments of this stream, one per line (optional):&#10;2:37:12 heavy driving race to the club&#10;2:44:30-2:45:53">${esc(r.timestamps || "")}</textarea>
     <div class="s-info">${n ? `✓ ${n} moments` : "No best moments yet"}</div></div>`;
 }
+// The picture of a stream's link, as the ClipKontrast app shows it (read by this server: YouTube, Twitch, Kick).
+function thumbImg(url) {
+  url = (url || "").trim();
+  if (!/^https?:\/\/([\w-]+\.)*(youtube\.com|youtu\.be|twitch\.tv|kick\.com)\//i.test(url)) return url ? "No picture" : "Add a link";
+  return `<img src="/api/link-thumb?url=${encodeURIComponent(url)}" alt="" loading="lazy">No picture`;
+}
+let thumbTimer = 0;
+document.addEventListener("error", e => { if (e.target?.closest?.(".s-thumb")) e.target.classList.add("broken"); }, true);
 function readStreams() {
   return $$("#streams .srow").map(row => ({name: row.querySelector(".s-name").value.trim().replace(/[|\n]/g, " "),
     url: row.querySelector(".s-url").value.trim(), timestamps: row.querySelector(".s-ts").value}))
@@ -472,6 +485,10 @@ function serializeStreams(f) {
 }
 document.addEventListener("input", e => {
   const row = e.target.closest?.(".srow"); if (!row) return;
+  if (e.target.classList.contains("s-url")) {
+    clearTimeout(thumbTimer);
+    thumbTimer = setTimeout(() => { const t = row.querySelector(".s-thumb"); if (t) t.innerHTML = thumbImg(e.target.value); }, 600);
+  }
   const n = row.querySelector(".s-ts").value.split("\n").filter(l => TS_LINE.test(l)).length;
   row.querySelector(".s-info").textContent = n ? `✓ ${n} moments` : "No best moments yet";
 });
