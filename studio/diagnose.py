@@ -77,7 +77,8 @@ def _problems() -> list:
         title = (j.get("title") or (j.get("source") or {}).get("url") or "")[:90]
         when = time.strftime("%d %b %H:%M", time.localtime(j.get("created", 0)))
         if j.get("error"):
-            out.append(f"[{when}] video \"{title}\": {j['error'][:400]}")
+            where = f" (at {j['error_where']})" if j.get("error_where") else ""
+            out.append(f"[{when}] video \"{title}\": {j['error'][:400]}{where}")
         for c in j.get("clips") or []:
             if c.get("status") == "error" and c.get("error"):
                 out.append(f"[{when}] clip {c.get('id')} of \"{title}\" ({c.get('layout', '')}, {c.get('style', '')}): {c['error'][:300]}")

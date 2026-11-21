@@ -94,6 +94,8 @@ def check(force: bool = False):
             return _state["result"]
         _state["checked"] = now
         here, on_disk = RUNNING, current()
+        if not here and config.APP_VERSION:
+            return _check_zip()                  # a copy from the zip: no git, but it knows its version
         try:
             top = newest() if here else ""
         except Exception:  # noqa: BLE001 - offline: what was known stays, and it is asked again in a minute
@@ -120,6 +122,32 @@ def check(force: bool = False):
         return _state["result"]
 
 
+def _version(v: str) -> tuple:
+    import re as _re
+    parts = _re.findall(r"\d+", str(v or ""))
+    return tuple(int(p) for p in parts[:6]) if parts else (0,)
+
+
+def _check_zip():
+    """A copy unzipped from the download (Mac, Linux): the version in latest.json, published with each release, is
+    compared with this one's. A newer one is offered as a download (unzipped over this folder, its data folder stays)."""
+    import json as _json
+    try:
+        r = httpx.get(config.UPDATE_MANIFEST, headers=UA, timeout=20, follow_redirects=True)
+        m = _json.loads(r.content.decode("utf-8-sig")) if r.status_code == 200 else None
+    except Exception:  # noqa: BLE001 - offline: what was known stays
+        _state["reached"] = False
+        return _state["result"]
+    _state["reached"] = isinstance(m, dict) and isinstance(m.get("version"), str)
+    if not _state["reached"] or _version(m["version"]) <= _version(config.APP_VERSION):
+        _state["result"] = None
+        return None
+    notes = [{"title": str(n)[:140], "date": ""} for n in (m.get("notes") or [])[:20] if str(n).strip()]
+    _state["result"] = {"current": config.APP_VERSION, "latest": m["version"][:40], "behind": None, "notes": notes,
+                        "url": config.DOWNLOAD_URL, "restart": False, "zip": True}
+    return _state["result"]
+
+
 def latest():
     """For the pages: what the last look found. Never waits on GitHub."""
     if config.INSTALLED:                     # the Windows app updates itself (studio/selfupdate.py)
@@ -135,8 +163,8 @@ def check_now() -> dict:
         from . import selfupdate
         mod, here = selfupdate, config.APP_VERSION
     else:
-        mod, here = None, (RUNNING[:7] if RUNNING else "")
-    if not (mod.ON if mod else ON and RUNNING):          # never looks, or can't tell (not a git folder)
+        mod, here = None, (RUNNING[:7] if RUNNING else config.APP_VERSION)
+    if not (mod.ON if mod else ON and (RUNNING or config.APP_VERSION)):   # never looks, or can't tell
         return {"update": None, "current": here, "reached": False, "off": True}
     with _now_lock:
         due = time.time() - _now["at"] >= CHECK_GAP

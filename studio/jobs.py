@@ -258,8 +258,19 @@ def save(job):
         else:
             return
         tmp = d / "job.json.tmp"
-        tmp.write_text(text, encoding="utf-8")
-        tmp.replace(d / "job.json")
+        try:
+            tmp.write_text(text, encoding="utf-8")
+        except OSError:
+            return                                   # kept in memory; written with the next change
+        for wait in (0.05, 0.2, 0.5, 1.0, 0):
+            try:
+                tmp.replace(d / "job.json")
+                return
+            except PermissionError:
+                # An antivirus or Windows Search reading job.json a moment (WinError 5 / 32): a video must never
+                # fail for it. Tried again; if it's still held, written next time something changes.
+                if wait:
+                    time.sleep(wait)
 
 
 def _set(job, **kw):
@@ -552,7 +563,7 @@ def _clip_sound(job, clip, src, off):
                    "-ac", "1", "-ar", "16000", "-c:a", "pcm_s16le", str(wav)])
         return media.load_audio(wav), a + off
     finally:
-        wav.unlink(missing_ok=True)
+        media.remove(wav)
 
 
 def _clip_lang(job, clip, src, off, sound=None):
@@ -801,7 +812,7 @@ def _fetch_piece(job, clip, full_audio):
         wav = d / "clips" / f"{clip['id']}.wav"
         media.extract_audio(piece, wav)
         part = media.load_audio(wav)
-        wav.unlink(missing_ok=True)
+        media.remove(wav)
         meta = media.probe(piece)
         off = media.find_offset(full_audio, part, want)
         clip.update(src=str(piece), src_offset=round(off, 2), src_end=round(off + meta["duration"], 2))
@@ -1336,9 +1347,9 @@ def _run_job(job):
     wav = d / "audio.wav"
     media.extract_audio(audio_file, wav)
     audio = media.load_audio(wav)
-    wav.unlink(missing_ok=True)
+    media.remove(wav)
     if src["type"] == "url" and not section:
-        audio_file.unlink(missing_ok=True)
+        media.remove(audio_file)
     if not job["duration"]:
         job["duration"] = len(audio) / 16000
     sec0 = section[0] if section else 0.0          # with only a part downloaded, times are counted from its start
@@ -1354,8 +1365,13 @@ def _run_job(job):
         "offset"} for brain.find_clips, or None when there's no chat (or too little to tell)."""
         if not chat_rep[0]:
             return None
-        msgs = chat_rep[0].messages(wait)
-        cz = brain.chat_signal(msgs, len(db), abs0)
+        try:
+            msgs = chat_rep[0].messages(wait)
+            cz = brain.chat_signal(msgs, len(db), abs0)
+        except Exception as e:  # noqa: BLE001 - the chat is a bonus: a video is never lost to it
+            notes.append(f"The stream's chat replay couldn't be read ({str(e)[:80]}), so moments were picked without it.")
+            chat_rep[0] = None
+            return None
         if cz is None:
             return None
         m = len(db) - s0 if m is None else m
@@ -1705,6 +1721,9 @@ def _worker(quick_only=False):
                 render_one(job, clip, words)
         except Exception as e:  # noqa: BLE001
             (Path(job["dir"]) / "error.log").write_text(traceback.format_exc(), encoding="utf-8")
+            # where it happened, for a bug report: the last steps as file:line function, no folders or names
+            frames = traceback.extract_tb(e.__traceback__)[-5:]
+            job["error_where"] = " < ".join(f"{Path(f.filename).name}:{f.lineno} {f.name}" for f in reversed(frames))[:400]
             if kind == "job":
                 for c in job["clips"]:
                     if c.get("status") in ("queued", "rendering"):

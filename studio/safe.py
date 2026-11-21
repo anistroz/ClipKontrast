@@ -12,6 +12,14 @@ def friendly(e, limit=600) -> str:
     if isinstance(e, MemoryError) or re.search(r"allocate memory|bad_alloc|out of memory|MemoryError|Unable to allocate", text, re.I):
         return ("Your computer ran out of memory while working on this video. Close other programs (browser tabs, "
                 "games), then try again. ClipKontrast needs about 4 GB of free memory; a long stream needs more.")
+    if re.search(r"WinError 4551|Application Control policy", text, re.I):
+        return ("Windows blocked one of ClipKontrast's files (Smart App Control, which stops apps that aren't signed "
+                "yet). Open Windows Security, App & browser control, Smart App Control settings, and turn it off; or add "
+                "ClipKontrast's folder to the exclusions of your antivirus. Then restart ClipKontrast and try again.")
+    if re.search(r"WinError (5|32)\b|Access is denied|being used by another process", text, re.I):
+        return ("Another program was holding one of ClipKontrast's files (usually an antivirus scanning it). Try again; "
+                "if it keeps happening, add ClipKontrast's folders to your antivirus's exclusions: the app's own "
+                "folder and the folder your videos and clips are kept in (Settings, Storage).")
     # Only YouTube's own answer counts, not a note one of the other ways of asking left behind it ("(tried 5 ways) (...)").
     main = text.split(" (tried ", 1)[0]
     if re.search(r"This live event will begin|Premieres in|is_upcoming", main, re.I):

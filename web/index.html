@@ -1558,6 +1558,17 @@ function updateHow() {
     d.onclose = () => { if (d.returnValue === "later") { try { localStorage.setItem("clipkontrast_update_seen", up.latest); } catch {} drawShell(); } };
     d.returnValue = "ok"; d.showModal(); return;
   }
+  if (up.zip) {                            // a copy from the zip (Mac, Linux): the new zip, unzipped over this folder
+    d.innerHTML = `<form method="dialog" class="dlg upd"><h2>A new version of ClipKontrast is out</h2>
+      <p class="help">You're on <b>${esc(up.current)}</b>, the newest is <b>${esc(up.latest)}</b>.</p>
+      ${up.notes.length ? `<ul>${up.notes.map(n => `<li>${esc(n.title)}</li>`).join("")}</ul>` : ""}
+      <ol class="help" style="padding-left:18px;display:grid;gap:4px"><li>Download the new zip.</li>
+        <li>Close ClipKontrast, then unzip it into the same ClipKontrast folder, replacing the files. Your <b>data</b> folder (clips, settings, keys) isn't in the zip, so it stays as it is.</li>
+        <li>Start ClipKontrast again.</li></ol>
+      <div class="dlg-foot"><button class="btn" value="later">Remind me next version</button><a class="btn primary" href="${esc(up.url)}" target="_blank" rel="noopener">${ic("up")}Download the new version</a></div></form>`;
+    d.onclose = () => { if (d.returnValue === "later") { try { localStorage.setItem("clipkontrast_update_seen", up.latest); } catch {} drawShell(); } };
+    d.returnValue = "ok"; d.showModal(); return;
+  }
   const ai = "Update this ClipKontrast folder to the latest version from GitHub (git pull), keep my .env and data folder as they are, install any new requirements, and restart ClipKontrast. Read AGENTS.md first: if this folder's path is long or inside a temporary or assistant workspace, ask me before moving it to a short folder like C:\\clipkontrast, and never delete anything without asking.";
   const cmd = (label, text) => `<h3>${label}</h3><div class="cmd"><code>${esc(text)}</code><button class="btn sm" type="button" data-act="copytext" data-t="${esc(text)}">${ic("copy")}Copy</button></div>`;
   d.innerHTML = `<form method="dialog" class="dlg upd"><h2>${up.restart ? "The new version is ready" : "A new version of ClipKontrast is out"}</h2>
@@ -1622,7 +1633,7 @@ async function checkUpdates(btn) {
       S.status.update = r.update;
       try { localStorage.removeItem("clipkontrast_update_seen"); } catch {}
       drawShell(); updateHow();
-    } else if (r.off) toast("This copy of ClipKontrast doesn't check for updates by itself.", "");
+    } else if (r.off) toast("This copy can't check for updates by itself. Get the newest at clipkontrast.com/download and unzip it over this folder (your data folder stays); from then on it checks by itself.", "");
     else if (!r.reached) toast("Couldn't check right now. Check your internet and try again.", "bad");
     else toast(`You have the newest version${r.current ? ` (${r.current})` : ""}. 🎉`, "ok");
   } catch (e) { toast(e.message || "Couldn't check right now.", "bad"); }
@@ -1694,7 +1705,7 @@ function drawShell() {  const nav = (v, icon, label, extra = "") => `<button cla
   let upSeen = "";
   try { upSeen = localStorage.getItem("clipkontrast_update_seen") || ""; } catch {}
   const upBar = up && up.latest !== upSeen ? `<div class="vb" role="status">${ic("up")}<span>${up.restart ? "<b>The new version is downloaded.</b> Close ClipKontrast and start it again to use it." : `A new version of ClipKontrast is out${up.behind ? `: <b>${up.behind} update${up.behind === 1 ? "" : "s"}</b> since yours` : ""}.`}</span>
-    <button class="btn sm primary" data-act="updhow">${up.installed ? "Update now" : up.restart ? "What's new" : "How to update"}</button><button class="btn sm ghost" data-act="updlater" aria-label="Hide until the next version">Later</button></div>` : "";
+    <button class="btn sm primary" data-act="updhow">${up.installed ? "Update now" : up.zip ? "Download it" : up.restart ? "What's new" : "How to update"}</button><button class="btn sm ghost" data-act="updlater" aria-label="Hide until the next version">Later</button></div>` : "";
   const toolBar = S.status.no_ffmpeg ? `<div class="vb" role="alert">${ic("warn")}<span><b>ClipKontrast can't make clips yet: ffmpeg isn't installed on this computer.</b> Open a terminal, run <code>winget install Gyan.FFmpeg</code> (Mac: <code>brew install ffmpeg</code>, Linux: <code>sudo apt install ffmpeg</code>), then close ClipKontrast and start it again.</span></div>` : "";
   const A = S.status.ai || {};
   const aiBar = !toolBar && (A.problem || A.resting) && me?.is_admin && S.view !== "settings" ? (A.local
@@ -3305,7 +3316,7 @@ document.addEventListener("click", async e => {
         let ok = null, why = "";
         try { ok = await send("/api/ai/test"); } catch (err) { why = err.message; }
         S.status = await api("/api/status"); drawShell(); await drawSettings();
-        if (ok) toast(`Saved. ${ok.model} answered, so the AI is ready.`, "ok");
+        if (ok) toast(ok.switched_from ? `Saved. "${ok.switched_from}" isn't offered by this service, so ${ok.model} is used instead: it answered, the AI is ready.` : `Saved. ${ok.model} answered, so the AI is ready.`, "ok");
         else toast(`Saved, but the test failed. ${why}`, "bad");
       } finally { b.disabled = false; }
       return;

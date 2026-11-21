@@ -170,13 +170,64 @@ def list_models(provider_id=None, address=None, with_key=None) -> list:
     return sorted({m for m in found if m})[:400]
 
 
+TEST_PROMPT = 'Answer with a JSON array that holds the single string "ok".'
+TEST_SCHEMA = {"type": "ARRAY", "items": {"type": "STRING"}}
+
+
+def _best_model(found: list, old: str) -> str:
+    """The model to use instead of one the service doesn't know: the closest name it does offer, else its newest
+    fast general model ("flash", "mini", "haiku"...), never an image, speech, embedding or live-audio one."""
+    import difflib
+    ok = [m for m in found if not re.search(r"embed|image|tts|audio|live|vision|aqa|imagen|veo|learnlm|robotics", m, re.I)]
+    if not ok:
+        return ""
+    near = difflib.get_close_matches(old, ok, n=1, cutoff=0.75)
+    if near:
+        return near[0]
+    fast = [m for m in ok if re.search(r"flash|mini|haiku|small|instant|lite", m, re.I) and "preview" not in m] or ok
+
+    def version(m):
+        nums = re.findall(r"\d+(?:\.\d+)?", m)
+        return (float(nums[0]) if nums else 0.0, "lite" not in m, -len(m))
+    return max(fast, key=version)
+
+
 def test() -> dict:
-    """One tiny request with the settings in use, to prove the key, the address and the model all work."""
+    """One tiny request with the settings in use, to prove the key, the address and the model all work. A model the
+    service doesn't know (often a name typed by hand, or one it has retired) is swapped for the closest one it offers,
+    saved, and said."""
     ms = models()
     if not ready():
         raise ValueError("Save a service, a model and a key first.")
-    out, sent, wrote = call(ms[0], 'Answer with a JSON array that holds the single string "ok".', {"type": "ARRAY", "items": {"type": "STRING"}})
+    try:
+        out, sent, wrote = call(ms[0], TEST_PROMPT, TEST_SCHEMA)
+    except Exception as e:  # noqa: BLE001
+        low = str(e).lower()
+        if not ("404" in str(e) or "not found" in low or "unknown model" in low or "does not exist" in low):
+            raise
+        try:
+            pick = _best_model(list_models(), ms[0])
+        except Exception:  # noqa: BLE001 - the list couldn't be had: the original error says what to do
+            raise e from None
+        if not pick or pick == ms[0]:
+            raise
+        out, sent, wrote = call(pick, TEST_PROMPT, TEST_SCHEMA)
+        c = current()
+        save(c["provider"], [pick] + [m for m in ms[1:] if m != pick], c.get("base_url") or "", None)
+        _cleared()
+        return {"ok": True, "model": pick, "switched_from": ms[0], "tokens": sent + wrote, "answer": str(out)[:80]}
+    _cleared()
     return {"ok": True, "model": ms[0], "tokens": sent + wrote, "answer": str(out)[:80]}
+
+
+def _cleared():
+    """The AI answered: whatever made it fail before is over (the dashboard stops saying it isn't working)."""
+    clear_problem()
+    try:
+        from . import brain
+        brain._down.update(until=0.0, why=None)
+    except Exception:  # noqa: BLE001
+        pass
 
 
 class AIError(RuntimeError):
@@ -354,13 +405,21 @@ def _gemini(model, prompt, schema, timeout=None):
     body = {"contents": [{"role": "user", "parts": [{"text": prompt}]}],
             "generationConfig": {"temperature": 0.4, "responseMimeType": "application/json", "responseSchema": schema}}
     r = httpx.post(f"{base_url()}/{model}:generateContent", json=body, headers={"x-goog-api-key": key()}, timeout=timeout or 120)
+    plain = False
+    if r.status_code == 400 and re.search(r"JSON mode is not enabled|response_?mime_?type|response_?schema", r.text, re.I):
+        # A model that won't answer in JSON mode (some Gemma and experimental ones): asked again plainly, with the
+        # answer's shape said in words, and the JSON found in what it writes.
+        body = {"contents": [{"role": "user", "parts": [{"text": _wrapped(prompt, schema)}]}],
+                "generationConfig": {"temperature": 0.4}}
+        r = httpx.post(f"{base_url()}/{model}:generateContent", json=body, headers={"x-goog-api-key": key()}, timeout=timeout or 120)
+        plain = True
     if r.status_code != 200:
         _fail(r, model)
     data = r.json()
     text = "".join(p.get("text", "") for p in data["candidates"][0]["content"]["parts"])
     u = data.get("usageMetadata", {})
     sent = int(u.get("promptTokenCount") or 0)
-    return json.loads(text), sent, max(0, int(u.get("totalTokenCount") or 0) - sent)   # the answer, and any thinking billed with it
+    return (_parse(text) if plain else json.loads(text)), sent, max(0, int(u.get("totalTokenCount") or 0) - sent)
 
 
 def _openai_body(r):

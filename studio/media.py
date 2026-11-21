@@ -1,5 +1,6 @@
 """Getting video in: link download, probing, audio extraction, loudness."""
 import contextlib
+import contextvars
 import json
 import re
 import shutil
@@ -46,13 +47,23 @@ def check_youtube(url: str):
         raise YouTubeBlocked(YT_BLOCKED)
 
 
+_defer = contextvars.ContextVar("yt_defer", default=False)   # set while the other ways of asking are still to try
+
+
 def note_refusal(url: str, err) -> bool:
-    """If this error is YouTube refusing the server, pause YouTube links for a while. True if it was."""
+    """If this error is YouTube refusing the server, pause YouTube links for a while. True if it was.
+    While other ways of asking YouTube are still to be tried (_defer), it says so without pausing anything."""
     global _yt_refused_until
     if is_youtube(url) and _BOT_CHECK.search(str(err)):
-        _yt_refused_until = time.time() + YT_PAUSE
+        if not _defer.get():
+            _yt_refused_until = time.time() + YT_PAUSE
         return True
     return False
+
+
+def _pause_youtube():
+    global _yt_refused_until
+    _yt_refused_until = time.time() + YT_PAUSE
 
 
 @contextlib.contextmanager
@@ -77,6 +88,21 @@ def site_allowed(url: str) -> bool:
         return False
     host = (u.hostname or "").lower()
     return u.scheme in ("http", "https") and any(host == s or host.endswith("." + s) for s in config.ALLOWED_SITES)
+
+
+def remove(path) -> bool:
+    """Delete a working file, tried again a few times if an antivirus or Windows Search is holding it (WinError 32 /
+    5 on Windows). True if it's gone. A leftover working file never stops a video: it's cleared with the job."""
+    for wait in (0.1, 0.4, 1.0, 0):
+        try:
+            Path(path).unlink(missing_ok=True)
+            return True
+        except PermissionError:
+            if wait:
+                time.sleep(wait)
+        except OSError:
+            return False
+    return False
 
 
 def run(cmd, cwd=None, timeout=3600):
@@ -133,7 +159,13 @@ def _ydl(opts):
     import yt_dlp
     # a channel or playlist link is answered as "a list" straight away, never walked video by video
     base = {"noplaylist": True, "quiet": True, "no_warnings": True, "logger": _Quiet(),
-            "extract_flat": "in_playlist", "playlistend": 1, "socket_timeout": 20, "concurrent_fragment_downloads": 4}
+            "extract_flat": "in_playlist", "playlistend": 1, "socket_timeout": 30, "concurrent_fragment_downloads": 4,
+            # slow home internet: more tries before giving up on a download or one of its pieces
+            "retries": 15, "fragment_retries": 15, "extractor_retries": 3,
+            # an antivirus or Windows Search holding a file a moment (WinError 32 / 5): tried again, not failed
+            "file_access_retries": 10,
+            # ffmpeg fetching a part of a video: a connection that stops sending is dropped after 30 s and tried again
+            "external_downloader_args": {"ffmpeg_i": ["-rw_timeout", "30000000"]}}
     if _js_runtimes():
         base["js_runtimes"] = _js_runtimes()
     return yt_dlp.YoutubeDL({**base, **opts})
@@ -152,9 +184,22 @@ def _biggest(job_dir: Path, stem: str) -> Path:
 
 
 def info(url: str) -> dict:
-    """Title, channel and length, without downloading anything."""
-    with _youtube_guard(url), _ydl({}) as ydl:
-        i = ydl.extract_info(url, download=False)
+    """Title, channel and length, without downloading anything. If YouTube asks one of its apps to prove it isn't
+    a bot, the next is asked; YouTube is only taken as refusing when all of them were refused."""
+    clients = YT_CLIENTS if is_youtube(url) else [None]
+    token = _defer.set(True)
+    try:
+        for n, client in enumerate(clients):
+            try:
+                with _youtube_guard(url), _ydl(_with_client({}, client)) as ydl:
+                    i = ydl.extract_info(url, download=False)
+                break
+            except YouTubeBlocked:
+                if n == len(clients) - 1:
+                    _pause_youtube()
+                    raise
+    finally:
+        _defer.reset(token)
     return {"title": i.get("title") or "", "uploader": i.get("uploader") or i.get("channel") or "",
             "duration": float(i.get("duration") or 0), "is_live": bool(i.get("is_live")),
             "thumbnail": i.get("thumbnail") or "", "kind": i.get("_type") or "video",
@@ -424,31 +469,57 @@ class ChatReplay:
 
 
 def _chat_line(line: str):
-    """One line of yt-dlp's live_chat.json: (seconds, who, text), or None for anything that isn't a viewer's message."""
+    """One line of yt-dlp's live_chat.json: (seconds, who, text), or None for anything that isn't a viewer's message
+    (or isn't shaped the way it should be: YouTube sends many kinds of item, and one odd line is skipped, never fatal)."""
+    try:
+        return _chat_line_inner(line)
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _d(v) -> dict:
+    return v if isinstance(v, dict) else {}
+
+
+def _chat_line_inner(line: str):
     try:
         d = json.loads(line)
     except ValueError:
         return None
-    act = d.get("replayChatItemAction") or {}
+    if not isinstance(d, dict):
+        return None
+    act = _d(d.get("replayChatItemAction"))
     try:
         t = float(act.get("videoOffsetTimeMsec") or d.get("videoOffsetTimeMsec") or -1) / 1000.0
     except (TypeError, ValueError):
         return None
     if t < 0:
         return None
-    for a in act.get("actions") or []:
-        item = ((a.get("addChatItemAction") or {}).get("item")) or {}
-        r = item.get("liveChatTextMessageRenderer") or item.get("liveChatPaidMessageRenderer")
+    actions = act.get("actions")
+    for a in actions if isinstance(actions, list) else []:
+        item = _d(_d(_d(a).get("addChatItemAction")).get("item"))
+        r = _d(item.get("liveChatTextMessageRenderer") or item.get("liveChatPaidMessageRenderer"))
         if not r:
             continue
         parts = []
-        for run in ((r.get("message") or {}).get("runs") or []):
+        msg = r.get("message")
+        runs = _d(msg).get("runs") if isinstance(msg, dict) else None
+        if isinstance(msg, str):
+            parts.append(msg)
+        elif not isinstance(runs, list) and _d(msg).get("simpleText"):
+            parts.append(str(_d(msg)["simpleText"]))
+        for run in runs if isinstance(runs, list) else []:
+            run = _d(run)
             if "text" in run:
                 parts.append(str(run["text"]))
             elif "emoji" in run:
-                e = run["emoji"]
-                parts.append(str(e.get("emojiId") if len(str(e.get("emojiId") or "")) <= 2 else (e.get("shortcuts") or [""])[0]))
-        who = str(((r.get("authorName") or {}).get("simpleText")) or "")[:40]
+                e = _d(run["emoji"])
+                shortcuts = e.get("shortcuts") if isinstance(e.get("shortcuts"), list) else [""]
+                val = e.get("emojiId") if len(str(e.get("emojiId") or "")) <= 2 else (shortcuts or [""])[0]
+                if val:
+                    parts.append(str(val))
+        name = r.get("authorName")
+        who = str(_d(name).get("simpleText") if isinstance(name, dict) else name or "")[:40]
         text = " ".join(parts).strip()[:200]
         if "liveChatPaidMessageRenderer" in item:
             text = ("$ " + text).strip()                 # a Super Chat: someone paid to say it
@@ -500,10 +571,19 @@ def _each_client(url: str, out_dir: Path, stem: str, fetch):
     clients = YT_CLIENTS if is_youtube(url) else [None]
     if url in _client_ok:                                    # the one that worked for this video, first
         clients = [_client_ok[url]] + [c for c in clients if c != _client_ok[url]]
-    last, why, tried = None, [], 0
+    why, tried, refused = [], 0, 0
+    token = _defer.set(True)          # one app refused (a bot check) isn't YouTube refusing: the others are asked
+    try:
+        return _each_try(url, out_dir, stem, fetch, clients, why, tried, refused)
+    finally:
+        _defer.reset(token)
+
+
+def _each_try(url, out_dir, stem, fetch, clients, why, tried, refused):
+    last = None
     for client in clients:
         for p in out_dir.glob(stem + ".*"):
-            p.unlink(missing_ok=True)                        # nothing half-written from the try before
+            remove(p)                                        # nothing half-written from the try before
         log = _Quiet()
         tried += 1
         try:
@@ -516,10 +596,16 @@ def _each_client(url: str, out_dir: Path, stem: str, fetch):
                 if len(_client_ok) > 200:
                     _client_ok.pop(next(iter(_client_ok)))
             return got
-        except YouTubeBlocked:
-            raise
+        except YouTubeBlocked as e:
+            if youtube_paused():
+                raise                                        # refused before: not asked again for a while
+            refused += 1
+            last, why = e, log.problems
         except Exception as e:  # noqa: BLE001 - asked again as another of YouTube's apps
             last, why = e, log.problems
+    if refused and refused == tried:
+        _pause_youtube()                                     # every one of YouTube's apps was refused
+        raise YouTubeBlocked(YT_BLOCKED)
     extra = [w for w in why if w not in str(last)][-2:]
     more = f" (tried {tried} ways)" if tried > 1 else ""
     raise RuntimeError(_plain(last) + more + (" (" + " | ".join(extra) + ")" if extra else ""))

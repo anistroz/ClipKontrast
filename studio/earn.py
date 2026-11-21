@@ -805,11 +805,25 @@ def _check(camp, link: dict, prof: dict, info: dict = None) -> dict:
             ch["owner"] = False
         ch["owner_detail"] = f"Posted by {handle or info['channel']}, profile says {want or 'nothing'}"
         if camp.required_tag:
-            ch["tag"] = camp.required_tag.lower().lstrip("#@") in info["text"].lower()
+            ch["tag"] = tag_in(camp.required_tag, info["text"])
     if posted and camp.starts_at:
         ch["after_start"] = posted >= camp.starts_at - 3600
     ch["posted_at"] = posted
     return ch
+
+
+def _tagkey(s: str) -> str:
+    """A tag as it is meant, however it is written: "#GTA6Launch", "GTA 6 Launch", "gta6 launch x MizoPlays" and
+    "GTA 6 Launch × Mizo Plays" all read the same (case, #, @, spaces, punctuation and × aside)."""
+    import unicodedata
+    s = unicodedata.normalize("NFKC", str(s or "")).lower().replace("×", "x")
+    return re.sub(r"[\W_]+", "", s)
+
+
+def tag_in(tag: str, text: str) -> bool:
+    """Does the post carry the campaign's tag (in its title, description or YouTube tags), however it was written?"""
+    want = _tagkey(tag)
+    return bool(want) and want in _tagkey(text)
 
 
 def submit(uid: str, cid: str, url: str, note: str = "") -> dict:

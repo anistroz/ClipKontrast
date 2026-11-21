@@ -840,8 +840,11 @@ def start_session(creator: dict, url=None) -> dict:
                                   "Twitch and Kick streams still work. YouTube"))
     if len(active_mine()) >= config.MAX_LIVE_PER_USER:
         raise ValueError(f"You're already recording {len(active_mine())} streams, the most this server allows at once. Stop one first.")
-    if len(active()) >= config.MAX_LIVE_TOTAL or (active() and load.busy()):
+    if len(active()) >= config.MAX_LIVE_TOTAL:
         raise ValueError("ClipKontrast is recording as many streams as it can right now. Try again in a little while.")
+    if active() and load.busy():
+        raise ValueError("This computer is busy with the recording that's already on (and the clips it's making), so a "
+                         "second one now would make both of them fail. Stop one, or try again once the clips are done.")
     from . import tools
     if tools.missing():
         raise ValueError(tools.HELP)

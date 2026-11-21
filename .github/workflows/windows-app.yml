@@ -65,7 +65,9 @@ jobs:
       - name: The Mac and Linux download
         shell: pwsh
         run: |
-          git archive --format=zip --prefix=ClipKontrast/ -o dist/ClipKontrast-Mac-Linux.zip HEAD
+          # the zip carries its version, so a copy from it can tell when a newer one is out
+          Set-Content -Path VERSION -Value $env:CK_VERSION -NoNewline
+          git archive --format=zip --prefix=ClipKontrast/ --add-file=VERSION -o dist/ClipKontrast-Mac-Linux.zip HEAD
           Get-Item dist/ClipKontrast-Mac-Linux.zip | Format-Table Name, Length
 
       - name: Install it on this machine and test it
