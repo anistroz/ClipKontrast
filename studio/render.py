@@ -602,7 +602,7 @@ def _render_in(work: Path, src: Path, out_dir: Path, name: str, start, end, layo
     (work / "f").mkdir(exist_ok=True)
     for f in config.FONTS_DIR.glob("*.ttf"):
         shutil.copyfile(f, work / "f" / f.name)
-    fc = _filter(layout, fg_h, face, z, game, top_h) + f"[v0]ass={name}.ass:fontsdir=f[v]"
+    fc = _filter(layout, fg_h, face, z, game, top_h) + f"[v0]ass=filename={name}.ass:fontsdir=f[v]"   # option names said: newer ffmpeg (Mac) refuses the short form
     extra = []
     if tag:             # the creator tag (t.png, written by render_clip) laid over everything
         fc = fc[:-3] + f"[va];[va][1:v]overlay={int(tag[0])}:{int(tag[1])}[v]"

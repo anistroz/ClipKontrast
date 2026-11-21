@@ -23,7 +23,7 @@ from . import config
 
 # name -> (label shown on the pages, address, how it is spoken to, where to get a key, an example model id)
 PROVIDERS = {
-    "gemini": ("Gemini", "https://generativelanguage.googleapis.com/v1beta/models", "gemini", "https://aistudio.google.com/apikey", "gemini-2.5-flash"),
+    "gemini": ("Gemini", "https://generativelanguage.googleapis.com/v1beta/models", "gemini", "https://aistudio.google.com/apikey", "gemini-flash-latest"),
     "openai": ("OpenAI", "https://api.openai.com/v1", "openai", "https://platform.openai.com/api-keys", "gpt-4o-mini"),
     "xai": ("Grok", "https://api.x.ai/v1", "openai", "https://console.x.ai", "grok-4"),
     "groq": ("Groq", "https://api.groq.com/openai/v1", "openai", "https://console.groq.com/keys", "llama-3.3-70b-versatile"),
@@ -174,22 +174,56 @@ TEST_PROMPT = 'Answer with a JSON array that holds the single string "ok".'
 TEST_SCHEMA = {"type": "ARRAY", "items": {"type": "STRING"}}
 
 
-def _best_model(found: list, old: str) -> str:
-    """The model to use instead of one the service doesn't know: the closest name it does offer, else its newest
-    fast general model ("flash", "mini", "haiku"...), never an image, speech, embedding or live-audio one."""
+def _candidates(found: list, old: str, skip=()) -> list:
+    """The models to try instead of one the service won't run, best first: Gemini's "latest flash" name (it always
+    points at Google's current fast model), the closest name to the old one, then the newest fast general models
+    ("flash", "mini", "haiku"...). Never the one that failed (a retired model can still be in the list), and never
+    an image, speech, embedding or live-audio one."""
     import difflib
-    ok = [m for m in found if not re.search(r"embed|image|tts|audio|live|vision|aqa|imagen|veo|learnlm|robotics", m, re.I)]
+    ok = [m for m in found if m != old and m not in skip
+          and not re.search(r"embed|image|tts|audio|live|vision|aqa|imagen|veo|learnlm|robotics|gemma|nano|computer", m, re.I)]
     if not ok:
-        return ""
-    near = difflib.get_close_matches(old, ok, n=1, cutoff=0.75)
-    if near:
-        return near[0]
-    fast = [m for m in ok if re.search(r"flash|mini|haiku|small|instant|lite", m, re.I) and "preview" not in m] or ok
+        return []
 
     def version(m):
         nums = re.findall(r"\d+(?:\.\d+)?", m)
-        return (float(nums[0]) if nums else 0.0, "lite" not in m, -len(m))
-    return max(fast, key=version)
+        return (float(nums[0]) if nums else 0.0, "lite" not in m, "preview" not in m and "exp" not in m, -len(m))
+    out = [m for m in ("gemini-flash-latest", "gemini-flash-lite-latest") if m in ok]
+    out += difflib.get_close_matches(old, ok, n=2, cutoff=0.75)
+    fast = [m for m in ok if re.search(r"flash|mini|haiku|small|instant|lite", m, re.I)]
+    out += sorted(fast, key=version, reverse=True) + sorted(ok, key=version, reverse=True)
+    return list(dict.fromkeys(out))
+
+
+def _best_model(found: list, old: str) -> str:
+    c = _candidates(found, old)
+    return c[0] if c else ""
+
+
+def unknown_model(e) -> bool:
+    """The service doesn't know this model, or won't run it any more (retired, not for new users)."""
+    t, low = str(e), str(e).lower()
+    return ("404" in t or "not found" in low or "unknown model" in low or "does not exist" in low or "not_found" in low
+            or "no longer available" in low or "has been deprecated" in low or "is not supported for generatecontent" in low)
+
+
+def swap_model(failed: str, tries: int = 4) -> str:
+    """The service won't run the model in use: the models it offers are tried, best first, and the first that answers
+    is saved in its place. Returns it; raises if the list can't be had or none answers."""
+    found = list_models()
+    last = None
+    for m in _candidates(found, failed)[:tries]:
+        try:
+            call(m, TEST_PROMPT, TEST_SCHEMA, timeout=40)
+        except Exception as e:  # noqa: BLE001 - the next one
+            last = e
+            if not unknown_model(e):
+                raise                            # the key or the limit, not the model: trying others won't help
+            continue
+        c, ms = current(), models()
+        save(c["provider"], [m] + [x for x in ms if x not in (m, failed)], c.get("base_url") or "", None)
+        return m
+    raise last or AIError(f"HTTP 404 none of the models {label()} offers answered")
 
 
 def test() -> dict:
@@ -202,20 +236,14 @@ def test() -> dict:
     try:
         out, sent, wrote = call(ms[0], TEST_PROMPT, TEST_SCHEMA)
     except Exception as e:  # noqa: BLE001
-        low = str(e).lower()
-        if not ("404" in str(e) or "not found" in low or "unknown model" in low or "does not exist" in low):
+        if not unknown_model(e):
             raise
         try:
-            pick = _best_model(list_models(), ms[0])
-        except Exception:  # noqa: BLE001 - the list couldn't be had: the original error says what to do
-            raise e from None
-        if not pick or pick == ms[0]:
-            raise
-        out, sent, wrote = call(pick, TEST_PROMPT, TEST_SCHEMA)
-        c = current()
-        save(c["provider"], [pick] + [m for m in ms[1:] if m != pick], c.get("base_url") or "", None)
+            pick = swap_model(ms[0])
+        except Exception as e2:  # noqa: BLE001 - nothing better found: the key/limit error, else the original one
+            raise (e2 if not unknown_model(e2) else e) from None
         _cleared()
-        return {"ok": True, "model": pick, "switched_from": ms[0], "tokens": sent + wrote, "answer": str(out)[:80]}
+        return {"ok": True, "model": pick, "switched_from": ms[0], "tokens": 0, "answer": "ok"}
     _cleared()
     return {"ok": True, "model": ms[0], "tokens": sent + wrote, "answer": str(out)[:80]}
 
@@ -241,7 +269,7 @@ def explain(e) -> str:
     """What went wrong with an AI call, in words the owner can act on."""
     text, low = str(e), str(e).lower()
     name = (models() or ["?"])[0]
-    if "404" in text or "not found" in low or "does not exist" in low or "unknown model" in low or "not_found" in low:
+    if unknown_model(e):
         return f"{label()} doesn't know the model \"{name}\". Open Settings, AI, press Find models and pick one from the list."
     if "401" in text or "403" in text or "api key" in low or "api_key" in low or "unauthorized" in low or "permission" in low:
         return f"{label()} refused the key. Paste a working key under Settings, AI."

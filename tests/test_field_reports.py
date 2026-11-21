@@ -106,6 +106,76 @@ check("a failed video's report says where it failed (file:line, no folders)",
       (bool(j2.get("error_where")), "test_field_reports.py" in j2.get("error_where", ""), "/" not in j2.get("error_where", "")), (True, True, True))
 check("...and the bug report carries it", "(at " in diagnose.details())
 
+# ---- Stop: a video being made stops at its next step; one waiting its turn never starts (report #96)
+import threading as _th  # noqa: E402
+real_audio = media.download_audio
+
+
+def slow_audio(url, d, on_progress=None):
+    for i in range(400):                   # a long download, saying how far it got
+        time.sleep(0.05)
+        on_progress and on_progress(i / 400)
+    return real_audio(url, d, on_progress)
+
+
+media.download_audio = slow_audio
+with ctx.as_user(user.id):
+    j3 = jobs.create({"type": "url", "url": URL, "name": URL}, {"max_clips": 1, "layout": "blur", "zoom": False}, enqueue=False)
+
+
+class Queue1(OneJob):
+    def get(self, *a, **k):
+        self.n += 1
+        if self.n > 1:
+            raise SystemExit
+        return ("job", self._jid, None)
+
+
+q = Queue1(); q._jid = j3["id"]
+j3["status"] = "queued"
+
+
+def run_worker():
+    try:
+        with patch.object(jobs, "_q", q):
+            jobs._worker()
+    except SystemExit:
+        pass
+
+
+t = _th.Thread(target=run_worker); t.start()
+for _ in range(100):
+    if j3.get("status") == "running":
+        break
+    time.sleep(0.05)
+time.sleep(0.3)
+with ctx.as_user(user.id):
+    jobs.stop(j3["id"])
+t.join(20)
+check("Stop while downloading: the video stops at its next step, said as stopped, not as an error to report",
+      (t.is_alive(), j3["status"], j3["stage"], "error_where" in j3), (False, "error", "Stopped by you", False))
+media.download_audio = real_audio
+with ctx.as_user(user.id):
+    j4 = jobs.create({"type": "url", "url": URL, "name": URL}, {"max_clips": 1}, enqueue=False)
+j4["status"] = "queued"
+with ctx.as_user(user.id):
+    jobs.stop(j4["id"])
+q2 = Queue1(); q2._jid = j4["id"]
+with patch.object(jobs, "_q", q2), patch.object(jobs, "_run_job", side_effect=AssertionError("must not start")):
+    try:
+        jobs._worker()
+    except SystemExit:
+        pass
+check("Stop while waiting its turn: stopped at once, and never started", (j4["status"], j4["stage"]), ("error", "Stopped by you"))
+try:
+    with ctx.as_user(user.id):
+        jobs.stop(j4["id"])
+    check("a video that isn't being made can't be stopped", False)
+except ValueError:
+    check("a video that isn't being made can't be stopped", True)
+page = (config.ROOT / "web" / "index.html").read_text(encoding="utf-8")
+check("the page has a Stop button on a video being made", 'data-act="stopjob"' in page and "/stop`, {method: \"POST\"}" in page)
+
 # ---- a file held by an antivirus
 calls = {"n": 0}
 real_replace = Path.replace
@@ -196,6 +266,47 @@ check("a model the service doesn't offer: swapped at Save and test for the close
 check("...and the dashboard stops saying the AI isn't working", ai.problem["text"], "")
 
 
+# Google stops giving a model to new keys but still lists it (report #102/#103): the next ones are tried
+ai.save("gemini", ["gemini-2.5-flash"], "", "test-key-123")
+tried = []
+RETIRED = 'HTTP 404 {"error": {"code": 404, "message": "This model models/gemini-2.5-flash is no longer available to new users."}}'
+
+
+def retired_call(model, prompt, schema, timeout=None):
+    tried.append(model)
+    if model in ("gemini-2.5-flash", "gemini-flash-latest"):
+        raise ai.AIError(RETIRED.replace("gemini-2.5-flash", model))
+    return ["ok"], 5, 1
+
+
+listed = ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-flash-latest", "gemini-3-flash-preview", "gemini-2.0-flash", "gemma-3-27b-it",
+          "gemini-embedding-001", "gemini-2.5-flash-image"]
+with patch.object(ai, "call", retired_call), patch.object(ai, "list_models", return_value=listed):
+    r = ai.test()
+check("a model still listed but not given to new keys: never picked again; the next that answers is saved",
+      (r["switched_from"], r["model"], ai.models()[0], "gemini-2.5-flash" not in tried[1:]), ("gemini-2.5-flash", tried[-1], tried[-1], True))
+check("...the latest-flash name is tried first, then the newest fast ones (never images, embeddings, Gemma)",
+      (tried[1], all(not any(w in m for w in ("embedding", "image", "gemma")) for m in tried)), ("gemini-flash-latest", True))
+check("a new Gemini setup starts on Google's current fast model", ai.PROVIDERS["gemini"][4], "gemini-flash-latest")
+
+# ...and while clipping, the same happens by itself, so videos keep their AI
+ai.save("gemini", ["gemini-2.5-flash"], "", "test-key-123")
+brain._swapped["at"] = 0.0
+brain._down.update(until=0.0, why=None)
+tried.clear()
+with patch.object(ai, "call", retired_call), patch.object(ai, "list_models", return_value=listed), \
+        patch.object(brain.config, "ai_ready", return_value=True):
+    out, used, _t = brain.ask_ai("pick clips", purpose="test")
+check("while clipping: a retired model is swapped, the answer comes from the new one, and it's kept",
+      (out, used, ai.models()[0]), (["ok"], tried[-1], tried[-1]))
+with patch.object(ai, "call", lambda *a, **k: (_ for _ in ()).throw(ai.AIError("HTTP 401 API key not valid"))), \
+        patch.object(ai, "list_models", return_value=listed):
+    try:
+        ai.test(); check("a wrong key is said as a wrong key, not hidden by trying other models", False)
+    except Exception as e:
+        check("a wrong key is said as a wrong key, not hidden by trying other models", "refused the key" in ai.explain(e))
+
+
 class R:
     def __init__(self, code, data=None, text=""):
         self.status_code, self._d, self.text = code, data, text
@@ -243,11 +354,21 @@ check("...everywhere a video or a piece of it is fetched", 'int(o["quality"])' n
 
 # ---- a connection that kept dropping says so in plain words (not YouTube's notes about tokens)
 check("download timeouts and dropped connections: a plain message, what to do",
-      all(safe.friendly(RuntimeError(t)) == safe.NET_DROP for t in (
+      all(safe.friendly(RuntimeError(t)).startswith(safe.NET_DROP) and "Details: " in safe.friendly(RuntimeError(t)) for t in (
           "[download] Got error: The read operation timed out (tried 5 ways) ([youtube] x: mweb client https formats require a GVS PO Token)",
           "[download] Got error: Remote end closed connection without response (tried 5 ways) (SABR)")))
 check("...but a bot check with a timeout note behind it is still the bot check",
-      safe.friendly(RuntimeError("Sign in to confirm you are not a bot (tried 2 ways) (timed out)")) != safe.NET_DROP)
+      not safe.friendly(RuntimeError("Sign in to confirm you are not a bot (tried 2 ways) (timed out)")).startswith(safe.NET_DROP))
+check("a link that won't open says why, in plain words (the site's reason, not 'check it's public')",
+      [safe.link_reason(RuntimeError(t))[:36] for t in (
+          "ERROR: [youtube] abc: Private video. Sign in if you've been granted access to this video",
+          "ERROR: [youtube] abc: Join this channel to get access to members-only content like this video",
+          "ERROR: [youtube] abc: Sign in to confirm your age. This video may be inappropriate for some users.",
+          "ERROR: [youtube] abc: Video unavailable. This video has been removed by the uploader",
+          "ERROR: Unsupported URL: https://www.youtube.com/feed/history",
+          "ERROR: [kick] 1234: Something odd happened C:\\Users\\bob\\file.txt")],
+      ["This video is private, so it can't b", "This video is for the channel's memb", "YouTube only shows this video to sig", "YouTube says this video is unavailab", "That isn't a link to a single video.", "Couldn't open that video: Something "])
+check("...and never shows a folder of this computer", "bob" not in safe.link_reason(RuntimeError("ERROR: [kick] 1234: Something odd happened C:\\Users\\bob\\file.txt")))
 
 print(f"  {len(fails)} failed" if fails else "  ALL PASSED")
 sys.exit(1 if fails else 0)

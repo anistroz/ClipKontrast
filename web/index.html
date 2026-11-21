@@ -1702,7 +1702,8 @@ function updateHow() {
 }
 /* "What's new": what the latest versions brought, for the people clipping (nothing about the website or the build).
    Change NEWS.id when the list changes: the line at the top shows again for everyone, until they close it. */
-const NEWS = {id: "2026-11-23", items: [
+const NEWS = {id: "2026-11-24", items: [
+  {e: "⏹️", t: "Stop a video", d: "Changed your mind? Press Stop on a video being made. The clips already made stay; re-make any of the rest later.", new: true},
   {e: "💰", t: "Paid campaigns, right here", d: "Clip & get paid: the campaign that's live now is on Home and under Paid campaigns, with its clipper pool, every stream to clip (tap one) and the moments the team marked. Join on clipkontrast.com, clip here, post, get paid for your views.", new: true, act: "go", v: "campaigns", btn: "See it"},
   {e: "📺", t: "Last stream, ready to clip", d: "When a creator isn't live, their page shows their last stream: clip all of it, or tap Exact moment for just the part you want.", new: true},
   {e: "⏹️", t: "Recording only when you want it", d: "Stop now means stop: it won't start again by itself during that stream, and closing the app stops recording. Live clipping records that one stream; to record every stream, turn on Auto-record in the creator's Setup.", new: true},
@@ -2823,13 +2824,13 @@ function jobHtml(j) {
                 j.took ? "made in " + fmt(j.took) : "", j.kind === "live" ? "recording, " + j.stage.toLowerCase() : ""].filter(Boolean).map(esc).join(" · ");
   const pic = j.thumb ? `<img src="/media/${esc(j.id)}/thumb.jpg" alt="" loading="lazy">` : ic(j.source?.type === "file" ? "film" : "link");
   return `<div class="job-head"><div class="jt"><span class="jthumb">${pic}${j.duration ? `<span class="du">${fmt(j.duration)}</span>` : ""}</span><div style="min-width:0"><h3>${esc(j.title || j.source.name)}</h3><p class="sub">${meta}</p></div></div>
-      <div class="row" style="flex-wrap:nowrap;gap:4px">${busy ? "" : `
+      <div class="row" style="flex-wrap:nowrap;gap:4px">${busy ? (j.stop ? `<span class="sub">Stopping…</span>` : `<button class="btn sm" data-act="stopjob" data-j="${j.id}" title="Stop making this video. Clips already made stay.">${ic("stop")}Stop</button>`) : `
         ${j.clips.some(c => c.status === "done") ? `<button class="btn sm icon ghost" data-act="dlall" data-j="${j.id}" title="Download all clips of this video" aria-label="Download all clips of this video">${ic("down")}</button>` : ""}
         <button class="btn sm icon ghost" data-act="deljob" data-j="${j.id}" title="Delete" aria-label="Delete this video and its clips">${ic("trash")}</button>
         <label class="selck" title="Select this video and its clips"><input type="checkbox" data-sel="j:${j.id}" ${sel().has("j:" + j.id) ? "checked" : ""} aria-label="Select this video"></label>`}</div></div>
     ${busy ? `<div class="bar"><i style="width:${Math.round(j.progress * 100)}%"></i></div><p class="sub">${esc(j.stage)} · ${Math.round(j.progress * 100)}%</p>` : ""}
     ${j.status === "done" && !j.clips.length ? `<p class="sub">${esc(j.stage)}</p>` : ""}
-    ${j.error ? `<div class="err">${esc(j.error)}<button class="rep" data-act="report" data-ctx="${esc("Video failed: " + (j.title || j.source.name || "") + " | " + j.error)}">Report this</button></div>` : ""}${j.ai?.note ? `<p class="sub">${esc(j.ai.note)}</p>` : ""}
+    ${j.error && j.stage === "Stopped by you" ? `<p class="sub">${ic("stop")} Stopped by you.</p>` : j.error ? `<div class="err">${esc(j.error)}<button class="rep" data-act="report" data-ctx="${esc("Video failed: " + (j.title || j.source.name || "") + " | " + j.error)}">Report this</button></div>` : ""}${j.ai?.note ? `<p class="sub">${esc(j.ai.note)}</p>` : ""}
     ${j.clips.length ? `<div class="grid">${j.clips.map(c => clipHtml(j, c)).join("")}</div>` : ""}`;
 }
 /* ---- selecting several videos and clips: delete or download them together */
@@ -3359,7 +3360,7 @@ async function drawSettings() {
           "Until Google verifies your app, people see a warning when they connect, and uploads stay private."],
         instagram: ["https://developers.facebook.com/apps", "Meta for Developers",
           ["Create a <b>Business</b> app and add <b>Instagram</b> (API setup with Instagram login).",
-           "Under <b>Business login settings</b>, add the address below as a redirect URL.", "Paste the <b>Instagram app ID</b> and <b>Instagram app secret</b> here."],
+           "Under <b>Business login settings</b>, add the address below as a redirect URL.", "Paste the <b>Instagram app ID</b> and <b>Instagram app secret</b> from that Instagram page here. Not the <b>App ID</b> at the top of the Meta dashboard: with that one, Instagram says <i>Invalid platform app</i>."],
           "Works with Creator and Business Instagram accounts. Until Meta reviews your app, only accounts you add as testers can connect."],
         tiktok: ["https://developers.tiktok.com/apps", "TikTok for Developers",
           ["Create an app and add <b>Login Kit</b> and <b>Content Posting API</b> with Direct Post turned on.",
@@ -3690,6 +3691,11 @@ document.addEventListener("click", async e => {
       if (!typed) return;
       await send("/api/account/delete", {confirm: typed});
       location.href = "/"; return;
+    }
+    if (a === "stopjob") {
+      if (!await ask("Stop making this video?", "Clips already made stay. The rest won't be made; you can re-make any of them later.", "Stop", true)) return;
+      try { await api(`/api/jobs/${d.j}/stop`, {method: "POST"}); toast("Stopping. It stops at the next step.", "ok"); } catch (e) { toast(e.message, "bad"); }
+      return tick();
     }
     if (a === "deljob") {
       if (!await ask("Delete this video?", "The video and all of its clips are permanently deleted. This cannot be undone.", "Delete", true)) return;

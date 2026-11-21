@@ -220,6 +220,9 @@ _down = {"until": 0.0, "why": None}
 QUOTA_WORDS = ("quota", "exceeded", "credit", "billing", "insufficient", "limit: 0", "per day", "perday")
 
 
+_swapped = {"at": 0.0}       # when a model the service won't run was last swapped while clipping
+
+
 def ai_resting() -> bool:
     return time.time() < _down["until"]
 
@@ -250,6 +253,16 @@ def ask_ai(prompt, schema=None, purpose="AI call", timeout=None):
                     time.sleep(3)
                     continue
                 break
+    if last is not None and ai.unknown_model(last) and time.time() - _swapped["at"] > 1800:
+        _swapped["at"] = time.time()
+        try:
+            model = ai.swap_model(ai.models()[0])       # the service retired the model: its newest one, saved
+            out, sent, wrote = ai.call(model, prompt, schema or SCHEMA, timeout)
+            usage.record(sent, wrote, purpose)
+            ai.clear_problem()
+            return out, model, sent + wrote
+        except Exception as e:  # noqa: BLE001 - no better model: said as before
+            last = e if not ai.unknown_model(e) else last
     ai.note_problem(last)
     _down.update(until=time.time() + (600 if out_of_credit else 120), why=last)
     try:

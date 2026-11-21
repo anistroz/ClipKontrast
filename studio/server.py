@@ -854,8 +854,8 @@ def link_preview(request: Request, url: str = ""):
         raise HTTPException(422, str(e))
     except HTTPException:
         raise
-    except Exception:
-        raise HTTPException(422, "Couldn't open that video. Check the link is public and complete.")
+    except Exception as e:  # noqa: BLE001 - the site's own reason, in plain words
+        raise HTTPException(422, safe.link_reason(e))
 
 
 @app.get("/api/frame")
@@ -1212,11 +1212,23 @@ def set_job_facecam(jid: str, body: dict = Body(...)):
     return {"remade": n, "job": jobs.public(job)}
 
 
+@app.post("/api/jobs/{jid}/stop")
+def stop_job(jid: str):
+    """Stop a video being made. The clips already made stay."""
+    job = _job_or_404(jid)
+    if job.get("status") == "live" or jid in live.SESSIONS:
+        raise HTTPException(409, "This is a live recording: use Stop recording.")
+    try:
+        return jobs.public(jobs.stop(jid))
+    except ValueError as e:
+        raise HTTPException(409, str(e))
+
+
 @app.delete("/api/jobs/{jid}")
 def delete_job(jid: str):
     job = _job_or_404(jid)
     if job["status"] in ("queued", "running", "live") or jid in live.SESSIONS:
-        raise HTTPException(409, "This is still being worked on. Stop it or wait for it to finish first.")
+        raise HTTPException(409, "This is still being made. Press Stop on it first, or wait for it to finish.")
     jobs.delete(jid)
     return {"ok": True}
 
@@ -1622,8 +1634,8 @@ def quick_live(body: dict = Body(...)):
     if _LIVE_VIDEO.search(raw):              # one video: it has to be live right now, and its channel is the creator
         try:
             i = media.info(raw)
-        except Exception:  # noqa: BLE001
-            raise HTTPException(422, "Couldn't open that link. Check it's public and complete.")
+        except Exception as e:  # noqa: BLE001
+            raise HTTPException(422, safe.link_reason(e))
         if not i["is_live"]:
             raise HTTPException(400, "That video isn't live right now. To make clips of it, use Clip a video. To clip "
                                      "their next stream, paste their channel link here instead.")

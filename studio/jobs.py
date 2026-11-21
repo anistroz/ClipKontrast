@@ -273,10 +273,52 @@ def save(job):
                     time.sleep(wait)
 
 
+class Stopped(BaseException):
+    """The person pressed Stop: raised in the worker making the video at its next step. A BaseException, so the
+    many places that carry on past a failed step (another of YouTube's apps, a model that didn't answer) don't."""
+
+
+_making: dict = {}           # video id -> the worker thread making it
+
+
 def _set(job, **kw):
+    if job.get("stop") and "status" not in kw and _making.get(job.get("id")) == threading.get_ident():
+        raise Stopped()
     with _lock:
         job.update(kw)
     save(job)
+
+
+STOPPED = "Stopped by you"
+
+
+def stop(jid: str) -> dict:
+    """Stop a video being made (or waiting its turn). The clips already made are kept; the rest aren't made. The
+    worker stops at its next step (a download or a transcription finishes its current piece first)."""
+    job = get(jid)
+    if not job or job.get("status") not in ("queued", "running"):
+        raise ValueError("This video isn't being made right now.")
+    job["stop"] = True
+    if job["status"] == "queued" and _making.get(jid) is None:
+        _stopped(job)                      # not started yet: stopped now; the worker skips it when its turn comes
+    else:
+        _set(job, stage="Stopping…")
+    return job
+
+
+def _stopped(job):
+    for c in job.get("clips", []):
+        if c.get("status") in ("queued", "rendering"):
+            c.update(status="error", error="Stopped before this clip was made. Press Re-make to make it.")
+    done = any(c.get("status") == "done" for c in job.get("clips", []))
+    with _lock:
+        job.update(status="done" if done else "error", stage=STOPPED, progress=1.0 if done else job.get("progress", 0),
+                   error=None if done else STOPPED + ".", resume=False)
+    save(job)
+    try:
+        creators.log(job["creator"], f"Video stopped: {str(job.get('name') or '')[:80]}")
+    except Exception:  # noqa: BLE001
+        pass
 
 
 def _remap(path, folder: Path):
@@ -476,6 +518,10 @@ def _with_channel(job) -> dict:
 
 
 def render_one(job, clip, words):
+    if job.get("stop") and job.get("status") in ("queued", "running"):
+        clip.update(status="error", error="Stopped before this clip was made. Press Re-make to make it.")
+        save(job)
+        return
     d = Path(job["dir"])
     clip["status"] = "rendering"
     save(job)
@@ -1712,9 +1758,16 @@ def _worker(quick_only=False):
             if kind == "job":
                 _q.done()
             continue
+        if kind == "job" and job.get("stop") and job.get("status") != "running":
+            _q.done()                        # stopped while it waited its turn
+            continue
         token = ctx._uid.set(job["user"])  # everything this job does runs as its owner
+        if kind == "job":
+            _making[job["id"]] = threading.get_ident()
         try:
             if kind == "job":
+                if job.get("stop"):
+                    raise Stopped()
                 _run_job(job)
             else:
                 clip = next(c for c in job["clips"] if c["id"] == cid)
@@ -1728,7 +1781,12 @@ def _worker(quick_only=False):
                 if clip.get("layout") in render.FACECAM_LAYOUTS and not clip.get("camera"):
                     _use_camera(job, clip)    # re-made with a facecam layout: how the camera shows in this clip
                 render_one(job, clip, words)
+        except Stopped:
+            _stopped(job)
         except Exception as e:  # noqa: BLE001
+            if kind == "job" and job.get("stop"):
+                _stopped(job)                # stopped mid-step: what that step said on its way out isn't an error
+                continue
             (Path(job["dir"]) / "error.log").write_text(traceback.format_exc(), encoding="utf-8")
             # where it happened, for a bug report: the last steps as file:line function, no folders or names
             frames = traceback.extract_tb(e.__traceback__)[-5:]
@@ -1747,6 +1805,7 @@ def _worker(quick_only=False):
         finally:
             ctx._uid.reset(token)
             if kind == "job":
+                _making.pop(job["id"], None)
                 _q.done()
 
 
