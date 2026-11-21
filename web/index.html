@@ -681,6 +681,8 @@ a.lnk{color:var(--brand-ink);text-decoration:none;font-weight:600}
 .fe-split{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px;align-items:center}
 .fe-split b{font-size:13px;margin-right:4px}
 .fe-load{display:grid;place-items:center;min-height:300px;color:var(--dim);font-size:14px;background:var(--muted);border-radius:12px}
+.lp .tx em.pl-warn,.lp .pl-warn{font-style:normal;color:#8A5300;white-space:normal}
+.lp .ok.pl{background:#FFF4DC;color:#8A5300}
 .lp .fset{flex:none;font-size:12px;font-weight:700;padding:5px 9px;border-radius:999px;border:1px solid var(--line-2);background:#fff;color:var(--brand-ink);cursor:pointer;display:inline-flex;gap:5px;align-items:center}
 .lp .fset svg{width:14px;height:14px}
 .lp .fset.on{background:var(--brand);border-color:var(--brand)}
@@ -1831,6 +1833,7 @@ async function openFrame(kind, id, round = 0) {
   let split = was.split || f.last?.split || "balanced";
   d.innerHTML = `<div class="dlg fe"><h2>Where are the webcam and the game?</h2>
     <p class="help">Drag the <b style="color:var(--brand-deep)">Webcam</b> box onto the streamer's camera and the <b style="color:#1F7FC4">Game</b> box over the part of the game to show. Pull the corners to size them. The preview shows the clip.</p>
+    ${f.thumb ? `<div class="note" style="margin:0 0 10px">${ic("warn")}<span>This is the video's thumbnail: a picture from inside the video couldn't be fetched right now. If the stream's layout looks the same, set the boxes on it; otherwise press <b>Another moment</b>.</span></div>` : ""}
     <div class="fe-grid"><div><div class="cf-stage" id="feStage"><img src="${f.image}" alt="A frame of the video" draggable="false">
         <div class="fe-game" id="feGame"><i data-h="tl"></i><i data-h="tr"></i><i data-h="bl"></i><i data-h="br"></i><span>Game</span></div>
         <div class="cf-box" id="feCam"><i data-h="tl"></i><i data-h="tr"></i><i data-h="bl"></i><i data-h="br"></i><span>Webcam</span></div></div>
@@ -2098,8 +2101,9 @@ function drawAtt() {
       ${A.busy ? "" : `<button type="button" class="rm" data-rm="link" data-id="${l.id}" aria-label="Remove link">${ic("x")}</button>`}</div>`;
     const i = l.info;
     return rowHtml(A, {id: l.id, kind: "link", thumb: i.thumb ? `<img src="${i.thumb}" alt="">` : "", len: i.duration && !i.is_live ? fmtLen(i.duration) : "",
-      title: i.title, sub: esc(i.uploader || "Video link"),
-      side: l.sending ? `<span class="ok up">Sending</span>` : i.is_live ? `<span class="ok live"><i></i>Live now · clipped live</span>` : `<span class="ok">${ic("check")}Ready</span>`, item: l});
+      title: i.title, sub: i.post_live ? `<em class="pl-warn">YouTube is still making this stream's replay (long streams can take a day; 12+ hour streams may never get a full one). Clipping may fail until it's ready: uploading the file always works.</em>` : esc(i.uploader || "Video link"),
+      side: l.sending ? `<span class="ok up">Sending</span>` : i.is_live ? `<span class="ok live"><i></i>Live now · clipped live</span>`
+        : i.post_live ? `<span class="ok pl">${ic("clock")}Replay not ready</span>` : `<span class="ok">${ic("check")}Ready</span>`, item: l});
   }).join("");
   h += A.files.map(f => rowHtml(A, {id: f.id, kind: "file", thumb: `<video src="${f.src}#t=1" muted preload="metadata" playsinline></video>`,
     len: f.dur ? fmtLen(f.dur) : "", title: f.file.name,

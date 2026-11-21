@@ -42,6 +42,7 @@ class FakeDetect:
 
 
 whisper.installed = lambda: True
+whisper.ENABLED = whisper.HL_ON = True            # tests/run.py turns Whisper off; here it's all stand-ins anyway
 real_get = whisper._get
 audio = (np.random.RandomState(0).normal(0, 3000, 16000 * 200)).astype(np.int16)
 m = FakeDetect({"en": 0.6, "hi": 0.3, "ur": 0.05, "es": 0.05})
@@ -175,6 +176,48 @@ out = render.render_clip(src, work / "clips", "fr", {"start": 2, "end": 6, "layo
 meta = media.probe(work / "clips" / out["file"])
 check("a clip with the game box and 'Big webcam' is made, 1080x1920", (meta["width"], meta["height"]), (1080, 1920))
 
+# ---- a frame of a link: a few seconds fetched the way clip pieces are, else the thumbnail, never just an error
+real_frame, real_prev, real_sec = media.frame, media.preview, media.download_section
+import base64 as _b64  # noqa: E402
+thumb_jpeg = (work / "t.jpg")
+subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "color=c=red:size=320x180", "-frames:v", "1", str(thumb_jpeg)], check=True)
+media._PREVIEWS.clear(); media._FRAMES.clear()
+media.preview = lambda url: {"title": "t", "uploader": "Frame Channel", "duration": 13 * 3600, "is_live": False,
+                             "thumb": "data:image/jpeg;base64," + _b64.b64encode(thumb_jpeg.read_bytes()).decode()}
+asked_at = []
+
+
+def fake_section(url, out_dir, stem, start, end, height=720, exact=False):
+    asked_at.append((round(start), round(end - start)))
+    dst = Path(out_dir) / f"{stem}.mp4"
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", "3", "-t", "3", "-i", str(src), "-c", "copy", str(dst)], check=True)
+    return dst
+
+
+media.download_section = fake_section
+f = media.frame("https://www.youtube.com/watch?v=abcdefghijk", 0.35)
+check("a 13-hour stream: three seconds from 35% in are fetched (the clip-piece way), not the video",
+      asked_at, [(round(13 * 3600 * 0.35), 3)])
+check("...and its picture comes back, in the video's shape", (f["thumb"], f["w"], f["h"]), (False, 960, 540))
+media.download_section = lambda *a, **k: (_ for _ in ()).throw(RuntimeError("HTTP Error 403: Forbidden (tried 5 ways)"))
+f = media.frame("https://www.youtube.com/watch?v=abcdefghijk", 0.6)
+check("YouTube won't give even a few seconds: the thumbnail, said so (not an error)", (f["thumb"], f["w"]), (True, 320))
+media.preview = lambda url: {"title": "t", "uploader": "x", "duration": 100, "is_live": False, "thumb": ""}
+try:
+    media.frame("https://www.youtube.com/watch?v=zzzzzzzzzzz", 0.5)
+    check("no picture at all: a message that says what to do", False)
+except ValueError as e:
+    check("no picture at all: a message that says what to do", "Fix facecam" in str(e))
+media.frame, media.preview, media.download_section = real_frame, real_prev, real_sec
+
+# ---- a stream whose replay YouTube hasn't made: said plainly, and only when that's really the reason
+from studio import safe  # noqa: E402
+check("YouTube's own 'live event has ended': the replay isn't ready, with what to do instead",
+      ("12 hours" in safe.friendly(RuntimeError("ERROR: [youtube] x: This live event has ended. (tried 5 ways)")),
+       "upload the video file" in safe.POST_LIVE), (True, True))
+check("...but a note one of the other ways left behind doesn't decide it",
+      safe.friendly(RuntimeError("ERROR: HTTP Error 403: Forbidden (tried 5 ways) (This live event has ended.)")) == safe.POST_LIVE, False)
+
 # ---- the frame to draw on, from a link
 from fastapi.testclient import TestClient  # noqa: E402
 from studio import server  # noqa: E402
@@ -191,6 +234,8 @@ check("the page: a 'Set webcam & game' button on each video, with a facecam layo
 check("...an editor with both boxes, the share and a 9:16 preview", all(x in page for x in ('id="feGame"', 'id="feCam"', "data-fesplit", 'id="fePrev"', "/api/frame?url=")))
 check("...a file's frame is read in the browser, not uploaded first", "function fileFrame" in page)
 check("...and each video is sent with its own frame", "...(l.frame || {})" in page and "...(f.frame || {})" in page)
+check("a link whose replay YouTube hasn't made is flagged the moment it's pasted", "Replay not ready" in page and "i.post_live" in page)
+check("...the editor says when it's only the thumbnail", "f.thumb ?" in page)
 
 # the page's script must load at all: one missing bracket and the whole app is a blank page
 import re as _re  # noqa: E402

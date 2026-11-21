@@ -157,7 +157,9 @@ def info(url: str) -> dict:
     return {"title": i.get("title") or "", "uploader": i.get("uploader") or i.get("channel") or "",
             "duration": float(i.get("duration") or 0), "is_live": bool(i.get("is_live")),
             "thumbnail": i.get("thumbnail") or "", "kind": i.get("_type") or "video",
-            "channel_url": i.get("channel_url") or i.get("uploader_url") or ""}
+            "channel_url": i.get("channel_url") or i.get("uploader_url") or "",
+            # "post_live": a stream that ended and whose replay YouTube hasn't finished making
+            "live_status": i.get("live_status") or ""}
 
 
 def youtube_words(url: str):
@@ -249,7 +251,7 @@ def preview(url: str) -> dict:
         except Exception:
             thumb = ""
     out = {"title": i["title"][:200], "uploader": i["uploader"][:120], "duration": i["duration"],
-           "is_live": i["is_live"], "thumb": thumb}
+           "is_live": i["is_live"], "thumb": thumb, "post_live": i.get("live_status") == "post_live"}
     if len(_PREVIEWS) > 300:
         _PREVIEWS.pop(next(iter(_PREVIEWS)))
     _PREVIEWS[url] = out
@@ -259,45 +261,91 @@ def preview(url: str) -> dict:
 _FRAMES: dict = {}
 
 
+def _first_frame(video: Path) -> bytes:
+    """The first picture of a video file on this computer, 960 wide, as a JPEG."""
+    try:
+        return subprocess.run(["ffmpeg", "-v", "error", "-i", str(video), "-frames:v", "1", "-vf", "scale=960:-2",
+                               "-pix_fmt", "yuvj420p", "-q:v", "4", "-f", "image2pipe", "-vcodec", "mjpeg", "-"],
+                              capture_output=True, timeout=60, creationflags=NO_WINDOW).stdout or b""
+    except subprocess.TimeoutExpired:
+        return b""
+
+
+def _live_frame(url: str) -> bytes:
+    """The picture a live stream is showing now: its streaming (HLS) address read straight by ffmpeg, asked as each of
+    YouTube's apps in turn until one answers."""
+    for client in (YT_CLIENTS if is_youtube(url) else [None]):
+        try:
+            with _youtube_guard(url), _ydl(_with_client({"format": "b[protocol^=m3u8]/bv*[protocol^=m3u8]/b"}, client)) as ydl:
+                i = ydl.extract_info(url, download=False)
+            fmt = (i.get("requested_formats") or [i])[0]
+            src = fmt.get("url") or i.get("url")
+            if not (isinstance(src, str) and src.startswith("https://")):
+                continue
+            jpeg = subprocess.run(["ffmpeg", "-v", "error", "-i", src, "-frames:v", "1", "-vf", "scale=960:-2",
+                                   "-pix_fmt", "yuvj420p", "-q:v", "4", "-f", "image2pipe", "-vcodec", "mjpeg", "-"],
+                                  capture_output=True, timeout=45, creationflags=NO_WINDOW).stdout or b""
+            if len(jpeg) > 1000:
+                return jpeg
+        except YouTubeBlocked:
+            raise
+        except Exception:  # noqa: BLE001 - the next way of asking
+            continue
+    return b""
+
+
 def frame(url: str, at: float = 0.35) -> dict:
-    """One frame of a video link (the live picture, for a live stream), as an inline JPEG, to set the webcam and the
-    game on before any clip is made. Only that frame is fetched, not the video. `at`: how far into the video (0-1).
-    {"image": data URL, "w", "h" (the video's own size), "uploader", "at"}"""
+    """One picture from a video link, to set the webcam and the game on before any clip is made.
+    {"image": data URL, "w", "h" (the picture's size), "uploader", "at", "live", "thumb": True if it is only the
+    video's thumbnail}
+
+    A video: a three-second stretch from `at` (0-1) into it is downloaded the same way clip pieces are (each of
+    YouTube's apps in turn, the kinds of file that work), and its first picture is taken: nothing else of the video is
+    fetched. A live stream: the picture it shows now. If neither can be had, the video's thumbnail, said so, rather
+    than nothing: for a stream it is usually a picture of the stream."""
     import base64
+    import tempfile
     url = url.strip()
     at = min(0.9, max(0.05, float(at)))
     key = (url, round(at, 2))
     if key in _FRAMES:
         return _FRAMES[key]
-    with _youtube_guard(url), _ydl({"format": "bv*[height<=720]/b[height<=720]/bv*/b"}) as ydl:
-        i = ydl.extract_info(url, download=False)
-    if (i.get("_type") or "video") != "video":
-        raise ValueError("That link is a channel or playlist, not a single video.")
-    fmt = (i.get("requested_formats") or [i])[0]
-    src = fmt.get("url") or i.get("url")
-    if not (isinstance(src, str) and src.startswith(("https://", "http://"))):
-        raise ValueError("Couldn't get a picture from this video.")
-    headers = {k: v for k, v in (fmt.get("http_headers") or i.get("http_headers") or {}).items()
-               if k.lower() in ("user-agent", "referer", "origin") and isinstance(v, str) and "\n" not in v and "\r" not in v}
-    dur = float(i.get("duration") or 0)
-    t = 0.0 if i.get("is_live") or not dur else max(1.0, min(dur - 2.0, dur * at))
-    cmd = ["ffmpeg", "-v", "error"]
-    if headers:
-        cmd += ["-headers", "".join(f"{k}: {v}\r\n" for k, v in headers.items())]
-    if t:
-        cmd += ["-ss", f"{t:.1f}"]
-    cmd += ["-i", src, "-frames:v", "1", "-vf", "scale=960:-2", "-pix_fmt", "yuvj420p", "-q:v", "4",
-            "-f", "image2pipe", "-vcodec", "mjpeg", "-"]
+    p = _PREVIEWS.get(url) or preview(url)               # title, length, live or not (already looked up, usually)
+    dur, live = float(p.get("duration") or 0), bool(p.get("is_live"))
+    jpeg = b""
+    if live:
+        jpeg = _live_frame(url)
+    else:
+        t = max(1.0, min(dur - 5.0, dur * at)) if dur > 10 else 0.0
+        work = Path(tempfile.mkdtemp(prefix="ckf"))
+        try:
+            got = download_section(url, work, "frame", t, t + 3.0, height=720)
+            jpeg = _first_frame(got)
+        except YouTubeBlocked:
+            raise
+        except Exception as e:  # noqa: BLE001 - the thumbnail instead
+            print(f"  Frame of {url[:80]}: {_plain(e)[-200:]}", flush=True)
+        finally:
+            shutil.rmtree(work, ignore_errors=True)
+    thumb = False
+    if len(jpeg) > 1000:
+        image = "data:image/jpeg;base64," + base64.b64encode(jpeg).decode()
+    elif p.get("thumb"):
+        image, thumb = p["thumb"], True
+    else:
+        raise ValueError("Couldn't get a picture from this video. Check the link plays on YouTube, or set the webcam "
+                         "on a clip once it's made (Fix facecam).")
+    w = h = 0
     try:
-        jpeg = subprocess.run(cmd, capture_output=True, timeout=60, creationflags=NO_WINDOW).stdout or b""
-    except subprocess.TimeoutExpired:
-        jpeg = b""
-    if len(jpeg) < 1000:
-        raise ValueError("Couldn't get a picture from this video right now. Try again, or set the webcam after the clips are made.")
-    w, h = int(fmt.get("width") or i.get("width") or 0), int(fmt.get("height") or i.get("height") or 0)
-    out = {"image": "data:image/jpeg;base64," + base64.b64encode(jpeg).decode(), "w": w, "h": h,
-           "uploader": (i.get("uploader") or i.get("channel") or "")[:120], "at": round(at, 2), "live": bool(i.get("is_live"))}
-    if not i.get("is_live"):                    # a live picture changes: asked again each time
+        from PIL import Image
+        import io
+        with Image.open(io.BytesIO(base64.b64decode(image.split(",", 1)[1]))) as im:
+            w, h = im.size
+    except Exception:  # noqa: BLE001
+        pass
+    out = {"image": image, "w": w, "h": h, "uploader": (p.get("uploader") or "")[:120], "at": round(at, 2),
+           "live": live, "thumb": thumb}
+    if not live and not thumb:                 # a live picture changes, and a thumbnail is only a stand-in
         if len(_FRAMES) > 40:
             _FRAMES.pop(next(iter(_FRAMES)))
         _FRAMES[key] = out
