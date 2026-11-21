@@ -101,6 +101,14 @@ main{background:var(--bg);margin:8px 8px 8px 0;border-radius:var(--r-lg);height:
 @media (max-width:720px){.news{margin:8px 12px 0}.news .ni{display:none}.news .go{flex:1}}
 .vb{display:flex;align-items:center;gap:12px;margin:12px 28px 0;padding:12px 12px 12px 16px;border-radius:12px;background:#F5FDE0;color:#3F5600;font-size:14px;animation:rise .3s ease both}
 .vb svg{width:18px;height:18px;flex:none;color:var(--brand-deep)}
+.vb.warn-bar{background:#FFF4DC;color:#6B4200}.vb.warn-bar svg{color:#B26A00}.vb.warn-bar b{color:#5A3600}
+.vb.ok-bar{background:var(--good-soft);color:#0B5B3A}.vb.ok-bar svg{color:var(--good)}.vb.ok-bar b{color:#08452C}
+.ai-who{display:flex;gap:14px;align-items:flex-start;padding:16px 18px;border-radius:var(--r);border:1px solid var(--line);margin-bottom:18px;background:var(--muted)}
+.ai-who .dot{flex:none;width:12px;height:12px;border-radius:50%;margin-top:5px;background:var(--good)}
+.ai-who.warn .dot{background:#E39A00}.ai-who.bad .dot{background:var(--bad)}
+.ai-who b{display:block;font-size:15px;color:var(--brand-ink)}
+.ai-who span{display:block;font-size:13px;color:var(--dim);margin-top:3px}
+.ai-who .btn{margin-top:10px}
 .vb span{flex:1;min-width:0}
 .vb b{color:#5A2C06}
 @media (max-width:640px){.vb{margin:10px 16px 0;flex-wrap:wrap}}
@@ -1286,7 +1294,7 @@ function meAvatar(u) {
   const [a, b] = GRADS[h % GRADS.length];
   return `<span class="avatar me-pic" style="background:linear-gradient(135deg,${a},${b});color:#fff">${esc((u.name || "?")[0].toUpperCase())}</span>`;
 }
-const NT_ICON = {live: "radio", clips: "scissors", post: "warn", fail: "warn", account: "user", feedback: "chat"};
+const NT_ICON = {live: "radio", clips: "scissors", post: "warn", fail: "warn", account: "user", feedback: "chat", ai: "bolt"};
 const ago = t => { const s = Date.now() / 1000 - t; return s < 60 ? "just now" : s < 3600 ? Math.floor(s / 60) + " min ago" : s < 86400 ? Math.floor(s / 3600) + " h ago" : new Date(t * 1000).toLocaleDateString([], {day: "numeric", month: "short"}); };
 function closePops(except) { ["bellpop", "acctpop"].forEach(id => { const p = $("#" + id); if (p !== except && !p.hidden) { p.classList.remove("open"); setTimeout(() => { if (!p.classList.contains("open")) p.hidden = true; }, 180); } });
   $$('[data-act="acctmenu"]').forEach(b => b.setAttribute("aria-expanded", String(except?.id === "acctpop"))); }
@@ -1469,8 +1477,10 @@ function updateHow() {
 }
 /* "What's new": what the latest versions brought, for the people clipping (nothing about the website or the build).
    Change NEWS.id when the list changes: the line at the top shows again for everyone, until they close it. */
-const NEWS = {id: "2026-11-21c", items: [
-  {e: "🏷️", t: "Creator tag", d: "Put the streamer's channel on your clips, like /Mizoplays with the YouTube logo. The handle is found from the video by itself; pick YouTube, Instagram, Kick or Twitch logos and one of 4 looks. Under the layouts, turn on Creator tag.", act: "go", v: "overview", btn: "Try it", new: true},
+const NEWS = {id: "2026-11-21d", items: [
+  {e: "🔥", t: "Clips that go viral", d: "Moments are now picked the way top clippers do it: where the stream's chat went wild (on YouTube streams), the biggest reactions, and a final check of every moment side by side so only the best make it, each with the setup it needs to make sense.", new: true},
+  {e: "🧠", t: "Know when your AI key runs out", d: "If your key hits its limit, ClipKontrast tells you: it switches to the free AI on your PC by itself, or shows you how to set it up in two steps.", act: "go", v: "settings", tab: "ai", btn: "AI settings", admin: true, new: true},
+  {e: "🏷️", t: "Creator tag", d: "Put the streamer's channel on your clips, like /Mizoplays with the YouTube logo. The handle is found from the video by itself; pick YouTube, Instagram, Kick or Twitch logos and one of 4 looks. Under the layouts, turn on Creator tag.", act: "go", v: "overview", btn: "Try it"},
   {e: "🇮🇳", t: "Hinglish captions, fixed for good", d: "Hindi clips now get captions from a speech model made for Hinglish: \"bhai ye kya ho gaya\", right every time, no AI key needed. It downloads by itself the first time (about 800 MB).", new: true},
   {e: "🖼️", t: "Set webcam & game before clipping", d: "Pick Facecam top, then tap Set webcam & game on your video: drag a box onto the webcam and one over the game, choose 50/50 or Big webcam, and see the clip before it's made.", new: true},
   {e: "🎯", t: "Fix facecam", d: "Webcam in the wrong place? Open a clip, tap Fix facecam and drag the box onto it. Remembered for that streamer."},
@@ -1587,7 +1597,10 @@ function drawShell() {  const nav = (v, icon, label, extra = "") => `<button cla
   const upBar = up && up.latest !== upSeen ? `<div class="vb" role="status">${ic("up")}<span>${up.restart ? "<b>The new version is downloaded.</b> Close ClipKontrast and start it again to use it." : `A new version of ClipKontrast is out${up.behind ? `: <b>${up.behind} update${up.behind === 1 ? "" : "s"}</b> since yours` : ""}.`}</span>
     <button class="btn sm primary" data-act="updhow">${up.installed ? "Update now" : up.restart ? "What's new" : "How to update"}</button><button class="btn sm ghost" data-act="updlater" aria-label="Hide until the next version">Later</button></div>` : "";
   const toolBar = S.status.no_ffmpeg ? `<div class="vb" role="alert">${ic("warn")}<span><b>ClipKontrast can't make clips yet: ffmpeg isn't installed on this computer.</b> Open a terminal, run <code>winget install Gyan.FFmpeg</code> (Mac: <code>brew install ffmpeg</code>, Linux: <code>sudo apt install ffmpeg</code>), then close ClipKontrast and start it again.</span></div>` : "";
-  const aiBar = !toolBar && S.status.ai?.problem && me?.is_admin && S.view !== "settings" ? `<div class="vb" role="status">${ic("warn")}<span><b>The AI isn't answering.</b> ${esc(S.status.ai.problem)} Until then, clips are picked by loudness.</span><button class="btn sm primary" data-act="go" data-v="settings" data-tab="ai">Open AI settings</button></div>` : "";
+  const A = S.status.ai || {};
+  const aiBar = !toolBar && (A.problem || A.resting) && me?.is_admin && S.view !== "settings" ? (A.local
+    ? `<div class="vb ok-bar" role="status">${ic("check")}<span><b>Your AI key hit its limit, so the free AI on your PC is making your clips now.</b> ${esc(A.problem || "")} Nothing to do: your key is used again once it works.</span><button class="btn sm" data-act="go" data-v="settings" data-tab="ai">AI settings</button></div>`
+    : `<div class="vb warn-bar" role="status">${ic("warn")}<span><b>Your AI key stopped working, so clips won't be the best right now.</b> ${esc(A.problem || "")} Get the free AI on your PC: no key, no limits, and clips get proper picks again.</span><button class="btn sm primary" data-act="go" data-v="settings" data-tab="ai">${ic("bolt")}Set up free AI</button></div>`) : "";
   const diskBar = !toolBar && S.status.disk_full && S.view !== "settings" ? `<div class="vb" role="alert">${ic("warn")}<span><b>The drive ClipKontrast saves to is almost full, so it can't take new videos.</b> Free up space on it, or move ClipKontrast's folder to a bigger drive.</span>${me?.is_admin ? `<button class="btn sm primary" data-act="go" data-v="settings" data-tab="storage">Open Storage</button>` : ""}</div>` : "";
   put($("#vbanner"), toolBar ? toolBar : diskBar ? diskBar : aiBar ? aiBar : upBar ? upBar : me && me.verified === false ? `<div class="vb" role="status">${ic("warn")}<span>Confirm your email to start clipping. We sent a 6-digit code to <b>${esc(me.email)}</b>.</span><form id="vcode" style="display:flex;gap:6px;align-items:center"><input name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="7" placeholder="123456" aria-label="6-digit code" style="width:110px;letter-spacing:3px;text-align:center"><button class="btn sm" type="submit">Confirm</button></form><button class="btn sm" data-act="resendverify">Send a new code</button></div>`
     : kk && kk.ready === false && S.view !== "usage" ? `<div class="vb" role="status">${ic("bolt")}<span>${me?.is_admin ? "Add your AI key to let the AI pick clips and write titles. Until then, clips are picked by loudness." : "The AI isn't set up on this server yet, so clips are picked by loudness."}</span>${me?.is_admin && S.view !== "settings" ? `<button class="btn sm primary" data-act="go" data-v="settings" data-tab="ai">${ic("plus")}Add AI key</button>` : ""}</div>` : "");
@@ -2737,7 +2750,17 @@ async function drawSettings() {
   try {
     if (tab === "ai") {
       const k = S.ai = await api("/api/ai");
-      body.innerHTML = `<section class="set-sec"><h2>AI</h2><p class="help">ClipKontrast uses an AI model to pick the moments worth clipping and to write hooks, titles and captions. Use your own key from any of these services. You pay that service directly. Without a key, clips are picked by loudness.</p>
+      const A = S.status.ai || {}, broken = !!(A.problem || A.resting);
+      const who = !k.ready
+        ? (A.local ? ["ok", "The free AI on your PC picks your clips", `No key needed (${esc(A.local)}). Add a key below if you want a cloud AI too.`]
+                   : ["bad", "No AI yet: clips are picked from the sound and the words only", "Set up the free AI on your PC below (no key, no limits), or add a key."])
+        : broken
+          ? (A.local ? ["warn", "Your key isn't working right now: the free AI on your PC is picking your clips", `${esc(A.problem || "")} The free AI (${esc(A.local)}) takes over by itself, and your key is used again once it works.`]
+                     : ["bad", "Your key isn't working right now: clips won't be the best", `${esc(A.problem || "")} Set up the free AI on your PC below and it takes over by itself whenever your key stops.`])
+          : ["ok", `Your key (${esc(k.label)}) picks your clips`, A.local ? `If it ever hits its limit, the free AI on your PC (${esc(A.local)}) takes over by itself.` : "If it ever hits its limit, clips get worse until it works again. Set up the free AI on your PC below as a backup: it takes over by itself."];
+      body.innerHTML = `<div class="ai-who ${who[0]}"><i class="dot"></i><div><b>${who[1]}</b><span>${who[2]}</span>
+          ${who[0] !== "ok" || !A.local ? `<button type="button" class="btn sm ${who[0] === "ok" ? "" : "primary"}" data-act="tolocalai">${ic("bolt")}${A.local ? "Free AI settings" : "Set up free AI"}</button>` : ""}</div></div>
+        <section class="set-sec"><h2>AI</h2><p class="help">ClipKontrast uses an AI model to pick the moments worth clipping and to write hooks, titles and captions. Use your own key from any of these services. You pay that service directly. Without a key, clips are picked by loudness.</p>
           <div class="ai-state">${k.ready ? `<span class="pill ok">${ic("check")}Ready</span><span class="sub">${esc(k.label)} · ${esc(k.models[0] || "")}</span>` : `<span class="pill warn">Not set up</span><span class="sub">Choose a service, paste your key and pick a model.</span>`}</div>
           <div class="ai-form">
             <label class="f">AI service<select id="ai_provider">${k.providers.map(x => `<option value="${esc(x.id)}" ${x.id === k.provider ? "selected" : ""}>${esc(x.label)}</option>`).join("")}</select></label>
@@ -3183,6 +3206,7 @@ document.addEventListener("click", async e => {
     if (a === "settab") { e.preventDefault(); S.stab = d.k; remember("settings", d.k); return drawSettings(); }
     if (a === "updhow") return updateHow();
     if (a === "whatsnew") { closePops(); return openWhatsNew(); }
+    if (a === "tolocalai") { $("#localai")?.scrollIntoView({behavior: "smooth", block: "start"}); return; }
     if (a === "newshide") { newsHide(); return drawNews(); }
     if (a === "updnow") return updateNow(b);
     if (a === "updcheck") { closePops(); return checkUpdates(b.classList.contains("nav-item") ? b : null); }

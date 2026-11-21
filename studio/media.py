@@ -356,6 +356,106 @@ def frame(url: str, at: float = 0.35) -> dict:
     return out
 
 
+CHAT_BUDGET = int(config.env("CLIPKONTRAST_CHAT_SECONDS") or 300)    # the longest the chat replay is fetched for
+
+
+class _ChatStop(Exception):
+    pass
+
+
+class ChatReplay:
+    """The chat of a past YouTube live stream (its "chat replay"), fetched in the background while the video is worked
+    on: what viewers wrote, and when. Viewers going wild in chat is the clearest sign of a moment worth clipping.
+
+    Fetched by yt-dlp in this process (the same settings as the downloads), for at most `budget` seconds: the chat of
+    a very long stream takes longer than that to fetch, and what has come by then is used. messages() can be read at
+    any time; it gives what has arrived so far. Nothing here can stop a video being clipped: no chat (not a YouTube
+    stream, chat turned off, YouTube refusing) is simply no chat."""
+
+    def __init__(self, url: str, out_dir: Path, budget: int = CHAT_BUDGET):
+        self.url, self.dir, self.budget = url, Path(out_dir) / "chat", budget
+        self.t0, self.done, self.stop_flag = time.time(), False, False
+        self.thread = None
+        if not (is_youtube(url) and budget > 0):
+            self.done = True
+            return
+        import threading
+        self.dir.mkdir(parents=True, exist_ok=True)
+        self.thread = threading.Thread(target=self._fetch, daemon=True, name="chat-replay")
+        self.thread.start()
+
+    def _hook(self, _d):
+        if self.stop_flag or time.time() - self.t0 > self.budget:
+            raise _ChatStop("enough chat")
+
+    def _fetch(self):
+        opts = {"skip_download": True, "writesubtitles": True, "subtitleslangs": ["live_chat"],
+                "ignore_no_formats_error": True, "outtmpl": str(self.dir / "c.%(ext)s"), "progress_hooks": [self._hook]}
+        try:
+            with _ydl(opts) as ydl:
+                ydl.download([self.url])
+        except Exception:  # noqa: BLE001 - stopped on time, no chat replay, or refused: what came is used
+            pass
+        finally:
+            self.done = True
+
+    def messages(self, wait: float = 0.0) -> list:
+        """[(seconds into the video, who, what they wrote)] so far, waiting up to `wait` seconds for the rest."""
+        end = time.time() + max(0.0, wait)
+        while not self.done and time.time() < end and time.time() - self.t0 <= self.budget:
+            time.sleep(0.5)
+        out = []
+        for f in sorted(self.dir.glob("c.live_chat.json*")) if self.dir.is_dir() else []:
+            try:
+                with open(f, encoding="utf-8", errors="replace") as fh:
+                    for line in fh:
+                        got = _chat_line(line)
+                        if got:
+                            out.append(got)
+            except OSError:
+                continue
+        out.sort(key=lambda m: m[0])
+        return out
+
+    def stop(self):
+        self.stop_flag = True
+        shutil.rmtree(self.dir, ignore_errors=True)
+
+
+def _chat_line(line: str):
+    """One line of yt-dlp's live_chat.json: (seconds, who, text), or None for anything that isn't a viewer's message."""
+    try:
+        d = json.loads(line)
+    except ValueError:
+        return None
+    act = d.get("replayChatItemAction") or {}
+    try:
+        t = float(act.get("videoOffsetTimeMsec") or d.get("videoOffsetTimeMsec") or -1) / 1000.0
+    except (TypeError, ValueError):
+        return None
+    if t < 0:
+        return None
+    for a in act.get("actions") or []:
+        item = ((a.get("addChatItemAction") or {}).get("item")) or {}
+        r = item.get("liveChatTextMessageRenderer") or item.get("liveChatPaidMessageRenderer")
+        if not r:
+            continue
+        parts = []
+        for run in ((r.get("message") or {}).get("runs") or []):
+            if "text" in run:
+                parts.append(str(run["text"]))
+            elif "emoji" in run:
+                e = run["emoji"]
+                parts.append(str(e.get("emojiId") if len(str(e.get("emojiId") or "")) <= 2 else (e.get("shortcuts") or [""])[0]))
+        who = str(((r.get("authorName") or {}).get("simpleText")) or "")[:40]
+        text = " ".join(parts).strip()[:200]
+        if "liveChatPaidMessageRenderer" in item:
+            text = ("$ " + text).strip()                 # a Super Chat: someone paid to say it
+        if text:
+            return (round(t, 2), who, text)
+    return None
+
+
 def save_thumb(job_dir: Path, url: str = "", video: Path = None) -> bool:
     """A small picture for the video list: the link's own thumbnail, or a frame from an uploaded file."""
     import base64

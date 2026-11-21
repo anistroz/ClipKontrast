@@ -522,8 +522,12 @@ _TAG_PREVIEWS: dict = {}
 
 
 @app.get("/api/tag-preview")
-def tag_preview(text: str = "", platforms: str = "", style: str = "clean"):
+def tag_preview(request: Request, text: str = "", platforms: str = "", style: str = "clean"):
     """The creator tag exactly as it will be drawn on a clip, as a PNG, for the style picker."""
+    try:
+        auth.throttle(f"tagprev:{_me(request).id}", 240, 60)
+    except auth.AuthError:
+        raise HTTPException(429, "Too many at once. Wait a moment.")
     handle = tagmod.clean_handle(text) or "streamer"
     plats = tagmod.clean_platforms([p for p in platforms.split(",") if p])
     style = style if style in tagmod.STYLES else "clean"

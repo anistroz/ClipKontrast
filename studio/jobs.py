@@ -730,7 +730,7 @@ def _mmss(t: float) -> str:
 SCAN_SLICE = 15 * 60    # scan mode: every slice this long gets at least its liveliest moment
 
 
-def _hot_regions(db, max_clips: int, region: int = None, per_clip: int = 3) -> list:
+def _hot_regions(db, max_clips: int, region: int = None, per_clip: int = 3, boost=None) -> list:
     """Scan mode: the lively parts of a long video, picked from its loudness alone (seconds from its start).
 
     The liveliest moment of every 15 minutes is taken, so no part of the video is skipped, and then the liveliest
@@ -743,6 +743,8 @@ def _hot_regions(db, max_clips: int, region: int = None, per_clip: int = 3) -> l
     z = brain.loud_zscore(np.asarray(db, dtype=np.float32))
     k = 20                                              # how lively the 20 seconds around each second are
     live = np.convolve(z, np.ones(k) / k, mode="same")
+    if boost is not None and len(boost) >= n:             # the chat: where viewers suddenly reacted
+        live = live + 0.8 * np.convolve(np.asarray(boost[:n], dtype=np.float32), np.ones(k) / k, mode="same")
     half = region // 2
     want = max(int(np.ceil(n / SCAN_SLICE)), max_clips * per_clip)
     want = min(want, max(1, int(n * 0.45) // region))      # never more than about half the video
@@ -1182,6 +1184,7 @@ def _run_job(job):
     fetch = ThreadPoolExecutor(1)
     video = None
     section = tuple(job["section"]) if job.get("section") and job.get("source_path") and Path(job["source_path"]).is_file() else None
+    chat_rep = [None]                                   # the stream's chat replay, when there is one (media.ChatReplay)
     if src["type"] == "url":
         meta = media.info(src["url"])
         if meta["kind"] != "video":
@@ -1193,6 +1196,8 @@ def _run_job(job):
                                "put this link under Setup, and press Start recording instead.")
         _set(job, title=meta["title"], uploader=meta["uploader"], duration=meta["duration"],
              handle=meta.get("handle", ""), platform=meta.get("platform", ""))
+        if job.get("kind") != "live" and meta.get("live_status") in ("was_live", "post_live"):
+            chat_rep[0] = media.ChatReplay(src["url"], d)        # what viewers wrote, while the rest goes on
         if not job.get("thumb") and media.save_thumb(d, url=src["url"]):
             _set(job, thumb=True)
         usage.set_context(job["creator"], meta["title"])
@@ -1237,6 +1242,20 @@ def _run_job(job):
     span = (hi - lo) / 16000
     db = media.loudness_per_second(audio[lo:hi])
     voice = media.voice_per_second(audio[lo:hi])         # a raised voice: one of the signs something happened
+    abs0 = sec0 + lo / 16000                             # the video's own second that db[0] is
+
+    def chat_now(wait=0.0, s0=0, m=None):
+        """The chat replay as read so far, counted like db from second s0 (m seconds of it): {"z", "msgs",
+        "offset"} for brain.find_clips, or None when there's no chat (or too little to tell)."""
+        if not chat_rep[0]:
+            return None
+        msgs = chat_rep[0].messages(wait)
+        cz = brain.chat_signal(msgs, len(db), abs0)
+        if cz is None:
+            return None
+        m = len(db) - s0 if m is None else m
+        job["chat_messages"] = len(msgs)
+        return {"z": cz[s0: s0 + m], "msgs": [(t - abs0 - s0, who, text) for t, who, text in msgs], "offset": 0.0}
 
     vlock, vstate = threading.Lock(), {}
     mark("audio")
@@ -1333,7 +1352,10 @@ def _run_job(job):
     if scan and not yt:
         # Whisper (Hindi and other languages) is several times slower than the English model on an ordinary
         # computer, so it listens to shorter stretches around fewer lively moments: the same clips, far sooner.
-        hot = _hot_regions(db, int(o["max_clips"]), WHISPER_REGION, 2) if use_whisper[0] else _hot_regions(db, int(o["max_clips"]))
+        early = chat_now(20)                               # the chat read so far points at lively parts too
+        boost = early["z"] if early else None
+        hot = (_hot_regions(db, int(o["max_clips"]), WHISPER_REGION, 2, boost) if use_whisper[0]
+               else _hot_regions(db, int(o["max_clips"]), boost=boost))
         blocks = [(lo + a * 16000, min(hi, lo + b * 16000)) for a, b in hot]
         rough[0] = bool(use_whisper[0] and whisper.quick_model())
     prog_base, acc = [], 0
@@ -1436,7 +1458,8 @@ def _run_job(job):
         s0 = int((a - lo) / 16000)
         found, ai = brain.find_clips(bw, db[s0: s0 + int((b - a) / 16000) + 1], (b - a) / 16000, job["title"],
                                      job["uploader"], quota, int(o["min_len"]), int(o["max_len"]), notes.append, game=game,
-                                     voice=voice[s0: s0 + int((b - a) / 16000) + 1])
+                                     voice=voice[s0: s0 + int((b - a) / 16000) + 1],
+                                     chat=chat_now(30, s0, int((b - a) / 16000) + 1))
         tokens += ai.get("tokens", 0)
         model = ai.get("model") or model
         if ai.get("note"):
@@ -1451,7 +1474,8 @@ def _run_job(job):
         base = lo / 16000
         rel = [dict(w, s=round(w["s"] - base, 2), e=round(w["e"] - base, 2)) for w in words]
         found, ai = brain.find_clips(rel, db, span, job["title"], job["uploader"], int(o["max_clips"]),
-                                     int(o["min_len"]), int(o["max_len"]), notes.append, game=game, voice=voice)
+                                     int(o["min_len"]), int(o["max_len"]), notes.append, game=game, voice=voice,
+                                     chat=chat_now(60))
         tokens += ai.get("tokens", 0)
         model = ai.get("model") or model
         if ai.get("note"):
@@ -1465,12 +1489,17 @@ def _run_job(job):
         base = lo / 16000
         rel = [dict(w, s=round(w["s"] - base, 2), e=round(w["e"] - base, 2)) for w in words]
         n = min(int(o["max_clips"]), 3, max(1, int(span // max(15, int(o["max_len"])))))
-        net = brain.liveliest_clips(rel, db, span, n, int(o["min_len"]), int(o["max_len"]), voice)
+        late = chat_now()
+        net = brain.liveliest_clips(rel, db, span, n, int(o["min_len"]), int(o["max_len"]), voice, late["z"] if late else None)
         if net:
             notes.append("Nothing stood out to the AI, so the liveliest parts were clipped.")
             job["safety_net"] = True
             take(net, base)
     mark("picking")
+    if chat_rep[0]:
+        if job.get("chat_messages"):
+            notes.append(f"The stream's chat replay was read too ({job['chat_messages']} messages): moments viewers reacted to count more.")
+        chat_rep[0].stop()
     if futures:
         _set(job, stage="Finishing the clips", progress=max(job["progress"], 0.92))
     _wait_for_clips(job, futures, began, renders._max_workers)
@@ -1487,9 +1516,11 @@ def _run_job(job):
             words = [w for w in words if not a_s <= w["s"] < b_s] + tw
         words.sort(key=lambda w: w["s"])
         (d / "words.json").write_text(json.dumps(words), encoding="utf-8")
-    renders.shutdown(wait=False)
-    ahead.shutdown(wait=False)
-    fetch.shutdown(wait=False)
+    # Clips still waiting (ones given up on above) are cancelled, not left to start after the audio they need is
+    # freed: a long stream's audio is over a gigabyte of memory.
+    renders.shutdown(wait=False, cancel_futures=True)
+    ahead.shutdown(wait=False, cancel_futures=True)
+    fetch.shutdown(wait=False, cancel_futures=True)
     del audio
     clips = job["clips"]
     job["ai"] = {"model": model, "tokens": tokens, "log": notes[-5:],
