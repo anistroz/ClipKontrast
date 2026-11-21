@@ -129,7 +129,7 @@ check("a live clip (a piece of the stream): its sound is read from the piece, th
       (round(heard[-1]), got[0]["s"]), (12, 10.0))
 check("captions in Hindi script chosen: not used", jobs._caption_words(dict(job, options={"caption_lang": "deva"}), dict(clip, id="c3"), [{"w": "यह", "s": 11.0, "e": 11.5}], 0.0, src)[0]["w"], "यह")
 brain.english_captions = lambda raw, *a, **k: raw
-check("an English video: not used", jobs._caption_words(dict(job, lang="en"), dict(clip, id="c4"), [{"w": "hello", "s": 11.0, "e": 11.5}], 0.0, src)[0]["w"], "hello")
+check("an English video: not used", jobs._caption_words(dict(job, lang="en"), {"id": "c4", "start": 10.0, "end": 25.0}, [{"w": "hello", "s": 11.0, "e": 11.5}], 0.0, src)[0]["w"], "hello")
 whisper.hinglish_ready = lambda: False
 started = []
 whisper.fetch_hinglish_soon = lambda: started.append(1)

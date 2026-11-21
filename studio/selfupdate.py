@@ -143,7 +143,13 @@ def _unpack(zip_path: Path, into: Path):
 
 
 def _quit(code: int):
-    """Leave a moment for the answer to reach the browser, then stop with the code the launcher acts on."""
+    """Leave a moment for the answer to reach the browser, then stop with the code the launcher acts on. Recordings
+    running now carry on after the restart (studio/live.py: closing the app stops them, an update doesn't)."""
+    try:
+        (config.DATA_DIR / "resume-recordings").write_text("1", encoding="utf-8")
+    except OSError:
+        pass
+
     def go():
         time.sleep(1.5)
         sys.stdout.flush()

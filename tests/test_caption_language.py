@@ -112,7 +112,13 @@ check("remaking a clip (another style) doesn't listen again", (calls["lang"], ca
 before = dict(calls)
 en_job = dict(job, lang="en")
 got = jobs._caption_words(en_job, {"id": "c4", "start": 10.0, "end": 25.0}, [{"w": "hello", "s": 11.0, "e": 11.5}], 0.0, src)
-check("an English video: its own words, nothing listened to again", ([w["w"] for w in got], calls), (["hello"], before))
+check("an English video (Whisper here): one quick look at the clip's language, then its own words, nothing heard again",
+      ([w["w"] for w in got], calls["lang"] - before["lang"], calls["english"] - before["english"], calls["hinglish"] - before["hinglish"]),
+      (["hello"], 1, 0, 0))
+lang_now = ["hi"]
+got = jobs._caption_words(en_job, {"id": "c6", "start": 10.0, "end": 25.0}, [{"w": "bro", "s": 11.0, "e": 11.5}], 0.0, src)
+check("an 'English' video whose clip is Hindi (a Hinglish streamer heard wrong): the Hinglish model writes it",
+      [w["w"] for w in got], "bhai ye kya hai".split())
 
 # ---- the Hinglish model won't run on this computer: the clip is heard again by Hindi Whisper, word by word
 def broken(a):
@@ -128,6 +134,28 @@ rough = [{"w": "रफ", "s": 10.0 + i, "e": 10.5 + i} for i in range(10)]      
 got = jobs._caption_words(job, {"id": "c5", "start": 10.0, "end": 25.0}, rough, 0.0, src)
 check("Hinglish model broken: the clip is heard again by Hindi Whisper, not left to the quick rough pass",
       (heard_hi, [w["w"] for w in got]), (["hi"], ["bhai", "ye", "kya"]))
+
+# ---- the main AI is the small free model on this computer (Ollama chosen in Settings)
+from unittest.mock import patch  # noqa: E402
+from studio import ai, config as _cfg  # noqa: E402
+import importlib  # noqa: E402
+real_brain = importlib.reload(brain)          # the real caption functions (replaced above for the clip tests)
+asked_ai = []
+words_en = [{"w": w, "s": i * 0.4, "e": i * 0.4 + 0.3} for i, w in enumerate("oh my god Jason what are you doing".split())]
+with patch.object(ai, "provider", return_value="ollama"), patch.object(_cfg, "ai_ready", return_value=True), \
+        patch.object(real_brain, "ask_ai", side_effect=lambda *a, **k: asked_ai.append(1) or (["X"] * len(words_en), "llama3.1", 1)):
+    got = real_brain.fix_caption_words(words_en, "GTA", "en")
+    check("Ollama as the main AI: English captions are the speech model's words, never rewritten by it",
+          ([w["w"] for w in got], asked_ai), ("oh my god Jason what are you doing".split(), []))
+    rated = []
+    with patch.object(ai, "models", return_value=["llama3.1"]), \
+            patch.object(real_brain, "_rate_locally", side_effect=lambda c, *a, **k: (rated.append(len(c)), (c, 5))[1]):
+        db_ = np.full(600, -30.0, dtype=np.float32)
+        db_[300:306] += 8
+        wl = [{"w": "bro", "s": float(t), "e": t + 0.4} for t in range(0, 600, 2)]
+        found, info = real_brain.find_clips(wl, db_, 600.0, "t", "u", max_clips=2, min_len=15, max_len=40, log=lambda m: None)
+    check("...the moments: picked from the sound and the words, then scored by it a few at a time (not whole transcripts)",
+          (bool(rated), asked_ai, info["model"], "free AI on this computer" in info["note"]), (True, [], "ollama:llama3.1", True))
 
 print(f"  {len(fails)} failed" if fails else "  ALL PASSED")
 sys.exit(1 if fails else 0)

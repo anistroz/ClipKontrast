@@ -78,6 +78,8 @@ def main() -> int:
                 ("viral moments: chat replay, final pick; telling people their AI stopped", ["tests/test_viral.py"]),
                 ("captions in the right language: English stays English, each clip checked", ["tests/test_caption_language.py"]),
                 ("clip an exact moment: start and end chosen, one clip of exactly that", ["tests/test_exact_moment.py"]),
+                ("recording only when asked: Stop sticks, closing the app stops, auto-record by hand", ["tests/test_recording_control.py"]),
+                ("a creator's last stream, ready to clip when they aren't live", ["tests/test_last_stream.py"]),
                 ("facecam-on-top layout and caption styles, rendered", ["tests/test_layouts_styles.py"]),
                 ("new caption styles, Hindi script, your @handle, auto zoom", ["tests/test_looks.py"]),
                 ("never 'nothing found': the liveliest parts are clipped; Hindi listens to less", ["tests/test_safety_net.py"]),

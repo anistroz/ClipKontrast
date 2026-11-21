@@ -1432,6 +1432,16 @@ def admin_feedback(request: Request, status: str = ""):
     return feedback.listing(status)
 
 
+@app.get("/api/admin/feedback.csv")
+def admin_feedback_csv(request: Request, status: str = ""):
+    """Every bug report as a CSV file (the ones with this status, or all), with the technical details."""
+    from . import feedback
+    _admin(request)
+    name = f"clipkontrast-bug-reports-{status if status in feedback.STATUSES else 'all'}-{time.strftime('%Y-%m-%d')}.csv"
+    return Response(feedback.csv_text(status), media_type="text/csv; charset=utf-8",
+                    headers={"Content-Disposition": f'attachment; filename="{name}"', "Cache-Control": "private, no-store"})
+
+
 @app.post("/api/admin/feedback/{fid}")
 def admin_feedback_status(request: Request, fid: int, body: dict = Body(...)):
     from . import feedback
@@ -1482,6 +1492,24 @@ def channel_preview(request: Request, url: str = ""):
         raise
     except Exception:
         raise HTTPException(422, "Couldn't open that channel. Check the link.")
+
+
+@app.get("/api/creators/{cid}/last-stream")
+def creator_last_stream(request: Request, cid: str):
+    """The creator's newest stream that has ended, for the card shown on their page when they aren't live."""
+    c = creators.get(cid)
+    if not c:
+        raise HTTPException(404, "No such creator")
+    try:
+        auth.throttle(f"laststream:{_me(request).id}", 20, 60)
+    except auth.AuthError:
+        raise HTTPException(429, "Too many at once. Wait a moment.")
+    urls = [c["channel"]] + [u for u in (c.get("channels") or {}).values() if u != c["channel"]]
+    for url in [u for u in urls if u][:3]:
+        got = _lookup(profiles.last_stream, url)
+        if got:
+            return got
+    return {}
 
 
 @app.get("/api/creators/{cid}/avatar")
@@ -1550,9 +1578,12 @@ def go_live(cid: str, body: dict = Body(default={})):
     asked = str((body or {}).get("channel") or "")
     url = asked if asked in c["channels"].values() else c["channel"] if c["channel"] in on_air or not on_air else on_air[0]
     try:
-        return jobs.public(live.start_session(c, url))
+        job = live.start_session(c, url)
     except ValueError as e:
         raise HTTPException(400, str(e))
+    if c.get("hold"):
+        creators.update(c["id"], {"hold": False})
+    return jobs.public(job)
 
 
 def _channel_key(url: str) -> str:
@@ -1592,7 +1623,7 @@ def quick_live(body: dict = Body(...)):
                                                                    [x.get("channel", "")] + list((x.get("channels") or {}).values()))), None)
     made = False
     if c:
-        c = creators.update(c["id"], {"auto_watch": True, **look})
+        c = creators.update(c["id"], {"watch_once": True, "hold": False, **look})
     else:
         if len(creators.all_creators()) >= config.MAX_CREATORS:
             raise HTTPException(400, f"This server allows {config.MAX_CREATORS} creators per account. Delete one first.")
@@ -1605,7 +1636,7 @@ def quick_live(body: dict = Body(...)):
             m = re.search(r"(?:@|twitch\.tv/|kick\.com/|channel/|c/)([^/?#]+)", channel or raw, re.I)
             name = (m.group(1) if m else "Live stream")[:60]
         try:
-            c = creators.create({"name": name[:60], "channel": channel or stream, "auto_watch": True, **look})
+            c = creators.create({"name": name[:60], "channel": channel or stream, "watch_once": True, **look})
         except ValueError as e:
             raise HTTPException(400, str(e))
         made = True
@@ -1631,6 +1662,11 @@ def stop_live(jid: str):
     if not s:
         raise HTTPException(404, "This recording has already ended")
     s.stop()
+    cid = s.job.get("creator")
+    if cid and creators.get(cid):
+        # Stopped by hand: not recorded again by itself while this stream goes on (only once they've gone offline
+        # and come back), however often the app checks or is opened again.
+        creators.update(cid, {"hold": True, "watch_once": False})
     return {"ok": True}
 
 

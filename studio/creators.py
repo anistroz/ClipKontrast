@@ -21,6 +21,9 @@ DEFAULTS = {"name": "", "channel": "", "style": "bounce", "layout": "blur", "cap
             "trigger_words": "clip that, clip it",
             "autopost": False, "accounts": [], "post_min_score": 75, "post_gap_min": 45, "daily_cap": 6,
             "privacy": "public", "post_footer": "", "rate_per_1k": 0.0, "channels": {}, "zoom": True, "watermark": "", "tighten": True,
+            # watch_once: record their next (or current) stream once, then stop watching (Live clipping from Home).
+            # hold: Stop was pressed while they were live: not recorded again by itself until they've gone offline.
+            "watch_once": False, "hold": False,
             "tag": False, "tag_handle": "", "tag_platforms": [], "tag_style": "clean", "tag_pos": "bottom_left"}
 PLATFORMS = ("youtube", "twitch", "kick")
 
@@ -67,7 +70,7 @@ def _clean(data: dict) -> dict:
         if k in NUMERIC:
             lo, hi = NUMERIC[k]
             v = max(lo, min(hi, int(float(v))))
-        elif k in ("auto_watch", "autopost", "ai_only_on_spike", "zoom", "tighten"):
+        elif k in ("auto_watch", "autopost", "ai_only_on_spike", "zoom", "tighten", "watch_once", "hold"):
             v = bool(v)
         elif k == "watermark":
             from .jobs import clean_watermark

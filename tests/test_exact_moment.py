@@ -105,6 +105,22 @@ check("...the same second again isn't fetched again", len(asked_at), 1)
 f = media.frame("https://www.youtube.com/watch?v=abcdefghijk", t=99999)
 check("...a second past the end: the last seconds", asked_at[-1][0], 3 * 3600 + 25 * 60 - 3)
 
+# ---- the AI key out of credit, the free AI on this computer there: it writes the big text and the title
+local_asked = []
+brain.ask_ai = lambda *a, **k: (_ for _ in ()).throw(RuntimeError("The AI did not answer: out of credit"))
+brain.local_model = lambda: "llama3.2:3b"
+brain.ask_local = lambda prompt, schema, model, purpose="", timeout=90: (local_asked.append(purpose), (
+    {"score": 80, "hook": "Police aa gayi bhai", "title": "They called the cops on him", "description": "Chaos.", "hashtags": ["gta6"]}, 50))[1]
+with ctx.as_user(user.id):
+    job3 = jobs.create({"type": "file", "path": str(src), "name": "Day 2"},
+                       {"range_start": 30, "range_end": 50, "exact": True, "layout": "blur", "zoom": False}, enqueue=False)
+    jobs._run_job(job3)
+c3 = job3["clips"][0]
+check("AI key not answering, Ollama there: the free AI writes the big text and the title (they're not left empty)",
+      (c3["hook"], c3["title"], local_asked[:1]), ("POLICE AA GAYI BHAI", "They called the cops on him", ["Hand clip: title and hook"]))
+check("...and the note says so (not 'clips were picked from the sound')",
+      ("free AI on this computer wrote" in job3["ai"]["note"], "picked from the sound" in job3["ai"]["note"]), (True, False))
+
 page = (config.ROOT / "web" / "index.html").read_text(encoding="utf-8")
 check("the page: an Exact moment button on each video and a callout under them",
       all(x in page for x in ('data-act="moment"', "function momentBtn", "Clip an exact moment", "Know when it happened?")))

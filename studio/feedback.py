@@ -119,6 +119,39 @@ def listing(status: str = "") -> dict:
             "counts": {s: int(counts.get(s, 0)) for s in STATUSES}}
 
 
+CSV_COLUMNS = ("id", "date", "status", "source", "kind", "name", "email", "contact", "app", "page", "context", "message",
+               "technical_details", "screenshot")
+
+
+def _cell(v) -> str:
+    """One CSV cell: text a spreadsheet would run as a formula (=, +, -, @ at the start) is kept as text, and nothing
+    is longer than a spreadsheet cell can hold."""
+    s = str(v if v is not None else "")
+    if s[:1] in ("=", "+", "-", "@", "\t", "\r"):
+        s = "'" + s
+    return s[:32000]
+
+
+def csv_text(status: str = "") -> str:
+    """Every report (or every one with this status), newest first, as CSV: to hand over in one go."""
+    import csv
+    import io
+    f, u = db.feedback.c, db.users.c
+    q = (sa.select(db.feedback, u.email, u.name).select_from(db.feedback.outerjoin(db.users, u.id == f.user_id))
+         .order_by(f.t.desc()))
+    if status in STATUSES:
+        q = q.where(f.status == status)
+    out = io.StringIO()
+    w = csv.writer(out)
+    w.writerow(CSV_COLUMNS)
+    with db.engine.connect() as c:
+        for r in c.execute(q):
+            when = time.strftime("%Y-%m-%d %H:%M", time.localtime(r._mapping["t"]))
+            w.writerow([_cell(x) for x in (r.id, when, r.status, r.source, r.kind, r.name or "", r.email or "", r.contact,
+                                            r.app, r.page, r.context, r.message, r.diag, "yes" if r.shot else "no")])
+    return "\ufeff" + out.getvalue()          # the mark Excel needs to read the letters of every language right
+
+
 def set_status(fid: int, status: str):
     if status not in STATUSES:
         raise Refused("Unknown status.")

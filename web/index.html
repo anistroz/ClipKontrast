@@ -140,6 +140,20 @@ main{background:var(--bg);margin:8px 8px 8px 0;border-radius:var(--r-lg);height:
 .stream{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(250px,1fr);gap:14px;background:#1E1612;border-radius:16px;padding:12px;margin-bottom:22px;color:#EFE5DE;animation:rise .3s ease both}
 .stream .player{position:relative;aspect-ratio:16/9;border-radius:10px;overflow:hidden;background:#000}
 .stream iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+.lstream{display:grid;grid-template-columns:minmax(0,300px) minmax(0,1fr);gap:16px;background:#1E1612;border-radius:16px;padding:12px;margin-bottom:22px;color:#EFE5DE;animation:rise .3s ease both}
+.lstream .lthumb{position:relative;aspect-ratio:16/9;border-radius:10px;overflow:hidden;background:#000}
+.lstream .lthumb img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.lstream .lthumb .du{position:absolute;right:8px;bottom:8px;background:rgba(0,0,0,.75);color:#fff;font-size:12px;font-weight:700;border-radius:6px;padding:2px 7px}
+.lstream .linfo{display:flex;flex-direction:column;gap:6px;min-width:0;padding:4px 4px 4px 0}
+.lstream .lk{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:#B9A597;text-transform:uppercase;letter-spacing:.06em}
+.lstream .lk .logo{width:22px;height:22px;border-radius:6px;display:grid;place-items:center}
+.lstream .lk .logo svg{width:13px;height:13px}
+.lstream h3{font-size:16px;line-height:1.3;color:#fff;margin:0;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.lstream .by{font-size:13px;color:#B9A597;margin:0}
+.lstream .lwarn{font-size:12.5px;color:#FFD48A;margin:0}
+.lstream .lacts{display:flex;gap:8px;flex-wrap:wrap;margin-top:auto}
+.lstream .lacts .btn.ghost{color:#EFE5DE;border-color:rgba(255,255,255,.18)}
+@media (max-width:720px){.lstream{grid-template-columns:1fr}}
 .noembed{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:20px;text-align:center;background:#120D0A;color:#EFE5DE}
 .noembed .logo{width:40px;height:40px;border-radius:10px;display:grid;place-items:center;margin-bottom:4px}
 .noembed .logo svg{width:22px;height:22px}
@@ -1294,7 +1308,7 @@ function drawStream() {
   const box = $("#stream"); if (!box) return;
   const c = creator(); if (!c) return;
   const on = liveOn(c);
-  if (!on.length) { if (box.innerHTML) box.innerHTML = ""; return; }
+  if (!on.length) return drawLastStream(box, c);
   S.spick = S.spick || {};
   const [k, p] = on.find(([x]) => x === S.spick[c.id]) || on[0];
   if (!box.querySelector(".stream")) box.innerHTML = `<div class="stream"><div class="player"></div><div class="sinfo"></div></div>`;
@@ -1317,13 +1331,52 @@ function drawStream() {
       ? `<button class="btn danger" data-act="stoplive" data-j="${esc(rec)}">${ic("stop")}Stop recording</button><small>Recording now. Clips appear below as they're made.</small>`
       : `<button class="btn primary" data-act="golive" data-url="${esc(p.channel)}"><span class="rdot"></span>Record this stream</button><small>ClipKontrast watches it and clips the best moments as they happen.</small>`}</div>`);
 }
+/* Not live: their newest stream that has ended, ready to clip (the whole of it, or an exact moment). YouTube won't
+   play most stream replays inside the app, so it's a card with the stream's picture, not a player. */
+function drawLastStream(box, c) {
+  S.lastS = S.lastS || {};
+  const got = S.lastS[c.id];
+  if ((!got || Date.now() - got.at > 600000) && !got?.busy) {
+    S.lastS[c.id] = {...(got || {}), at: got?.at || 0, busy: true};
+    api(`/api/creators/${encodeURIComponent(c.id)}/last-stream`)
+      .then(d => { S.lastS[c.id] = {at: Date.now(), d}; }, () => { S.lastS[c.id] = {at: Date.now(), d: got?.d || {}}; })
+      .then(() => { if (creator()?.id === c.id) drawStream(); });
+  }
+  const d = got?.d;
+  if (!d || !d.url) return put(box, "");
+  const k = PLAT[d.platform] ? d.platform : "youtube";
+  put(box, `<div class="lstream"><div class="lthumb">${d.thumb ? `<img src="${d.thumb}" alt="">` : ""}${d.duration ? `<span class="du">${hms(d.duration)}</span>` : ""}</div>
+    <div class="linfo"><span class="lk">${platLogo(k)}Last stream</span><h3>${esc(d.title || "Their last stream")}</h3>
+      ${d.post_live ? `<p class="lwarn">YouTube is still making this replay, so clipping may not work yet (a long stream can take a day). The live recording is the way next time.</p>`
+                    : `<p class="by">${esc(c.name)}${d.duration ? ` · ${hms(d.duration)}` : ""} · ready to clip</p>`}
+      <div class="lacts"><button class="btn primary" data-act="lsclip" data-url="${esc(d.url)}">${ic("scissors")}Clip this stream</button>
+        <button class="btn" data-act="lsmoment" data-url="${esc(d.url)}">${ic("clock")}Exact moment</button>
+        <a class="btn ghost" href="${esc(d.url)}" target="_blank" rel="noopener">${ic("play")}Watch on ${PLAT[k].name}</a></div></div></div>`);
+}
+/* The last stream's link goes into this creator's box; for Exact moment, its timeline opens as soon as it's found. */
+function clipLastStream(url, moment) {
+  const input = $("#url");
+  if (!input) return toast("Open the creator's Clips tab first.", "bad");
+  const A = att();
+  if (!A.links.some(l => l.url === url)) { input.value = url; onLink(input); }
+  $("#addform")?.scrollIntoView({behavior: "smooth", block: "start"});
+  if (!moment) return toast("Stream added. Pick a style and press Make clips.", "ok");
+  let tries = 0;
+  const wait = () => {
+    const l = att().links.find(x => x.url === url);
+    if (l?.state === "ok") return openMoment("link", l.id);
+    if (l?.state === "bad" || ++tries > 80) return toast(l?.msg || "Couldn't open the stream. Try again in a moment.", "bad");
+    setTimeout(wait, 300);
+  };
+  wait();
+}
 function liveOn(c) { return Object.entries(c.profiles || {}).filter(([k, p]) => p.live && c.channels?.[k] === p.channel).sort(([, p]) => p.channel === c.channel ? -1 : 1); }
 function statusBadge(c) {
   if (c.live_job) return `<span class="sbadge rec"><i></i>Recording</span>`;
   const on = liveOn(c);
   if (on.length) { const [k, p] = on[0]; return `<span class="sbadge live"><i></i>Live on ${PLAT[k].name}${p.viewers ? " · " + fmtK(p.viewers) + " watching" : ""}</span>`; }
   if (!Object.keys(c.channels || {}).length) return `<span class="sbadge">No channel yet</span>`;
-  return `<span class="sbadge"><i></i>Offline${c.auto_watch ? " · records when live" : ""}</span>`;
+  return `<span class="sbadge"><i></i>Offline${c.auto_watch ? " · records when live" : c.watch_once ? " · records their next stream" : ""}</span>`;
 }
 const cav = c => { const r = c.live_job || liveOn(c).length ? " ring" : "";
   return c.profile?.pic && c.profile.channel === c.channel ? `<img class="avatar${r}" src="${avatarUrl(c)}" alt="">` : `<span class="avatar${r}">${esc((c.name || "?")[0].toUpperCase())}</span>`; };
@@ -1518,8 +1571,11 @@ function updateHow() {
 }
 /* "What's new": what the latest versions brought, for the people clipping (nothing about the website or the build).
    Change NEWS.id when the list changes: the line at the top shows again for everyone, until they close it. */
-const NEWS = {id: "2026-11-21f", items: [
-  {e: "⏱️", t: "Clip an exact moment", d: "Know when it happened? Paste the link, tap Exact moment, drag the start and end (or type them, like 1:02:30), and get a clip of exactly that part, fast. YouTube links show a preview right there.", act: "go", v: "overview", btn: "Try it", new: true},
+const NEWS = {id: "2026-11-22", items: [
+  {e: "📺", t: "Last stream, ready to clip", d: "When a creator isn't live, their page shows their last stream: clip all of it, or tap Exact moment for just the part you want.", new: true},
+  {e: "⏹️", t: "Recording only when you want it", d: "Stop now means stop: it won't start again by itself during that stream, and closing the app stops recording. Live clipping records that one stream; to record every stream, turn on Auto-record in the creator's Setup.", new: true},
+  {e: "🧠", t: "Free AI fills in more", d: "When your AI key runs out, the free AI on your PC writes the big text and title of exact moments too. Captions never get rewritten by it, so they stay right.", new: true},
+  {e: "⏱️", t: "Clip an exact moment", d: "Know when it happened? Paste the link, tap Exact moment, drag the start and end (or type them, like 1:02:30), and get a clip of exactly that part, fast. You see a picture of the start and the end.", act: "go", v: "overview", btn: "Try it"},
   {e: "🔥", t: "Clips that go viral", d: "Moments are picked where the streamer really reacted (screaming, laughing, the sound jumping) and where the stream's chat went wild, then every moment is checked side by side so only the best make it. The reaction right after a moment stays in the clip."},
   {e: "💬", t: "English captions fixed", d: "English streams are never mistaken for Hindi any more, and every clip is checked on its own sound, so English clips always get English captions and Hindi clips get Hinglish."},
   {e: "🧠", t: "Know when your AI key runs out", d: "If your key hits its limit, ClipKontrast tells you: it switches to the free AI on your PC by itself, or shows you how to set it up in two steps.", act: "go", v: "settings", tab: "ai", btn: "AI settings", admin: true, new: true},
@@ -1799,7 +1855,8 @@ function livePreview(u) {
     } catch (err) { if (me === liveSeq) box.innerHTML = `<div class="chprev bad">${esc(err.message)}</div>`; }
   }, 450);
 }
-/* Start live clipping: the creator is made (or found), auto-record is on, and it records now if they are live. */
+/* Start live clipping: the creator is made (or found), and this stream is recorded: now if they're live, else when
+   they next go live. Only that one stream: recording every stream is Auto-record, turned on in their Setup. */
 async function startLive(url, btn) {
   url = (url || "").trim();
   if (!url) { $("#liveurl")?.focus(); return toast("Paste the channel link of the streamer you want to clip.", "bad"); }
@@ -1815,7 +1872,7 @@ async function startLive(url, btn) {
     go("c:" + r.creator.id, "clips");
     toast(r.job ? `${r.creator.name} is live: recording started. Clips appear here as they're made.`
       : r.note ? r.note
-      : `Watching ${r.creator.name}. If they're live, recording starts in a few seconds; if not, it starts by itself when they go live. Keep the app open.`,
+      : `Watching ${r.creator.name} for their stream. If they're live, recording starts in a few seconds; if not, when they go live (that stream only). Keep the app open. To record every stream, turn on Auto-record in their Setup.`,
       r.note ? "bad" : "ok");
   } catch (e) { toast(e.message, "bad"); }
   finally { if (btn && btn.isConnected) { btn.disabled = false; btn.innerHTML = was; } }
@@ -3270,6 +3327,7 @@ document.addEventListener("click", async e => {
     if (a === "camfix") return openCamFix();
     if (a === "frameset") return openFrame(d.kind, d.id);
     if (a === "moment") return openMoment(d.kind, d.id);
+    if (a === "lsclip" || a === "lsmoment") return clipLastStream(d.url, a === "lsmoment");
     if (a === "lacheck") return drawLocalAi();
     if (a === "lapull") { await send("/api/local-ai/pull", {}); toast("Downloading the free AI model (about 2 GB). It keeps going in the background.", "ok"); return drawLocalAi(); }
     if (a === "camsave") return saveCamFix(d.scope);

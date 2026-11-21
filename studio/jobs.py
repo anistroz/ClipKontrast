@@ -640,21 +640,30 @@ def _caption_words(job, clip, words, off, src=None):
         return [dict(w, s=w["s"] - off, e=w["e"] - off) for w in words if clip["start"] - 1 <= w["s"] <= clip["end"] + 1]
     always_en = want == "en"
     lang = job.get("lang") or ""
-    if src is not None and _hinglish_mode(job):
-        # A video taken for Hindi: each clip's own sound says which language it really is.
+    clip["caption_by"] = "english" if (lang or "en").startswith("en") else "hindi"
+    hindi_job = _hinglish_mode(job)
+    # An "English" video can be a Hinglish streamer heard wrong: when Whisper is here (it is for anyone who clips
+    # Hindi), its clips are checked on their own sound too, so their Hindi is never left to the English model.
+    english_job_check = (src is not None and (want or "auto") == "auto" and (lang or "en").startswith("en")
+                         and whisper.ENABLED and whisper.installed())
+    if src is not None and (hindi_job or english_job_check):
+        # Each clip's own sound says which language it really is.
         sound = None
         try:
             sound = _clip_sound(job, clip, src, off)
         except Exception:  # noqa: BLE001 - can't read it again: the video's language and words are used
             pass
-        clip_lang = _clip_lang(job, clip, src, off, sound) if sound else "hi"
+        clip_lang = _clip_lang(job, clip, src, off, sound) if sound else ("hi" if hindi_job else "en")
         if clip_lang == "hi":
+            lang = "hi"
             # Hindi said in this clip, in Roman letters, by the model made for exactly that: no spelling out of
             # Devanagari and no AI, so it's right even when the AI key is out of credit.
             hl = _hinglish_words(job, clip, src, off, sound)
             if hl:
+                clip["caption_by"] = "hinglish-model"
                 near = [w for w in hl if clip["start"] - 1 <= w["s"] <= clip["end"] + 1]
                 return [dict(w, s=w["s"] - off, e=w["e"] - off) for w in roman.words(near)]
+            clip["caption_by"] = "hindi-rules"           # Hindi spelled in Roman letters by rules (and the AI, if it's on)
             if sound:
                 # The Hinglish model couldn't write them (not downloaded yet, or it won't run on this computer): the
                 # clip is heard again by Hindi Whisper, word by word, never left to a long video's quick rough pass
@@ -662,11 +671,12 @@ def _caption_words(job, clip, words, off, src=None):
                 fine = _hindi_words(job, clip, sound)
                 if fine:
                     words = fine
-        elif clip_lang == "en" and sound:
+        elif clip_lang == "en" and sound and hindi_job:
             # English after all: heard again by the English model, and captioned as English
             en = _english_words(job, clip, src, off, sound)
             if en:
                 words, lang = en, "en"
+                clip["caption_by"] = "english"
     span = [round(clip["start"], 2), round(clip["end"], 2), ("en3" if always_en else "en2") + ("e" if lang == "en" else "")]
     if clip.get("fixed_for") == span and clip.get("fixed_words") and not any(
             roman.needs_roman(w.get("w", "")) for w in clip["fixed_words"]):
@@ -1574,12 +1584,15 @@ def _run_job(job):
         s_rel, e_rel = (o["range_start"] or 0) - sec0, o["range_end"] - sec0
         text = " ".join(w["w"] for w in words if s_rel - 0.5 <= w["s"] <= e_rel)
         _set(job, stage="Writing the big text and the title", progress=max(job["progress"], 0.9))
-        about = brain.describe(text, job["title"], job["uploader"], game=game) if config.ai_ready() and not brain.ai_resting() \
-            else {"score": 0, "category": "other", "hook": "", "title": "", "description": "", "hashtags": [],
-                  "highlight_words": [], "reason": "The exact moment you chose."}
-        take([dict(about, start=round(max(0.0, s_rel), 2), end=round(e_rel, 2),
-                   reason=about.get("reason") or "The exact moment you chose.")], 0.0)
-        notes.append("Clipped exactly the part you chose.")
+        # the AI key, or, when it isn't answering (or isn't set up), the free AI on this computer
+        about = brain.describe(text, job["title"], job["uploader"], game=game)
+        by = about.pop("_by", None)
+        if by:
+            model = by
+        take([dict(about, start=round(max(0.0, s_rel), 2), end=round(e_rel, 2), reason="The exact moment you chose.")], 0.0)
+        notes.append("Clipped exactly the part you chose." + (
+            " The free AI on this computer wrote its big text and title." if str(by or "").startswith("ollama:") else
+            "" if by else " No AI was answering, so it has no big text or title: add them on the clip."))
     if scan and not job["clips"] and words:
         _set(job, stage="Picking the best moments of the whole video", progress=max(job["progress"], 0.9))
         base = lo / 16000
@@ -1622,6 +1635,15 @@ def _run_job(job):
     except Exception:  # noqa: BLE001 - the clips are already made; this only improves them
         traceback.print_exc()
     mark("clips")
+    if any(c.get("caption_by") == "hindi-rules" for c in job["clips"]):
+        st = whisper.hl_state
+        why = (f"is still downloading ({st['percent']}%)" if st.get("doing") else
+               f"couldn't be used: {st['error']}" if st.get("error") else "isn't downloaded yet")
+        notes.append(f"Hinglish captions: the Hinglish model {why}, so these Hindi captions were spelled out by rules. "
+                     "Once it's ready, re-make a clip (or clip again) for proper Hinglish.")
+        whisper.fetch_hinglish_soon()
+    elif any(c.get("caption_by") == "hinglish-model" for c in job["clips"]):
+        notes.append("Hinglish captions were written by the Hinglish model.")
     if exact:           # keep our own words for the clips in the saved transcript, so editing a clip later uses them
         for a_s, b_s, tw in exact.values():
             words = [w for w in words if not a_s <= w["s"] < b_s] + tw
@@ -1635,7 +1657,8 @@ def _run_job(job):
     del audio
     clips = job["clips"]
     job["ai"] = {"model": model, "tokens": tokens, "log": notes[-5:],
-                 "note": "Nothing stood out to the AI, so the liveliest parts were clipped." if job.get("safety_net") and model
+                 "note": next((x for x in notes if x.startswith("Clipped exactly the part you chose")), "") if o.get("exact")
+                 else "Nothing stood out to the AI, so the liveliest parts were clipped." if job.get("safety_net") and model
                  else "Your AI key wasn't answering, so the free AI on this computer picked the clips." if str(model or "").startswith("ollama:")
                  else "The AI was unavailable, so clips were picked from the sound and the words." if clips and not model else ""}
     stage = "Done" if clips else "Done, but nothing clip-worthy was found"

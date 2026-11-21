@@ -10,6 +10,7 @@ import io
 import os
 import sys
 import tempfile
+import time
 from unittest.mock import patch
 
 MODE = sys.argv[1] if len(sys.argv) > 1 else "website"
@@ -176,6 +177,28 @@ else:
     check("the admin marks it fixed", web.post(f"/api/admin/feedback/{fid}", json={"status": "done"}, headers=ORIGIN).status_code, 200)
     check("...and it's counted as fixed", web.get("/api/admin/feedback").json()["counts"]["done"], 1)
     check("the Bug reports tab opens for the admin", web.get("/admin/earn/bugs").status_code, 200)
+
+    # ---- every report as a CSV file, to hand over in one go
+    import csv as _csv, io as _io
+    with db.engine.begin() as cx:
+        cx.execute(db.feedback.insert().values(t=time.time(), kind="bug", message="=HYPERLINK(\"http://evil\")", status="new",
+                                               updated_at=time.time(), source="website", contact="+91 99", app="", diag="", shot=0))
+    r = web.get("/api/admin/feedback.csv")
+    rows = list(_csv.reader(_io.StringIO(r.content.decode("utf-8-sig"))))
+    check("the admin downloads every report as a CSV file", (r.status_code, "attachment" in r.headers.get("content-disposition", ""),
+                                                             r.headers["content-type"].startswith("text/csv")), (200, True, True))
+    check("...with a column for each detail, the technical ones too", rows[0][:3] + rows[0][-2:], ["id", "date", "status", "technical_details", "screenshot"])
+    mine = next(x for x in rows[1:] if x[0] == str(fid))
+    check("...each report on its row", (mine[2], mine[3], mine[13], "ClipKontrast" in mine[8]), ("done", "app", "yes", True))
+    evil = next(x for x in rows[1:] if "HYPERLINK" in x[11])
+    check("...text a spreadsheet would run as a formula is kept as text", (evil[11][:1], evil[7][:1]), ("'", "'"))
+    only_new = list(_csv.reader(_io.StringIO(web.get("/api/admin/feedback.csv?status=new").content.decode("utf-8-sig"))))
+    check("...or just the ones in the list being looked at", all(x[2] == "new" for x in only_new[1:]) and len(only_new) < len(rows))
+    web.cookies.set(auth.COOKIE, user_cookie)
+    check("a clipper can't download them", web.get("/api/admin/feedback.csv").status_code, 404)
+    web.cookies.set(auth.COOKIE, admin_cookie)
+    page = (config.ROOT / "web" / "earn-admin.html").read_text(encoding="utf-8")
+    check("the Bug reports tab has a Download CSV button", "/api/admin/feedback.csv?status=" in page and "IC.down" in page)
     web.cookies.clear()
     r = web.get("/report")
     check("the report page opens for anyone", (r.status_code, "Report a problem" in r.text), (200, True))

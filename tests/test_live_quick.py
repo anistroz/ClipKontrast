@@ -44,7 +44,7 @@ check("a channel link starts live clipping", r.status_code, 200)
 d = r.json()
 c = d["creator"]
 check("its creator is made by itself, named from the channel", (d["made"], c["name"], c["channel"]), (True, "Mizo Plays", "https://www.youtube.com/@MizoPlays"))
-check("auto-record is on, so it records whenever they go live", c["auto_watch"], True)
+check("this stream is recorded (now, or when they go live), not every stream: auto-record stays off", (c["watch_once"], c["auto_watch"]), (True, False))
 check("the look chosen on the home screen is the creator's", (c["style"], c["layout"], c["zoom"], c["watermark"]), ("comic", "split", False, "@me"))
 check("it looks straight away whether they're live", watched, [c["id"]])
 check("no recording is forced on a channel that may be offline", (started, d["job"]), ([], None))

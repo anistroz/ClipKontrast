@@ -305,6 +305,13 @@ def local_models(fresh=False) -> list:
     return names
 
 
+def small_ai() -> bool:
+    """Is the main AI the small free model on this computer (Ollama chosen in Settings)? It is good at short jobs
+    (scoring a moment, a title) and bad at long ones: whole transcripts, and rewriting captions word by word, where it
+    changes or drops words (English captions came out garbled). Those are done without it."""
+    return ai.provider() == "ollama" and config.ai_ready()
+
+
 def local_model():
     """The free local model to fall back to, or None. Not used when it already is the main AI (asked as usual)."""
     if ai.provider() == "ollama" and config.ai_ready():
@@ -705,7 +712,7 @@ def find_clips(words, db, duration, title="", uploader="", max_clips=6, min_len=
     if not lines:
         return [], {"model": None, "note": "No speech found."}
     found, used_model, tokens = [], None, 0
-    if not config.ai_ready() or ai_resting():
+    if not config.ai_ready() or ai_resting() or small_ai():
         windows_skip = True                              # no cloud AI right now: straight to the free ways below
     else:
         windows_skip = False
@@ -736,7 +743,7 @@ def find_clips(words, db, duration, title="", uploader="", max_clips=6, min_len=
     if not used_model:
         # The free ways: the best moments from the sound and the words, then, if the free AI on this computer
         # (Ollama) is there, it reads just those moments and scores them, with a title and hook for each.
-        local = local_model()
+        local = (ai.models() or [None])[0] if small_ai() else local_model()     # Ollama as the main AI, or the fallback
         found = moment_candidates(db, words, max_clips * 2 if local else max_clips, min_len, max_len, duration, voice,
                                   "Picked from the sound, the words" + (" and the chat" if cz is not None else "") +
                                   ", because the AI key wasn't answering.", cz)
@@ -744,7 +751,8 @@ def find_clips(words, db, duration, title="", uploader="", max_clips=6, min_len=
             found, spent = _rate_locally(found, lines, title, uploader, local, game, log)
             tokens += spent
             used_model = "ollama:" + local
-            note = "Your AI key wasn't answering, so the free AI on this computer picked the clips."
+            note = ("The free AI on this computer picked the clips." if small_ai() else
+                    "Your AI key wasn't answering, so the free AI on this computer picked the clips.")
         else:
             note = "The AI was unavailable, so clips were picked from the sound and the words."
     else:
@@ -830,6 +838,25 @@ def describe(text, title="", uploader="", game=None, timeout=None):
               f"Channel: {_safe(uploader) or 'unknown'}\n\nReturn exactly one item describing it. Set start and end to 0."
               + _game_rules(game)
               + RULES.format(min_len=0, max_len=0, transcript=_safe(text, 8000)))
+    def by_local():
+        """The free AI on this computer writes them: when the AI key isn't answering, or it is the main AI."""
+        m = (ai.models() or [None])[0] if small_ai() else local_model()
+        if not m:
+            return None
+        try:
+            a, _spent = ask_local(LOCAL_RATE.format(title=_safe(title) or "unknown", uploader=_safe(uploader) or "unknown",
+                                                    extra="", text=_safe(text, 3000)), LOCAL_SCHEMA, m,
+                                  purpose="Hand clip: title and hook", timeout=timeout or 90)
+        except Exception:  # noqa: BLE001
+            return None
+        if not (isinstance(a, dict) and (str(a.get("hook") or "").strip() or str(a.get("title") or "").strip())):
+            return None
+        c = _tidy({**a, "category": "other"}, 0, 0, game)
+        c.update(reason="Clipped by hand.", _by="ollama:" + m)
+        return c
+
+    if small_ai() or ai_resting():            # the key just failed, or Ollama is the main AI: straight to it
+        return by_local() or blank
     try:
         out, _m, _u = ask_ai(prompt, purpose="Hand clip: title and hook", timeout=timeout)
         if not out:
@@ -838,12 +865,12 @@ def describe(text, title="", uploader="", game=None, timeout=None):
             out, _m, _u = ask_ai(prompt + "\n\nReturn one item. The moment is short; describe what was said.",
                                  purpose="Hand clip: title and hook", timeout=timeout)
         if not out:
-            return blank
+            return by_local() or blank
         c = _tidy(out[0], 0, 0, game)
-        c["reason"] = "Clipped by hand."
+        c.update(reason="Clipped by hand.", _by=_m)
         return c
-    except Exception:  # noqa: BLE001
-        return blank
+    except Exception:  # noqa: BLE001 - the AI key isn't answering: the free AI on this computer, if it's there
+        return by_local() or blank
 
 
 # ---------------------------------------------------------------- live: two judges that never see each other's input
@@ -1078,8 +1105,8 @@ def _fix_caption_words(words: list, title: str = "", lang: str = "") -> list:
     The answer must have exactly one entry per original word, so every word keeps its own timing. An entry may be
     "" to drop a filler word, or hold two words joined by a space. If anything looks off, the original words are kept.
     """
-    if len(words) < 3:
-        return words
+    if len(words) < 3 or small_ai():
+        return words                  # a small local model rewrites words it shouldn't: the speech model's words stay
     # The Hindi and Urdu rule is only given for those videos. On an English video it is one more thing a small
     # model can get wrong (turning English into something else).
     hindi = (lang or "").lower().startswith(("hi", "ur")) or any(roman.needs_roman(w["w"]) for w in words)

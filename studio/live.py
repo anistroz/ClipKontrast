@@ -570,6 +570,7 @@ class Session:
             try:
                 c = brain.describe(text, self.job["title"], self.job["uploader"], game=self._game(),
                                    timeout=config.LIVE_AI_TIMEOUT)
+                c.pop("_by", None)
             except Exception as e:  # noqa: BLE001
                 # Someone asked for this clip by hand. A slow or broken AI costs it its hook, not the clip.
                 self.job["ai"]["last_error"] = str(e)[-200:]
@@ -857,7 +858,7 @@ def _watch_user(uid):
     from . import profiles
     with ctx.as_user(uid):
         try:
-            todo = [c for c in creators.all_creators() if c["auto_watch"] and c["channel"]]
+            todo = [c for c in creators.all_creators() if (c["auto_watch"] or c.get("watch_once")) and c["channel"]]
             if not todo:
                 return
         except Exception:  # noqa: BLE001
@@ -874,7 +875,7 @@ def check_now(cid):
         from . import profiles
         with ctx.as_user(uid):
             c = creators.get(cid)
-            if not c or not c["auto_watch"] or not c["channel"]:
+            if not c or not (c["auto_watch"] or c.get("watch_once")) or not c["channel"]:
                 return
             for url in c.get("channels", {}).values():
                 profiles._live.pop(url.rstrip("/").lower(), None)     # a fresh answer, not one from two minutes ago
@@ -891,6 +892,11 @@ def _watch_one(c):
             return
         # the chosen channel first, then their other platforms
         urls = [c["channel"]] + [u for u in c.get("channels", {}).values() if u != c["channel"]]
+        if c.get("hold"):
+            # Stop was pressed while they were live: left alone until they've gone offline, then watched as usual
+            if not any(profiles.live_shared(profiles.platform_of(u), u).get("live") for u in urls):
+                creators.update(c["id"], {"hold": False})
+            return
         for url in urls:
             # one shared "are they live?" answer per channel, however many people follow it
             if not profiles.live_shared(profiles.platform_of(url), url).get("live"):
@@ -904,6 +910,8 @@ def _watch_one(c):
                 except NotLive:
                     continue
             start_session(c, url)
+            if c.get("watch_once"):
+                creators.update(c["id"], {"watch_once": False})     # this stream only: not their next ones
             where = creators.platform_key(url).title()
             creators.log(c["id"], f"Went live on {where}: recording started automatically")
             alerts.notify(f"{c['name']} went live on {where}, recording started.")
@@ -939,7 +947,7 @@ def _resume_recordings(paused):
             with ctx.as_user(uid):
                 try:
                     c = creators.get(cid)
-                    if not c or active_for(cid):
+                    if not c or active_for(cid) or c.get("hold"):
                         continue
                     resolve(normalize(url))      # raises NotLive if the stream has ended: no empty recording is made
                     start_session(c, url)
@@ -954,14 +962,58 @@ def _resume_recordings(paused):
         time.sleep(30)
 
 
+RESUME_MARK = "resume-recordings"     # written just before ClipKontrast restarts itself to update
+
+
+def _should_resume() -> bool:
+    """Recordings that were on when ClipKontrast stopped are picked up again on a server (it restarts for updates
+    and crashes, never because someone closed it), and on a computer only when it restarted itself to update.
+    Closing the app on a computer means stop: they don't start again when it's opened."""
+    mark = config.DATA_DIR / RESUME_MARK
+    if mark.exists():
+        mark.unlink(missing_ok=True)
+        return True
+    return bool(config.ACCOUNTS)
+
+
+def _autorecord_once():
+    """Once, after this version arrives: auto-record is only on where someone turned it on. "Live clipping" from
+    Home used to turn it on for good; it now records just that stream. Creators it was on for are turned off, and
+    the owner is told which, with where to turn it back on."""
+    from . import notices
+    for uid in auth.user_ids():
+        mark = config.user_dir(uid) / "autorecord-v2"
+        if mark.exists():
+            continue
+        try:
+            with ctx.as_user(uid):
+                was = [c for c in creators.all_creators() if c.get("auto_watch")]
+                for c in was:
+                    creators.update(c["id"], {"auto_watch": False})
+                if was:
+                    names = ", ".join(c["name"] for c in was[:6]) + (f" and {len(was) - 6} more" if len(was) > 6 else "")
+                    notices.add(uid, "live", "Auto-record is now only on where you turn it on",
+                                f"It was turned off for {names}. To record a streamer every time they go live, open them, "
+                                "Setup, and turn on Record automatically.", "/app/videos", ref="autorecord-v2")
+            mark.parent.mkdir(parents=True, exist_ok=True)
+            mark.write_text("1", encoding="utf-8")
+        except Exception:  # noqa: BLE001 - tried again next start
+            pass
+
+
 def start():
     paused = []
+    resume = _should_resume()
+    _autorecord_once()
     for j in jobs.all_jobs():
         if j.get("recover"):
             with ctx.as_user(j["user"]):
                 recover(j)
         if j.get("was_live") and j.get("creator"):
-            paused.append((j["user"], j["creator"], j["source"]["url"]))
+            if resume:
+                paused.append((j["user"], j["creator"], j["source"]["url"]))
+            else:
+                j["stage"] = "Recording stopped when ClipKontrast was closed"
             j.pop("was_live", None)
             jobs.save(j)
     if paused:
