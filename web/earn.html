@@ -562,7 +562,7 @@ footer.site .fbottom{display:flex;justify-content:space-between;gap:12px;flex-wr
     </div>
     <div class="ticker reveal" style="--d:.24s">
       <div><b class="lime" id="tLive">₹0</b><span>budget open right now</span></div>
-      <div><b id="tPaid">₹0</b><span>paid out to clippers</span></div>
+      <div><b id="tPaid">₹0</b><span id="tPaidL">paid out to clippers</span></div>
       <div><b id="tClippers">0</b><span>clippers in campaigns</span></div>
       <div><b id="tViews">0</b><span>views counted</span></div>
     </div>
@@ -1097,7 +1097,12 @@ function drawCalc() {
 }
 function drawHero() {
   const o = S.data.overview, live = S.data.campaigns.filter(c => c.open);
-  countTo($("#tLive"), o.live_budget, v => inr(v)); countTo($("#tPaid"), o.paid_out, v => inr(v));
+  countTo($("#tLive"), o.live_budget, v => inr(v));
+  // Paid out so far is shown once it's a number worth showing; before that (the first campaign's first week, when
+  // views are still being counted), the best rate on offer says more: "₹60 paid out" next to ₹1 lakh reads wrong.
+  const best = Math.max(0, ...live.map(c => Number(c.rate_per_1k) || 0));
+  if (o.paid_out >= 10000 || !best) { countTo($("#tPaid"), o.paid_out, v => inr(v)); $("#tPaidL").textContent = "paid out to clippers"; }
+  else { countTo($("#tPaid"), best, v => inr(v)); $("#tPaidL").textContent = "per 1,000 views"; }
   countTo($("#tClippers"), o.clippers, v => num(Math.round(v))); countTo($("#tViews"), o.views, v => short(Math.round(v)));
   const soon = S.data.campaigns.filter(c => c.state === "soon" || c.state === "starts");
   const ex = calcCamp();
