@@ -3090,7 +3090,7 @@ function endedCard(c) {
 function endedBlock(limit) {
   const e = S.camps?.ended || []; if (!e.length) return "";
   const t = S.camps.totals || {}, total = t.ended_budget || e.reduce((a, c) => a + (c.budget || 0), 0);
-  return `<div class="pc-sec"><div class="pc-sec-h"><div><h3>Our previous campaigns</h3><p class="help">${inr(total)} across ${e.length} completed campaign${e.length === 1 ? "" : "s"}${t.paid_out ? `, ${inr(t.paid_out)} paid out to clippers` : ""}. More are on the way.</p></div>
+  return `<div class="pc-sec"><div class="pc-sec-h"><div><h3>Our previous campaigns</h3><p class="help">${inr(total)} across ${e.length} completed campaign${e.length === 1 ? "" : "s"}${t.paid_out >= 10000 ? `, ${inr(t.paid_out)} paid out to clippers` : ""}. More are on the way.</p></div>
       ${limit && e.length > limit ? `<button class="lnk" data-act="go" data-v="campaigns">See all ${e.length} →</button>` : ""}</div>
     <div class="pce-grid">${(limit ? e.slice(0, limit) : e).map(endedCard).join("")}</div></div>`;
 }

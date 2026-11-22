@@ -570,7 +570,8 @@ def app_feed() -> dict:
     ended.sort(key=lambda c: (-(c["budget"] or 0), -(c["ends_at"] or 0)))     # the biggest first: what clippers earned here     # the one taking clips first; the admin's order within
     ov = overview()
     return {"live": live[:6], "ended": ended[:24],
-            "totals": {"paid_out": ov["paid_out"], "clippers": ov["clippers"], "live_budget": ov["live_budget"],
+            # paid out so far, said only once it's a number worth saying (₹60 next to ₹4 lakh of campaigns reads wrong)
+            "totals": {"paid_out": ov["paid_out"] if ov["paid_out"] >= 10000 else 0, "clippers": ov["clippers"], "live_budget": ov["live_budget"],
                        "ended_budget": round(sum(x["budget"] or 0 for x in ended), 2), "ended_count": len(ended),
                        "views": ov["views"]}}
 

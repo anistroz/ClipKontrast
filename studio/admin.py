@@ -48,6 +48,17 @@ def overview() -> dict:
         used = {r[0]: (r[1], int(r[2] or 0)) for r in c.execute(sa.select(g.user_id, sa.func.count(), sa.func.sum(tok)).group_by(g.user_id))}
         calls_today = c.execute(sa.select(sa.func.count()).select_from(db.usage).where(g.t >= midnight)).scalar()
 
+        # The headline numbers are counted over every account in the database: the list below holds only the newest
+        # 2,000, and counting that list said "2,000 signed up this week" and "0 admins" once there were more.
+        def count(*where):
+            return int(c.execute(sa.select(sa.func.count()).select_from(db.users).where(*where)).scalar() or 0)
+        heads = {"signups_today": count(u.created_at >= midnight), "signups_7d": count(u.created_at >= d7),
+                 "signups_30d": count(u.created_at >= d30), "active_7d": count(u.last_seen >= d7),
+                 "disabled": count(u.disabled.is_(True)), "admins": count(u.is_admin.is_(True)),
+                 "verified": (int(c.execute(sa.select(sa.func.count(sa.distinct(db.email_ok.c.user_id)))
+                                            .select_from(db.email_ok.join(db.users, db.users.c.id == db.email_ok.c.user_id))).scalar() or 0)
+                              if config.VERIFY_EMAIL else int(n_users or 0))}
+
         days = [_day(now - 86400 * i) for i in range(29, -1, -1)]
         daily = {d: {"day": d, "signups": 0, "tokens": 0, "calls": 0} for d in days}
         for (created,) in c.execute(sa.select(u.created_at).where(u.created_at >= now - 31 * 86400)):
@@ -64,8 +75,12 @@ def overview() -> dict:
         by_purpose = [[r[0], r[1], int(r[2] or 0)] for r in c.execute(
             sa.select(g.purpose, sa.func.count(), sa.func.sum(tok)).group_by(g.purpose).order_by(sa.func.sum(tok).desc()).limit(12))]
         emails = {r.id: r.email for r in rows}
+        logged = c.execute(sa.select(db.admin_log).order_by(db.admin_log.c.t.desc()).limit(40)).all()
+        missing = {x for r in logged for x in (r.admin_id, r.target_id) if x and x not in emails}
+        if missing:                  # accounts older than the newest 2,000 (the admin's own, often)
+            emails.update({r.id: r.email for r in c.execute(sa.select(u.id, u.email).where(u.id.in_(missing)))})
         log = [{"t": r._mapping["t"], "admin": emails.get(r.admin_id, ""), "action": r.action, "target": emails.get(r.target_id, ""),
-                "detail": r.detail} for r in c.execute(sa.select(db.admin_log).order_by(db.admin_log.c.t.desc()).limit(40))]
+                "detail": r.detail} for r in logged]
 
     all_jobs = jobs.all_jobs()
     vids, clips = defaultdict(int), defaultdict(int)
@@ -79,12 +94,7 @@ def overview() -> dict:
               "ai_calls": used.get(r.id, (0, 0))[0], "tokens": used.get(r.id, (0, 0))[1],
               "videos": vids[r.id], "clips": clips[r.id]} for r in rows]
     return {
-        "totals": {"users": int(n_users), "verified": sum(1 for x in users if x["verified"]),
-                   "disabled": sum(1 for x in users if x["disabled"]), "admins": sum(1 for x in users if x["role"] == "admin"),
-                   "signups_today": sum(1 for x in users if x["created_at"] >= midnight),
-                   "signups_7d": sum(1 for x in users if x["created_at"] >= d7),
-                   "signups_30d": sum(1 for x in users if x["created_at"] >= d30),
-                   "active_7d": sum(1 for x in users if (x["last_seen"] or 0) >= d7),
+        "totals": {"users": int(n_users), **heads,
                    "ai_calls": sum(v[0] for v in used.values()), "ai_calls_today": int(calls_today),
                    "tokens": sum(v[1] for v in used.values()),
                    "videos": len(all_jobs), "clips": sum(clips.values()), "recording": len(live.active()),
