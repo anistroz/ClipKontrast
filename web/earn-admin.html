@@ -76,6 +76,12 @@ tr:hover td{background:#FCFBFA}
 .num{font-variant-numeric:tabular-nums;font-weight:600;white-space:nowrap}
 .thumb{width:44px;height:44px;border-radius:8px;object-fit:cover;border:1px solid var(--line);display:block}
 .filters{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+.cpresets{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.cpresets button{border:1px solid var(--line-2);background:#fff;border-radius:999px;padding:5px 12px;font:inherit;font-size:12.5px;font-weight:600;color:var(--dim);cursor:pointer}
+.cpresets button.on{background:var(--brand);border-color:var(--brand);color:#1A2100}
+.cfilters{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-bottom:12px}
+.cf{display:flex;flex-direction:column;gap:3px;font-size:11.5px;font-weight:600;color:var(--faint)}
+.cf select{height:34px;font-size:13px;color:var(--text)}
 .seg{display:flex;border:1px solid var(--line-2);border-radius:10px;overflow:hidden}
 .seg button{border:0;background:#fff;padding:0 12px;height:36px;cursor:pointer;font-weight:500;color:var(--dim);border-right:1px solid var(--line-2)}
 .seg button:last-child{border-right:0}
@@ -351,28 +357,101 @@ function waWelcome(c) {
   return lines.join("\n");
 }
 const waLink = c => `https://wa.me/${c.whatsapp.replace(/\D/g, "")}?text=${encodeURIComponent(waWelcome(c))}`;
+// The filters of the Clippers list: every one combines with the others and with the search box.
+const CF_DEFAULT = {email: "", profile: "", camp: "", clips: "", has: "", joined: "", active: "", sort: "new"};
+const CF_PRESETS = [
+  ["all", "Everyone", {}],
+  ["noclips", "Joined, no clip yet", {camp: "any", clips: "none"}],
+  ["noprofile", "Payout profile missing", {profile: "missing"}],
+  ["review", "Clips to review", {clips: "review"}],
+  ["owed", "Owed money", {clips: "owed", sort: "owed"}],
+  ["top", "Top clippers", {clips: "sent", sort: "views"}],
+  ["new", "New this week", {joined: "7"}],
+  ["unconfirmed", "Email not confirmed", {email: "no"}]];
+function cfMatch(c, f) {
+  const day = 86400, now = Date.now() / 1000;
+  if (f.email === "yes" && !c.email_confirmed) return false;
+  if (f.email === "no" && c.email_confirmed) return false;
+  if (f.profile === "done" && !c.profile_complete) return false;
+  if (f.profile === "missing" && c.profile_complete) return false;
+  if (f.camp === "any" && !c.campaigns.length) return false;
+  if (f.camp === "none" && c.campaigns.length) return false;
+  if (f.camp && !["any", "none"].includes(f.camp) && !c.campaigns.includes(f.camp)) return false;
+  if (f.clips === "sent" && !c.clips) return false;
+  if (f.clips === "none" && c.clips) return false;
+  if (f.clips === "review" && !c.pending) return false;
+  if (f.clips === "owed" && !(c.owed > 0)) return false;
+  if (f.clips === "paid" && !(c.paid > 0)) return false;
+  if (f.has === "whatsapp" && !c.whatsapp) return false;
+  if (f.has === "upi" && !c.upi) return false;
+  if (["youtube", "instagram", "x", "tiktok"].includes(f.has) && !c.handles[f.has]) return false;
+  if (f.joined && (now - (c.joined_site || 0)) > Number(f.joined) * day) return false;
+  if (f.active === "1" && (now - (c.last_seen || 0)) > day) return false;
+  if (f.active === "7" && (now - (c.last_seen || 0)) > 7 * day) return false;
+  if (f.active === "gone" && (now - (c.last_seen || 0)) <= 7 * day) return false;
+  return true;
+}
+const CF_SORT = {new: (a, b) => b.joined_site - a.joined_site, old: (a, b) => a.joined_site - b.joined_site,
+  clips: (a, b) => b.clips - a.clips, views: (a, b) => b.views - a.views, owed: (a, b) => b.owed - a.owed, paid: (a, b) => b.paid - a.paid,
+  seen: (a, b) => (b.last_seen || 0) - (a.last_seen || 0), name: (a, b) => (a.name || a.email).localeCompare(b.name || b.email)};
+function clippersShown() {
+  const f = {...CF_DEFAULT, ...(S.cf || {})}, q = (S.cq || "").toLowerCase();
+  return S.clippers.filter(c => cfMatch(c, f) && (!q || [c.name, c.email, c.upi, c.whatsapp, c.city, ...Object.values(c.handles)].join(" ").toLowerCase().includes(q)))
+    .sort(CF_SORT[f.sort] || CF_SORT.new);
+}
+function cfSelect(k, label, opts) {
+  const f = {...CF_DEFAULT, ...(S.cf || {})};
+  return `<label class="cf"><span>${label}</span><select class="inp" data-cf="${k}">${opts.map(([v, l]) => `<option value="${esc(v)}" ${f[k] === v ? "selected" : ""}>${esc(l)}</option>`).join("")}</select></label>`;
+}
+function clippersCsv(list) {
+  const cell = v => { let s = String(v ?? ""); if (/^[=+\-@\t\r]/.test(s)) s = "'" + s; return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+  const head = ["Name", "Email", "Email confirmed", "WhatsApp", "UPI", "City", "YouTube", "Instagram", "X", "TikTok", "Campaigns", "Clips", "To review", "Views", "Owed", "Paid", "Signed up", "Last seen"];
+  const d = t => t ? new Date(t * 1000).toISOString().slice(0, 10) : "";
+  const rows = list.map(c => [c.name, c.email, c.email_confirmed ? "yes" : "no", c.whatsapp, c.upi, c.city, c.handles.youtube, c.handles.instagram, c.handles.x, c.handles.tiktok,
+    c.campaigns.join(" | "), c.clips, c.pending, c.views, c.owed, c.paid, d(c.joined_site), d(c.last_seen)]);
+  const blob = new Blob(["﻿" + [head, ...rows].map(r => r.map(cell).join(",")).join("\r\n")], {type: "text/csv"});
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `clipkontrast-clippers-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
 function drawClippers() {
   if (!S.clippers) return "Loading…";
-  const q = (S.cq || "").toLowerCase();
-  const list = S.clippers.filter(c => !q || [c.name, c.email, c.upi, c.whatsapp, c.city, ...Object.values(c.handles)].join(" ").toLowerCase().includes(q));
-  const ready = S.clippers.filter(c => c.profile_complete).length;
-  return `<div class="kpis" style="margin-bottom:16px"><div class="kpi"><span>Signed up</span><b>${num(S.clippers.length)}</b></div>
-      <div class="kpi"><span>Email confirmed</span><b>${num(S.clippers.filter(c => c.email_confirmed).length)}</b></div>
+  const list = clippersShown(), limit = S.cLimit || 300;
+  const f = {...CF_DEFAULT, ...(S.cf || {})}, any = Object.keys(CF_DEFAULT).some(k => k !== "sort" && f[k]) || S.cq;
+  const all = S.clippers, ready = all.filter(c => c.profile_complete).length;
+  const presetOn = k => { const p = CF_PRESETS.find(x => x[0] === k)[2]; return JSON.stringify({...CF_DEFAULT, ...p}) === JSON.stringify(f); };
+  return `<div class="kpis" style="margin-bottom:16px"><div class="kpi"><span>Signed up</span><b>${num(all.length)}</b></div>
+      <div class="kpi"><span>Email confirmed</span><b>${num(all.filter(c => c.email_confirmed).length)}</b></div>
       <div class="kpi hi"><span>Payout profile done</span><b>${num(ready)}</b></div>
-      <div class="kpi"><span>In a campaign</span><b>${num(S.clippers.filter(c => c.campaigns.length).length)}</b></div></div>
+      <div class="kpi"><span>In a campaign</span><b>${num(all.filter(c => c.campaigns.length).length)}</b></div></div>
     <div class="card" style="margin-top:0">
-      <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px"><input id="cq" placeholder="Search name, email, UPI, WhatsApp or handle" value="${esc(S.cq || "")}" style="width:100%;max-width:380px;height:40px;border:1px solid var(--line-2);border-radius:10px;padding:0 12px;background:#fff;outline:0"><span style="color:var(--faint);font-size:13px">${list.length} of ${S.clippers.length}</span></div>
+      <div class="cpresets">${CF_PRESETS.map(([k, l]) => `<button class="${presetOn(k) ? "on" : ""}" data-act="cpreset" data-k="${k}">${esc(l)}</button>`).join("")}</div>
+      <div class="cfilters">
+        ${cfSelect("email", "Email", [["", "Any"], ["yes", "Confirmed"], ["no", "Not confirmed"]])}
+        ${cfSelect("profile", "Payout profile", [["", "Any"], ["done", "Done"], ["missing", "Missing"]])}
+        ${cfSelect("camp", "Campaign", [["", "Any"], ["any", "In a campaign"], ["none", "In no campaign"], ...S.camps.map(x => [x.title, x.title])])}
+        ${cfSelect("clips", "Clips", [["", "Any"], ["sent", "Sent clips"], ["none", "No clip yet"], ["review", "Clips to review"], ["owed", "Owed money"], ["paid", "Paid before"]])}
+        ${cfSelect("has", "Has", [["", "Anything"], ["whatsapp", "WhatsApp"], ["upi", "UPI ID"], ["youtube", "YouTube"], ["instagram", "Instagram"], ["x", "X"], ["tiktok", "TikTok"]])}
+        ${cfSelect("joined", "Signed up", [["", "Any time"], ["1", "Last 24 hours"], ["7", "Last 7 days"], ["30", "Last 30 days"]])}
+        ${cfSelect("active", "Last seen", [["", "Any time"], ["1", "Last 24 hours"], ["7", "Last 7 days"], ["gone", "Not in 7+ days"]])}
+        ${cfSelect("sort", "Sort by", [["new", "Newest first"], ["old", "Oldest first"], ["clips", "Most clips"], ["views", "Most views"], ["owed", "Most owed"], ["paid", "Most paid"], ["seen", "Recently active"], ["name", "Name A–Z"]])}
+      </div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px"><input id="cq" placeholder="Search name, email, UPI, WhatsApp or handle" value="${esc(S.cq || "")}" style="width:100%;max-width:380px;height:40px;border:1px solid var(--line-2);border-radius:10px;padding:0 12px;background:#fff;outline:0">
+        <span style="color:var(--faint);font-size:13px"><b style="color:var(--text)">${num(list.length)}</b> of ${num(all.length)}</span>
+        ${any ? `<button class="btn xs" data-act="cclear">Clear filters</button>` : ""}<span style="flex:1"></span>
+        ${list.length ? `<button class="btn xs" data-act="ccsv" title="These ${num(list.length)} clippers, as a spreadsheet">${IC.down || ""}Download CSV</button>` : ""}</div>
       ${list.length ? `<div class="tw"><table><thead><tr><th>Clipper</th><th>WhatsApp</th><th>UPI</th><th>Accounts</th><th>Campaigns</th><th class="num">Clips</th><th class="num">Views</th><th class="num">Owed</th><th class="num">Paid</th></tr></thead><tbody>
-      ${list.map(c => `<tr>
+      ${list.slice(0, limit).map(c => `<tr>
         <td><b>${esc(c.name || "—")}</b>${c.email_confirmed ? "" : ' <span class="chip pending">Email not confirmed</span>'}${c.profile_complete ? "" : ' <span class="chip draft">No payout profile</span>'}
-          <div style="color:var(--faint);font-size:12px">${esc(c.email)}${c.city ? " · " + esc(c.city) : ""}</div></td>
+          <div style="color:var(--faint);font-size:12px">${esc(c.email)}${c.city ? " · " + esc(c.city) : ""}</div>
+          <div style="color:var(--faint);font-size:11px">Signed up ${esc(ago(c.joined_site))}${c.last_seen ? " · seen " + esc(ago(c.last_seen)) : ""}</div></td>
         <td>${c.whatsapp ? `<div style="font-size:13px">${esc(c.whatsapp)}</div><a class="btn xs primary" style="margin-top:6px" href="${esc(waLink(c))}" target="_blank" rel="noopener" title="Opens WhatsApp with the welcome message typed in">WhatsApp welcome</a>` : "—"}</td>
         <td>${c.upi ? `<span class="mono">${esc(c.upi)}</span>` : "—"}</td>
         <td>${Object.entries(c.handles).filter(([, h]) => h).map(([k, h]) => `<a href="${esc(HANDLE_URL[k](h))}" target="_blank" rel="noopener" style="display:block;font-size:13px"><b>${HANDLE_LABEL[k]}</b> ${esc(h)}</a>`).join("") || "—"}</td>
         <td style="font-size:13px">${c.campaigns.length ? c.campaigns.map(esc).join("<br>") : "—"}</td>
         <td class="num">${num(c.clips)}${c.pending ? `<div style="font-size:11px;color:var(--warn)">${c.pending} to review</div>` : ""}</td>
         <td class="num">${num(c.views)}</td><td class="num">${inr(c.owed)}</td><td class="num">${inr(c.paid)}</td></tr>`).join("")}
-      </tbody></table></div>` : `<div class="empty"><b>No one yet</b>People who sign up on the Earn page show up here with their payout details and accounts.</div>`}
+      </tbody></table></div>${list.length > limit ? `<div style="text-align:center;margin-top:12px"><button class="btn" data-act="cmore">Show ${num(Math.min(300, list.length - limit))} more (${num(list.length - limit)} left)</button></div>` : ""}`
+      : `<div class="empty"><b>${any ? "No clipper matches these filters" : "No one yet"}</b>${any ? "Change or clear the filters." : "People who sign up on the Earn page show up here with their payout details and accounts."}</div>`}
     </div>`;
 }
 
@@ -562,6 +641,10 @@ document.addEventListener("click", async e => {
   const a = e.target.closest("[data-act]"); if (!a) return;
   const act = a.dataset.act, id = a.dataset.id;
   try {
+    if (act === "cpreset") { S.cf = {...CF_DEFAULT, ...CF_PRESETS.find(x => x[0] === a.dataset.k)[2]}; S.cLimit = 300; draw(); return; }
+    if (act === "cclear") { S.cf = {...CF_DEFAULT}; S.cq = ""; S.cLimit = 300; draw(); return; }
+    if (act === "cmore") { S.cLimit = (S.cLimit || 300) + 300; draw(); return; }
+    if (act === "ccsv") { clippersCsv(clippersShown()); toast("CSV downloaded."); return; }
     if (act === "new") openForm();
     else if (act === "edit") openForm(S.camps.find(c => c.id === id));
     else if (act === "close" || (act === "close-bg" && e.target === a)) $("#modal").innerHTML = "";
@@ -614,6 +697,7 @@ document.addEventListener("click", async e => {
 document.addEventListener("change", async e => {
   if (e.target.dataset.sel) { e.target.checked ? S.sel.add(+e.target.dataset.sel) : S.sel.delete(+e.target.dataset.sel); draw(); return; }
   if (e.target.dataset.act === "qcamp") { S.qCamp = e.target.value; await loadQueue(); draw(); return; }
+  if (e.target.dataset.cf) { S.cf = {...CF_DEFAULT, ...(S.cf || {}), [e.target.dataset.cf]: e.target.value}; S.cLimit = 300; draw(); return; }
   if (e.target.dataset.views) {
     try { await api(`/api/admin/earn/submissions/${e.target.dataset.views}/views`, {method: "POST", body: {views: e.target.value}}); toast("Views saved."); await loadQueue(); draw(); } catch (err) { toast(err.message, "bad"); }
     return;

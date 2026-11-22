@@ -703,10 +703,11 @@ def clippers_admin() -> list:
     """Everyone who signed up, with their payout profile, the campaigns they joined and what they sent. Admins only."""
     u, p, s, m = db.users.c, db.earn_profiles.c, db.earn_submissions.c, db.earn_members.c
     with db.engine.connect() as c:
-        rows = c.execute(sa.select(u.id, u.email, u.name, u.created_at, p.display_name, p.whatsapp, p.upi, p.youtube,
+        # everyone (the page filters and counts them): a cap here made "Signed up" stop at 2,000
+        rows = c.execute(sa.select(u.id, u.email, u.name, u.created_at, u.last_seen, p.display_name, p.whatsapp, p.upi, p.youtube,
                                    p.instagram, p.x, p.tiktok, p.city)
                          .select_from(db.users.outerjoin(db.earn_profiles, p.user_id == u.id))
-                         .order_by(u.created_at.desc()).limit(2000)).all()
+                         .order_by(u.created_at.desc()).limit(50000)).all()
         verified = {r[0] for r in c.execute(sa.select(db.email_ok.c.user_id))}
         titles = {r.id: r.title for r in c.execute(sa.select(db.earn_campaigns.c.id, db.earn_campaigns.c.title))}
         joined = {}
@@ -730,6 +731,7 @@ def clippers_admin() -> list:
         st = sent.get(r.id, {"clips": 0, "views": 0, "owed": 0.0, "paid": 0.0, "pending": 0})
         handles = {k: getattr(r, k) or "" for k in ("youtube", "instagram", "x", "tiktok")}
         out.append({"id": r.id, "email": r.email, "name": r.display_name or r.name or "", "joined_site": r.created_at,
+                    "last_seen": r.last_seen or 0,
                     "email_confirmed": (not config.VERIFY_EMAIL) or r.id in verified,
                     "whatsapp": r.whatsapp or "", "upi": r.upi or "", "city": r.city or "", "handles": handles,
                     "profile_complete": bool(r.whatsapp and r.upi and any(handles.values())),

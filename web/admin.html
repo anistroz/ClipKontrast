@@ -316,12 +316,13 @@ function drawFeedback() {
   const seg = (k, l) => `<button class="${S.fbStatus === k ? "on" : ""}" data-act="fbfilter" data-k="${k}">${l}${k && f.counts[k] ? ` · ${num(f.counts[k])}` : ""}</button>`;
   return `<div class="toolbar"><div class="seg">${seg("new", "New")}${seg("seen", "Seen")}${seg("done", "Done")}${seg("", "All")}</div></div>
     ${f.items.length ? f.items.map(x => `<div class="card fbitem"><div class="fbtop"><span class="pill ${FBK[x.kind]?.[1] || ""}">${esc(FBK[x.kind]?.[0] || x.kind)}</span>
-        <b>${esc(x.name || x.email || "Deleted account")}</b><span class="sub">${esc(x.email)} · ${esc(when(x.t))}${x.page ? " · " + esc(x.page) : ""}</span>
+        <b>${esc(x.name || x.email || (x.account === false ? "From the app" : "Deleted account"))}</b><span class="sub">${esc([x.email || (x.account === false ? x.contact : ""), when(x.t), x.account === false ? (x.app || "").replace(/\s*\(.*$/, "") : x.page].filter(Boolean).join(" · "))}</span>
         <span class="pill ${x.status === "done" ? "ok" : x.status === "new" ? "warn" : ""}" style="margin-left:auto">${esc(x.status === "new" ? "New" : x.status === "seen" ? "Seen" : "Done")}</span></div>
       <p class="fbmsg">${esc(x.message)}</p>${x.context ? `<p class="fbctx">${esc(x.context)}</p>` : ""}
       <div class="row">${x.status !== "seen" ? `<button class="btn sm" data-act="fbset" data-id="${x.id}" data-s="seen">Mark seen</button>` : ""}
         ${x.status !== "done" ? `<button class="btn sm" data-act="fbset" data-id="${x.id}" data-s="done">${ic("check")}Done</button>` : `<button class="btn sm" data-act="fbset" data-id="${x.id}" data-s="new">Reopen</button>`}
-        ${x.email ? `<a class="btn sm" href="mailto:${esc(x.email)}?subject=${encodeURIComponent("About your ClipKontrast feedback")}">Reply by email</a>` : ""}</div></div>`).join("")
+        ${x.email ? `<a class="btn sm" href="mailto:${esc(x.email)}?subject=${encodeURIComponent("About your ClipKontrast feedback")}">Reply by email</a>` : ""}
+        ${x.account === false ? `<a class="btn sm" href="/admin/earn/bugs">Full report (PC details)</a>` : ""}</div></div>`).join("")
       : `<div class="card"><div class="empty"><b>Nothing here</b>${S.fbStatus === "new" ? "No new messages. Everything has been looked at." : "Messages appear here as users send them."}</div></div>`}`;
 }
 async function loadFeedback() {

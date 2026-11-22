@@ -114,7 +114,8 @@ def listing(status: str = "") -> dict:
         counts = dict(c.execute(sa.select(f.status, sa.func.count()).group_by(f.status)).all())
     return {"items": [{"id": r.id, "t": r._mapping["t"], "kind": r.kind, "message": r.message, "page": r.page,
                        "context": r.context, "status": r.status, "email": r.email or "", "name": r.name or "",
-                       "source": r.source, "contact": r.contact, "app": r.app, "diag": r.diag, "shot": bool(r.shot)}
+                       "source": r.source, "contact": r.contact, "app": r.app, "diag": r.diag, "shot": bool(r.shot),
+                       "account": bool(r.user_id)}       # False: sent from the app on someone's computer, no account
                       for r in rows],
             "counts": {s: int(counts.get(s, 0)) for s in STATUSES}}
 

@@ -31,3 +31,20 @@ for t, b, v in (("Diwali Stream Clips", 75000, 9_800_000), ("BGMI Finals × Mizo
     e = earn.save_campaign({"title": t, "creator_name": "Mizo Plays", "status": "ended", "rate_per_1k": 20, "budget": b,
                             "platforms": ["youtube"], "results": {"views": v, "clips": 400, "clippers": 120}})
 print("seeded", live["slug"])
+
+# clippers, for the Clippers tab's filters: 10 ready to be paid in the campaign, 8 in it with no payout profile, 12 outside it
+from studio import db as _db, feedback  # noqa: E402
+with _db.engine.begin() as c:
+    for i in range(30):
+        uid = f"u_clip{i:03d}"
+        c.execute(_db.users.insert().values(id=uid, email=f"clipper{i}@example.com", name=f"Clipper {i}", is_admin=False,
+                                            created_at=now - i * 86400, last_seen=now - i * 3600))
+        if i < 10:
+            c.execute(_db.earn_profiles.insert().values(user_id=uid, display_name=f"Clipper {i}", whatsapp=f"+9198765432{i:02d}",
+                                                        upi=f"clipper{i}@upi", youtube=f"@clip{i}", instagram=f"clip{i}" if i % 2 else "",
+                                                        updated_at=now))
+        if i < 18:
+            c.execute(_db.earn_members.insert().values(campaign_id=live["id"], user_id=uid, joined_at=now))
+feedback.submit_report("The clips that are being downloaded are not going to the folder", app="ClipKontrast 2026.11.22.4 (installed app) · Windows 11",
+                       source="app", uid=None)
+print("seeded clippers")

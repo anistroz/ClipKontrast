@@ -76,6 +76,34 @@ const JPG = require("fs").readFileSync(THUMB);
       await a.locator("#streams .srow .s-url").nth(1).fill("https://kick.com/mizoplays/videos/new-one");
       await a.waitForFunction(() => document.querySelectorAll("#streams .s-thumb img")[1]?.src.includes("new-one"), null, { timeout: 5000 });
       out("admin: a new link shows its picture once typed", true, true);
+      // the Clippers tab: every account counted, and the filters
+      await a.goto(SITE + "/admin/earn/clippers", { waitUntil: "networkidle" });
+      await a.waitForSelector(".cfilters");
+      const total = Number((await a.locator(".kpi").first().locator("b").innerText()).replace(/\D/g, ""));
+      out("admin Clippers: every account is counted", total >= 31, true);
+      const shown = async () => Number((await a.locator("text=/ of /").first().locator("b").innerText()).replace(/\D/g, ""));
+      await a.click('[data-act="cpreset"][data-k="noclips"]');
+      out("admin Clippers: 'Joined, no clip yet' = the 18 in the campaign", await shown(), 18);
+      await a.click('[data-act="cpreset"][data-k="noprofile"]');
+      out("admin Clippers: 'Payout profile missing'", await shown(), total - 10);
+      await a.click('[data-act="cclear"]');
+      await a.selectOption('select[data-cf="camp"]', "GTA 6 Launch × Mizo Plays");
+      await a.selectOption('select[data-cf="has"]', "instagram");
+      out("admin Clippers: filters combine (in the campaign AND has Instagram)", await shown(), 5);
+      await a.selectOption('select[data-cf="sort"]', "name");
+      await a.fill("#cq", "clipper3");
+      out("admin Clippers: and with the search box", await shown(), 1);
+      await a.fill("#cq", "");
+      const [dl] = await Promise.all([a.waitForEvent("download"), a.click('[data-act="ccsv"]')]);
+      const csv = require("fs").readFileSync(await dl.path(), "utf8");
+      out("admin Clippers: Download CSV gives just the clippers shown", csv.trim().split(/\r?\n/).length - 1, 5);
+      await a.locator(".card").first().screenshot({ path: path.join(SHOTS, "admin-clippers.png") });
+      // Feedback: a report sent from the app (no account on the website) isn't called a deleted account
+      await a.goto(SITE + "/admin/feedback", { waitUntil: "networkidle" });
+      await a.waitForSelector(".fbitem");
+      const fb = await a.locator(".fbitem").first().innerText();
+      out("admin Feedback: a report from the app says so, with its version, not 'Deleted account'",
+        [fb.includes("From the app"), fb.includes("2026.11.22.4"), fb.includes("Deleted account")], [true, true, false]);
       await ctx.close();
     }
     out("no script errors on the page", errs, []);
