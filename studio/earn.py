@@ -747,7 +747,9 @@ def overview() -> dict:
         clippers = c.execute(sa.select(sa.func.count(sa.distinct(db.earn_members.c.user_id)))).scalar() or 0
     live = [x for x in cs if x["open"]]
     return {"live": len(live), "live_budget": round(sum(x["remaining"] for x in live), 2), "paid_out": round(float(paid), 2),
-            "clippers": int(clippers), "views": sum(x["views"] for x in cs)}
+            "clippers": int(clippers), "views": sum(x["views"] for x in cs),
+            # what the campaigns that ended were worth, together (their budgets)
+            "ended_budget": round(sum(x["budget"] or 0 for x in cs if x["state"] == "ended"), 2)}
 
 
 def save_cover(cid: str, data: bytes):

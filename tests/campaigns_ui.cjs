@@ -76,10 +76,11 @@ const JPG = require("fs").readFileSync(THUMB);
       await a.locator("#streams .srow .s-url").nth(1).fill("https://kick.com/mizoplays/videos/new-one");
       await a.waitForFunction(() => document.querySelectorAll("#streams .s-thumb img")[1]?.src.includes("new-one"), null, { timeout: 5000 });
       out("admin: a new link shows its picture once typed", true, true);
-      // the Earn page: before much is paid out, the best rate is shown instead of "₹60 paid out"
+      // the Earn page: before much is paid out, what the completed campaigns were worth is shown instead of "₹60 paid out"
       await a.goto(SITE + "/earn", { waitUntil: "networkidle" });
-      await a.waitForFunction(() => document.querySelector("#tPaidL")?.textContent === "per 1,000 views", null, { timeout: 8000 }).catch(() => {});
-      out("Earn page: little paid out yet shows the rate per 1,000 views instead", [await a.innerText("#tPaidL"), (await a.innerText("#tPaid")).includes("25")], ["per 1,000 views", true]);
+      await a.waitForFunction(() => document.querySelector("#tPaidL")?.textContent === "in completed campaigns", null, { timeout: 8000 }).catch(() => {});
+      await a.waitForTimeout(1500);                       // the number counts up
+      out("Earn page: little paid out yet shows the completed campaigns' total instead", [await a.innerText("#tPaidL"), await a.innerText("#tPaid")], ["in completed campaigns", "₹1.5 L+"]);
       // the Clippers tab: every account counted, and the filters
       await a.goto(SITE + "/admin/earn/clippers", { waitUntil: "networkidle" });
       await a.waitForSelector(".cfilters");
