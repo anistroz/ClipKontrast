@@ -319,6 +319,8 @@ def _stopped(job):
         creators.log(job["creator"], f"Video stopped: {str(job.get('name') or '')[:80]}")
     except Exception:  # noqa: BLE001
         pass
+    if job.get("delete_when_stopped"):
+        delete(job["id"])                  # Delete was pressed while it was stopping
 
 
 def _remap(path, folder: Path):
@@ -517,7 +519,27 @@ def _with_channel(job) -> dict:
     return job
 
 
+_active_clips: set = set()        # (video id, clip id) of the clips being made right now
+
+
+def clip_busy(job, clip) -> bool:
+    """Is this clip really being made right now? A clip whose status still says so while nothing is making it (its
+    video failed, was stopped or the app was closed mid-way) isn't: it can be deleted or made again."""
+    if (job["id"], clip["id"]) in _active_clips:
+        return True
+    return clip.get("status") in ("queued", "rendering") and job.get("status") in ("queued", "running")
+
+
 def render_one(job, clip, words):
+    key = (job["id"], clip["id"])
+    _active_clips.add(key)
+    try:
+        return _render_one(job, clip, words)
+    finally:
+        _active_clips.discard(key)
+
+
+def _render_one(job, clip, words):
     if job.get("stop") and job.get("status") in ("queued", "running"):
         clip.update(status="error", error="Stopped before this clip was made. Press Re-make to make it.")
         save(job)
@@ -543,6 +565,9 @@ def render_one(job, clip, words):
             note = ("The camera fills the picture in this part of the stream, so the clip is zoomed onto it."
                     if clip.get("camera") == "full" else
                     "No webcam was found in this part of the stream, so the whole picture is shown.")
+        from . import tools as _tools
+        if clip.get("captions", True) and not _tools.can_draw_captions():
+            note = (note + " " if note else "") + _tools.NO_CAPTIONS
         clip.update(out, layout_used=used, layout_note=note, status="done", version=clip.get("version", 0) + 1, error=None)
         post = {k: clip.get(k) for k in ("title", "description", "hashtags", "hook", "start", "end", "score")}
         (d / "clips" / f"{clip['id']}.json").write_text(json.dumps(post, indent=1), encoding="utf-8")
@@ -751,24 +776,28 @@ def _caption_words(job, clip, words, off, src=None):
     return [dict(w, s=w["s"] - off, e=w["e"] - off) for w in roman.words(raw)]
 
 
-CLIP_MINUTES = float(config.env("CLIPKONTRAST_CLIP_MINUTES", "15"))     # the longest one clip may take to make
+CLIP_MINUTES = float(config.env("CLIPKONTRAST_CLIP_MINUTES", "30"))     # the longest one clip may take to make (a last resort:
+# a frozen encoder is stopped sooner by render itself, when it stops making progress)
 
 
 def _wait_for_clips(job, futures, began, workers):
     """Wait for a video's clips, but not for ever. A clip that hangs (a download that stalls, an encoder that
     freezes) used to keep the whole video "in progress", and no other clip could be re-made. Now it is marked as
     failed after CLIP_MINUTES and the video finishes with the clips that did work."""
-    left, given_up = list(futures), 0
+    left, gave_up = list(futures), []
     late = "This clip took too long and was stopped. Open it and press Save and re-make to try again."
     while left:
         still = []
+        # A clip that hasn't started is only given up on when every worker is held by a clip that is still hanging;
+        # one slow clip that then finished frees its worker, and the clips waiting for it are made, not failed.
+        hung = sum(1 for f in gave_up if not f.done())
         for f, clip in left:
             if f.done():
                 f.result()
                 continue
             t = began.get(clip["id"])
-            if (t and time.time() - t > CLIP_MINUTES * 60) or (not t and given_up >= workers):
-                given_up += 1
+            if (t and time.time() - t > CLIP_MINUTES * 60) or (not t and hung >= workers):
+                gave_up.append(f)
                 clip.update(status="error", error=late)
                 creators.log(job["creator"], f"Clip stopped after {CLIP_MINUTES:g} minutes: {clip.get('title') or clip.get('hook') or clip['id']}")
                 save(job)
@@ -1390,7 +1419,12 @@ def _run_job(job):
             pieces = span > LONG_VIDEO or meta["duration"] <= 0
             if not pieces:  # shorter video: fetch all of it in the background while the audio is worked on
                 video = fetch.submit(media.download, src["url"], d, _src_height(o))
-            audio_file = media.download_audio(src["url"], d, lambda p: _set(job, progress=0.03 + 0.1 * p))
+            def got_audio(p, note=""):
+                kw = {"stage": "Getting the audio" + (f" · {note}" if note else "")}
+                if p is not None:
+                    kw["progress"] = 0.03 + 0.1 * p
+                _set(job, **kw)
+            audio_file = media.download_audio(src["url"], d, got_audio)
     else:
         pieces, audio_file = False, Path(src["path"])
         info = media.probe(audio_file)

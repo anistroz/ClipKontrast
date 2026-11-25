@@ -1113,8 +1113,10 @@ def rerender(jid: str, cid: str, body: dict = Body(...)):
     clip = next((c for c in job["clips"] if c["id"] == cid), None)
     if not clip:
         raise HTTPException(404, "No such clip")
-    if job["status"] in ("queued", "running") or clip.get("status") in ("queued", "rendering"):
-        raise HTTPException(409, "This clip is still being made. Try again when it has finished.")
+    if jobs.clip_busy(job, clip):
+        raise HTTPException(409, "This clip is being made right now. Try again when it has finished.")
+    if job["status"] in ("queued", "running"):
+        raise HTTPException(409, "Its video is still being made. Re-make this clip when the video has finished, or press Stop on the video.")
     _throttle("render:" + ctx.uid(), 20, 600, "That's a lot of re-makes in a short time. Wait a few minutes.")
     try:
         jobs.request_render(jid, cid, body)
@@ -1227,6 +1229,10 @@ def stop_job(jid: str):
 @app.delete("/api/jobs/{jid}")
 def delete_job(jid: str):
     job = _job_or_404(jid)
+    if job.get("stop") and job["status"] in ("queued", "running") and jid not in live.SESSIONS:
+        job["delete_when_stopped"] = True        # stopping: deleted as soon as it has stopped
+        jobs.save(job)
+        return {"ok": True, "later": True}
     if job["status"] in ("queued", "running", "live") or jid in live.SESSIONS:
         raise HTTPException(409, "This is still being made. Press Stop on it first, or wait for it to finish.")
     jobs.delete(jid)

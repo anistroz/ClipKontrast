@@ -56,7 +56,8 @@ def _setup() -> list:
     fm = fetch_model.state
     speech = ("ready" if fetch_model.ready() else f"downloading ({fm['percent']}%)" if fm["doing"]
               else "not downloaded" + (f" (last problem: {fm['error']})" if fm["error"] else ""))
-    return [f"ffmpeg: {'yes' if ffmpeg else 'NOT FOUND'}",
+    from . import tools as _tools
+    return [f"ffmpeg: {'yes' if ffmpeg else 'NOT FOUND'}" + ("" if not ffmpeg or _tools.can_draw_captions() else " (can't draw captions: no libass)"),
             f"Speech model (English): {speech}",
             f"Deno (for YouTube): {'yes' if js else 'no'}",
             f"Whisper (Hindi): {'installed' if whisper.installed() else 'not installed'}",

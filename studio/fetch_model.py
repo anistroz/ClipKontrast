@@ -12,6 +12,7 @@ about 480 MB, so the download is made to survive real home internet:
 It is unpacked next to where it will live and moved into place only when it is whole, so a half download can never
 be mistaken for the model."""
 import shutil
+from pathlib import Path
 import ssl
 import tarfile
 import threading
@@ -194,8 +195,7 @@ def ensure(on_progress=None) -> None:
                     if _why(e).startswith(("The drive", "Windows didn't")):
                         break                            # trying another server won't help
                     continue
-                shutil.rmtree(config.ASR_MODEL_DIR, ignore_errors=True)        # a half-finished one from before
-                got.rename(config.ASR_MODEL_DIR)
+                _put_in_place(got, config.ASR_MODEL_DIR)
                 shutil.rmtree(config.MODELS_DIR / "speech-model.hf", ignore_errors=True)
                 print("  Speech model ready.\n", flush=True)
                 return
@@ -210,6 +210,31 @@ def ensure(on_progress=None) -> None:
             shutil.rmtree(part, ignore_errors=True)
     finally:
         _lock.release()
+
+
+def _put_in_place(got: Path, dest: Path):
+    """The downloaded model put where it's used. A half-finished one from before is cleared first; if Windows won't
+    let it go (an antivirus scanning it: WinError 183 / 5 / 32), it's tried again, then moved aside, and at worst
+    the new files are copied over it, so a held file never stops the download from being used."""
+    import time as _t
+    for wait in (0, 0.5, 1.5, 3):
+        if wait:
+            _t.sleep(wait)
+        shutil.rmtree(dest, ignore_errors=True)
+        if not dest.exists():
+            break
+    if dest.exists():
+        try:
+            dest.rename(dest.with_name(dest.name + f".old-{int(_t.time())}"))
+        except OSError:
+            pass
+    if dest.exists():
+        shutil.copytree(got, dest, dirs_exist_ok=True)
+        shutil.rmtree(got, ignore_errors=True)
+        return
+    got.rename(dest)
+    for old in dest.parent.glob(dest.name + ".old-*"):      # set aside before: cleared when it can be
+        shutil.rmtree(old, ignore_errors=True)
 
 
 def main():

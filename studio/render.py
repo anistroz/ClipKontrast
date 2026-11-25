@@ -2,6 +2,7 @@
 import re
 import shutil
 import subprocess
+import time
 import tempfile
 from pathlib import Path
 
@@ -531,7 +532,45 @@ HW_ENCODERS = [
     ("videotoolbox", ["yuv420p", "-c:v", "h264_videotoolbox", "-q:v", "62"]),
 ]
 _hw_ok: dict = {}            # encoder -> True (works) / False (failed once)
-RENDER_SECONDS = 600      # one clip's video encode; far beyond normal, so a frozen encoder is stopped, not waited on
+RENDER_SECONDS = 3600     # one clip's encode, at the very most (a slow computer making a 1080p clip is waited for)
+RENDER_STALL = 180        # ...but an encoder that stops making progress for this long is frozen: stopped
+
+
+class _Done:
+    def __init__(self, code, err):
+        self.returncode, self.stderr = code, err
+
+
+def _encode(cmd, cwd, stall=RENDER_STALL, cap=RENDER_SECONDS):
+    """Run ffmpeg, reading its progress: stopped only when it stops moving for `stall` seconds (or after `cap`), not
+    after a fixed time, so a slow computer finishes its clips and a frozen encoder doesn't hold one for ever."""
+    import threading as _th
+    p = subprocess.Popen(cmd[:1] + ["-progress", "pipe:1", "-nostats"] + cmd[1:], cwd=cwd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                         stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace", creationflags=NO_WINDOW)
+    seen = {"at": time.time()}
+    err = []
+
+    def read_out():
+        for _line in p.stdout:
+            seen["at"] = time.time()          # every progress line is ffmpeg still moving
+    def read_err():
+        for line in p.stderr:
+            err.append(line)
+            del err[:-60]
+    ts = [_th.Thread(target=read_out, daemon=True), _th.Thread(target=read_err, daemon=True)]
+    for t in ts:
+        t.start()
+    began = time.time()
+    while p.poll() is None:
+        now = time.time()
+        if now - seen["at"] > stall or now - began > cap:
+            p.kill()
+            p.wait()
+            raise subprocess.TimeoutExpired(cmd, stall)
+        time.sleep(0.5)
+    for t in ts:
+        t.join(2)
+    return _Done(p.returncode, "".join(err))
 
 
 def render_clip(src: Path, out_dir: Path, name: str, clip: dict, words: list, src_w: int, src_h: int) -> dict:
@@ -602,7 +641,11 @@ def _render_in(work: Path, src: Path, out_dir: Path, name: str, start, end, layo
     (work / "f").mkdir(exist_ok=True)
     for f in config.FONTS_DIR.glob("*.ttf"):
         shutil.copyfile(f, work / "f" / f.name)
-    fc = _filter(layout, fg_h, face, z, game, top_h) + f"[v0]ass=filename={name}.ass:fontsdir=f[v]"   # option names said: newer ffmpeg (Mac) refuses the short form
+    from . import tools as _tools
+    if _tools.can_draw_captions():
+        fc = _filter(layout, fg_h, face, z, game, top_h) + f"[v0]ass=filename={name}.ass:fontsdir=f[v]"   # option names said: newer ffmpeg refuses the short form
+    else:                # an ffmpeg without libass (Homebrew's plain one): the clip is still made, without captions
+        fc = _filter(layout, fg_h, face, z, game, top_h) + "[v0]null[v]"
     extra = []
     if tag:             # the creator tag (t.png, written by render_clip) laid over everything
         fc = fc[:-3] + f"[va];[va][1:v]overlay={int(tag[0])}:{int(tag[1])}[v]"
@@ -621,9 +664,8 @@ def _render_in(work: Path, src: Path, out_dir: Path, name: str, start, end, layo
     err = None
     for label, enc in encoders:
         try:
-            p = subprocess.run(base + enc + [f"{name}.mp4"], cwd=work, capture_output=True, text=True,
-                               encoding="utf-8", errors="replace", creationflags=NO_WINDOW,
-                               timeout=RENDER_SECONDS if label == "x264" else 180)
+            # a graphics-card encoder that hangs at the start is given up on sooner (and the processor used)
+            p = _encode(base + enc + [f"{name}.mp4"], work, stall=RENDER_STALL if label == "x264" else 90)
         except subprocess.TimeoutExpired:
             if label == "x264":
                 raise RuntimeError("Making the clip took too long and was stopped.")

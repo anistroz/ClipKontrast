@@ -253,16 +253,17 @@ def ask_ai(prompt, schema=None, purpose="AI call", timeout=None):
                     time.sleep(3)
                     continue
                 break
-    if last is not None and ai.unknown_model(last) and time.time() - _swapped["at"] > 1800:
+    if last is not None and (ai.unknown_model(last) or ai.busy(last)) and time.time() - _swapped["at"] > (300 if ai.busy(last) else 1800):
         _swapped["at"] = time.time()
         try:
-            model = ai.swap_model(ai.models()[0])       # the service retired the model: its newest one, saved
+            # retired: its newest model, saved in its place; too busy right now: another, with the busy one as backup
+            model = ai.swap_model(ai.models()[0], keep=ai.busy(last))
             out, sent, wrote = ai.call(model, prompt, schema or SCHEMA, timeout)
             usage.record(sent, wrote, purpose)
             ai.clear_problem()
             return out, model, sent + wrote
         except Exception as e:  # noqa: BLE001 - no better model: said as before
-            last = e if not ai.unknown_model(e) else last
+            last = e if not (ai.unknown_model(e) or ai.busy(e)) else last
     ai.note_problem(last)
     _down.update(until=time.time() + (600 if out_of_credit else 120), why=last)
     try:

@@ -12,6 +12,9 @@ def friendly(e, limit=600) -> str:
     if isinstance(e, MemoryError) or re.search(r"allocate memory|bad_alloc|out of memory|MemoryError|Unable to allocate", text, re.I):
         return ("Your computer ran out of memory while working on this video. Close other programs (browser tabs, "
                 "games), then try again. ClipKontrast needs about 4 GB of free memory; a long stream needs more.")
+    if re.search(r"No space left on device|Errno 28|WinError 112|There is not enough space on the disk", text, re.I):
+        return ("Your computer's drive is full, so the video couldn't be saved. Free some space (delete old videos in "
+                "All videos, empty the Recycle Bin), or move ClipKontrast's storage to a bigger drive in Settings, Storage.")
     if re.search(r"WinError 4551|Application Control policy", text, re.I):
         return ("Windows blocked one of ClipKontrast's files (Smart App Control, which stops apps that aren't signed "
                 "yet). Open Windows Security, App & browser control, Smart App Control settings, and turn it off; or add "

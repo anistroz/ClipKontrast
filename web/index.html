@@ -1590,7 +1590,7 @@ async function checkNew(first) {
    ClipKontrast team. The page sends it to this computer's own server, which sends it on, so no account is needed. */
 async function shrinkShot(file) {
   // A screenshot is made smaller here (at most 1600 px wide, under about 900 KB) so it sends fast on any connection.
-  const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error("That file isn't a picture.")); i.src = URL.createObjectURL(file); });
+  const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error("That file isn't a picture this app can read. Pick a PNG or JPG screenshot.")); i.src = URL.createObjectURL(file); });
   let w = img.naturalWidth, h = img.naturalHeight, q = 0.85;
   const k = Math.min(1, 1600 / w, 1600 / h); w = Math.round(w * k); h = Math.round(h * k);
   const cv = document.createElement("canvas");
@@ -2824,7 +2824,7 @@ function jobHtml(j) {
                 j.took ? "made in " + fmt(j.took) : "", j.kind === "live" ? "recording, " + j.stage.toLowerCase() : ""].filter(Boolean).map(esc).join(" · ");
   const pic = j.thumb ? `<img src="/media/${esc(j.id)}/thumb.jpg" alt="" loading="lazy">` : ic(j.source?.type === "file" ? "film" : "link");
   return `<div class="job-head"><div class="jt"><span class="jthumb">${pic}${j.duration ? `<span class="du">${fmt(j.duration)}</span>` : ""}</span><div style="min-width:0"><h3>${esc(j.title || j.source.name)}</h3><p class="sub">${meta}</p></div></div>
-      <div class="row" style="flex-wrap:nowrap;gap:4px">${busy ? (j.stop ? `<span class="sub">Stopping…</span>` : `<button class="btn sm" data-act="stopjob" data-j="${j.id}" title="Stop making this video. Clips already made stay.">${ic("stop")}Stop</button>`) : `
+      <div class="row" style="flex-wrap:nowrap;gap:4px">${busy ? (j.stop ? (j.delete_when_stopped ? `<span class="sub">Deleting when stopped…</span>` : `<span class="sub">Stopping…</span><button class="btn sm icon ghost" data-act="deljob" data-j="${j.id}" title="Delete it as soon as it has stopped" aria-label="Delete this video when it has stopped">${ic("trash")}</button>`) : `<button class="btn sm" data-act="stopjob" data-j="${j.id}" title="Stop making this video. Clips already made stay.">${ic("stop")}Stop</button>`) : `
         ${j.clips.some(c => c.status === "done") ? `<button class="btn sm icon ghost" data-act="dlall" data-j="${j.id}" title="Download all clips of this video" aria-label="Download all clips of this video">${ic("down")}</button>` : ""}
         <button class="btn sm icon ghost" data-act="deljob" data-j="${j.id}" title="Delete" aria-label="Delete this video and its clips">${ic("trash")}</button>
         <label class="selck" title="Select this video and its clips"><input type="checkbox" data-sel="j:${j.id}" ${sel().has("j:" + j.id) ? "checked" : ""} aria-label="Select this video"></label>`}</div></div>
@@ -3699,7 +3699,7 @@ document.addEventListener("click", async e => {
     }
     if (a === "deljob") {
       if (!await ask("Delete this video?", "The video and all of its clips are permanently deleted. This cannot be undone.", "Delete", true)) return;
-      await api(`/api/jobs/${d.j}`, {method:"DELETE"}); toast("Deleted"); return tick();
+      const r = await api(`/api/jobs/${d.j}`, {method:"DELETE"}); toast(r && r.later ? "It's deleted as soon as it has stopped." : "Deleted"); return tick();
     }
     if (a === "chadd") {
       const k = d.p, v = $("#chan_" + k)?.value.trim();

@@ -207,9 +207,17 @@ def unknown_model(e) -> bool:
             or "no longer available" in low or "has been deprecated" in low or "is not supported for generatecontent" in low)
 
 
-def swap_model(failed: str, tries: int = 4) -> str:
-    """The service won't run the model in use: the models it offers are tried, best first, and the first that answers
-    is saved in its place. Returns it; raises if the list can't be had or none answers."""
+def busy(e) -> bool:
+    """The service is overloaded right now (Gemini: 503 "This model is currently experiencing high demand")."""
+    t, low = str(e), str(e).lower()
+    return ("http 503" in low or "high demand" in low or "overloaded" in low or '"unavailable"' in low
+            or "http 529" in low or "temporarily unavailable" in low)
+
+
+def swap_model(failed: str, tries: int = 4, keep: bool = False) -> str:
+    """The service won't run the model in use (retired, or too busy right now): the models it offers are tried, best
+    first, and the first that answers is put first. A retired one is dropped; a busy one (keep) stays as the backup,
+    so it's used again when it's free. Returns the model; raises if the list can't be had or none answers."""
     found = list_models()
     last = None
     for m in _candidates(found, failed)[:tries]:
@@ -217,11 +225,12 @@ def swap_model(failed: str, tries: int = 4) -> str:
             call(m, TEST_PROMPT, TEST_SCHEMA, timeout=40)
         except Exception as e:  # noqa: BLE001 - the next one
             last = e
-            if not unknown_model(e):
+            if not (unknown_model(e) or busy(e)):
                 raise                            # the key or the limit, not the model: trying others won't help
             continue
         c, ms = current(), models()
-        save(c["provider"], [m] + [x for x in ms if x not in (m, failed)], c.get("base_url") or "", None)
+        rest = [x for x in ms if x not in (m, failed)]
+        save(c["provider"], [m] + ([failed] if keep else []) + rest, c.get("base_url") or "", None)
         return m
     raise last or AIError(f"HTTP 404 none of the models {label()} offers answered")
 
@@ -234,14 +243,21 @@ def test() -> dict:
     if not ready():
         raise ValueError("Save a service, a model and a key first.")
     try:
-        out, sent, wrote = call(ms[0], TEST_PROMPT, TEST_SCHEMA)
+        try:
+            out, sent, wrote = call(ms[0], TEST_PROMPT, TEST_SCHEMA)
+        except Exception as e:  # noqa: BLE001
+            if not busy(e):
+                raise
+            import time as _t
+            _t.sleep(3)                          # a moment's overload often passes: once more before anything else
+            out, sent, wrote = call(ms[0], TEST_PROMPT, TEST_SCHEMA)
     except Exception as e:  # noqa: BLE001
-        if not unknown_model(e):
+        if not (unknown_model(e) or busy(e)):
             raise
         try:
-            pick = swap_model(ms[0])
+            pick = swap_model(ms[0], keep=busy(e))
         except Exception as e2:  # noqa: BLE001 - nothing better found: the key/limit error, else the original one
-            raise (e2 if not unknown_model(e2) else e) from None
+            raise (e2 if not (unknown_model(e2) or busy(e2)) else e) from None
         _cleared()
         return {"ok": True, "model": pick, "switched_from": ms[0], "tokens": 0, "answer": "ok"}
     _cleared()
@@ -269,6 +285,9 @@ def explain(e) -> str:
     """What went wrong with an AI call, in words the owner can act on."""
     text, low = str(e), str(e).lower()
     name = (models() or ["?"])[0]
+    if busy(e):
+        return (f"{label()}'s model \"{name}\" is very busy right now (too many people are using it). Your key is fine: "
+                "ClipKontrast switches to another model by itself, or try again in a few minutes.")
     if unknown_model(e):
         return f"{label()} doesn't know the model \"{name}\". Open Settings, AI, press Find models and pick one from the list."
     if "401" in text or "403" in text or "api key" in low or "api_key" in low or "unauthorized" in low or "permission" in low:
@@ -276,7 +295,9 @@ def explain(e) -> str:
     if "429" in text or "quota" in low or "rate limit" in low or "exhausted" in low:
         return f"{label()} says the key has hit its limit or has no credit left. Check the account with {label()}, or try again later."
     if "connect" in low or "timed out" in low or "timeout" in low or "getaddrinfo" in low or "refused" in low or "nodename" in low or "servname" in low or "nameresolutionerror" in low or "name resolution" in low:
-        return f"ClipKontrast couldn't reach {label()}. Check the internet connection" + (" and that Ollama is running." if provider() == "ollama" else ".")
+        if provider() == "ollama":
+            return "Ollama isn't running on this computer. Open the Ollama app (or run  ollama serve  in a terminal), then try again."
+        return f"ClipKontrast couldn't reach {label()}. Check the internet connection."
     return ""
 
 
