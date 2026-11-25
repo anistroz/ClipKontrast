@@ -1489,7 +1489,9 @@ def launch_info():
         except Exception:  # noqa: BLE001 - the page works without its numbers
             stats = {}
     from . import leads as _l
-    out = {"pricing": leads.pricing(), "stats": stats, "roles": _l.ROLES, "platforms": _l.PLATFORMS, "categories": list(_l.CATEGORIES)}
+    wa = re.sub(r"\D", "", config.env("CLIPKONTRAST_SALES_WHATSAPP") or "")[:15]     # "Talk to us" goes to WhatsApp when set
+    out = {"pricing": leads.pricing(), "stats": stats, "roles": _l.ROLES, "platforms": _l.PLATFORMS, "categories": list(_l.CATEGORIES),
+           "contact": {"whatsapp": wa}}
     _LAUNCH["v"] = (time.time(), out)
     return out
 
