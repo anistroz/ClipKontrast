@@ -62,5 +62,14 @@ check("the page shows no fee or pricing (the clip maker is free: nobody should t
       ("management fee" not in page.lower(), ">Pricing<" not in page, "stays free for clippers" in page), (True, True, True))
 from studio import server  # noqa: E402
 check("the page and its form are open to visitors (no sign-in)", ("/launch" in server.PAGES, server.OPEN[3] == "/api/public"), (True, True))
+import re as _re
+for _f in ("earn.html", "landing.html"):
+    _h = (ROOT / "web" / _f).read_text(encoding="utf-8") if "ROOT" in globals() else open(f"web/{_f}", encoding="utf-8").read()
+    _nav = _re.search(r'<header class="nav".*?</header>', _h, _re.S).group(0)
+    check(f"{_f}: 'For brands' in the menu, a Launch a campaign section and a footer link",
+          ('href="/launch">For brands' in _nav, 'id="brands"' in _h and 'href="/launch"' in _h.split('id="brands"')[1].split("</section>")[0],
+           'href="/launch">Launch a campaign</a></li>' in _h), (True, True, True))
+    _text = _re.sub(r"<[^>]+>", " ", _re.sub(r"<(style|script)\b.*?</\1>", " ", _h, flags=_re.S)).lower()
+    check(f"{_f}: no fee or pricing shown to clippers", not any(w in _text for w in ("management fee", "agency fee", "30%")))
 print(f"  {len(fails)} failed" if fails else "  ALL PASSED")
 sys.exit(1 if fails else 0)

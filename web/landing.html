@@ -286,13 +286,35 @@ details p{color:var(--dim);margin-top:12px;font-size:16px}
 .annc:hover u{text-decoration:underline}
 .annc-short{display:none}
 @media (max-width:640px){.annc-long{display:none}.annc-short{display:inline}}
+
+/* For streamers and brands: launch a campaign */
+.forbrands{padding-top:0}
+.fb-card{position:relative;overflow:hidden;display:grid;grid-template-columns:1.15fr 1fr;gap:40px;align-items:center;padding:48px;border-radius:24px;background:var(--soft);border:1px solid var(--line-b)}
+.fb-card::after{content:"";position:absolute;right:-120px;top:-140px;width:420px;height:420px;border-radius:50%;background:radial-gradient(circle,rgba(198,244,50,.55),rgba(198,244,50,0) 65%);pointer-events:none}
+.fb-l,.fb-r{position:relative;z-index:1}
+.fb-tag{display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--deep);background:#fff;border:1px solid var(--line-b);padding:5px 12px;border-radius:999px}
+.fb-tag i{width:6px;height:6px;border-radius:50%;background:var(--deep)}
+.fb-l h2{margin-top:16px;color:var(--ink)}.fb-l h2 span{color:var(--deep)}
+.fb-l p{color:var(--dim);font-size:16px;line-height:1.6;margin-top:14px;max-width:520px}
+.fb-ctas{display:flex;align-items:center;gap:18px;margin-top:24px;flex-wrap:wrap}
+.fb-ctas .btn{height:50px;padding:0 24px;border-radius:999px;font-size:16px;gap:8px}
+.fb-ctas .btn svg{width:18px;height:18px;fill:currentColor}
+.fb-ctas .fb-link{color:var(--ink);font-weight:600;text-decoration:underline;text-underline-offset:4px;text-decoration-color:var(--line-b)}
+.fb-ctas .fb-link:hover{text-decoration-color:var(--ink)}
+.fb-r{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:12px}
+.fb-r li{display:flex;gap:16px;align-items:center;background:#fff;border:1px solid var(--line-b);border-radius:16px;padding:16px 18px;box-shadow:0 1px 0 rgba(26,33,0,.04)}
+.fb-r b{flex:none;width:40px;height:40px;border-radius:12px;display:grid;place-items:center;background:var(--ink);color:var(--brand);font-size:14px;font-weight:700}
+.fb-r span{display:flex;flex-direction:column;gap:2px;color:var(--dim);font-size:14px}
+.fb-r strong{color:var(--ink);font-size:16px;font-weight:650}
+@media (max-width:960px){.fb-card{grid-template-columns:1fr;gap:28px;padding:32px 24px}}
+@media (max-width:560px){.fb-ctas .btn{width:100%}.fb-ctas{gap:14px}}
 </style>
 </head>
 <body>
 <a class="annc" href="/download"><b>NEW</b>The ClipKontrast app is out<span class="annc-long">: clip streams on your own PC, free. Windows, Mac and Linux.</span><span class="annc-short">.</span><u>Download →</u></a>
 <header class="nav" id="nav"><div class="wrap">
   <a href="/" aria-label="ClipKontrast home"><img src="/brand/logo.svg" alt="ClipKontrast"></a>
-  <nav aria-label="Sections"><a href="/earn" style="color:var(--ink);font-weight:600">Earn <span style="font-size:10px;font-weight:700;background:var(--brand);color:var(--ink);padding:2px 6px;border-radius:999px;vertical-align:2px">NEW</span></a><a href="#how">How it works</a><a href="#features">Features</a><a href="#open">Open source</a><a href="#for">Who it's for</a><a href="#faq">FAQ</a></nav>
+  <nav aria-label="Sections"><a href="/earn" style="color:var(--ink);font-weight:600">Earn <span style="font-size:10px;font-weight:700;background:var(--brand);color:var(--ink);padding:2px 6px;border-radius:999px;vertical-align:2px">NEW</span></a><a href="#how">How it works</a><a href="#features">Features</a><a href="#open">Open source</a><a href="#for">Who it's for</a><a href="#faq">FAQ</a><a href="/launch">For brands</a></nav>
   <a class="signin" href="/login" data-auth="in">Sign in</a>
   <a class="btn primary cta" href="/signup" data-auth="up">Sign up</a>
 </div></header>
@@ -379,6 +401,22 @@ details p{color:var(--dim);margin-top:12px;font-size:16px}
   <div class="panel" id="panel" role="tabpanel"></div>
 </div></section>
 
+<section id="brands" class="forbrands"><div class="wrap">
+  <div class="fb-card reveal">
+    <div class="fb-l">
+      <span class="fb-tag"><i></i>For streamers and brands</span>
+      <h2>Streamer or brand? <span>Launch your own campaign.</span></h2>
+      <p>Clippers turn your streams into Shorts, Reels and X posts. We run it for you: the brief, the clippers, checking every clip and the payouts. You see the views and the clips posted.</p>
+      <div class="fb-ctas"><a class="btn primary" href="/launch">Launch a campaign <svg viewBox="0 0 256 256" aria-hidden="true"><path d="M221.66,133.66l-72,72a8,8,0,0,1-11.32-11.32L196.69,136H40a8,8,0,0,1,0-16H196.69L138.34,61.66a8,8,0,0,1,11.32-11.32l72,72A8,8,0,0,1,221.66,133.66Z"/></svg></a><a class="fb-link" href="/launch#how">How it works</a></div>
+    </div>
+    <ul class="fb-r">
+      <li><b>01</b><span><strong>Send a request</strong>Takes two minutes. No payment now.</span></li>
+      <li><b>02</b><span><strong>We plan it with you</strong>The brief, the rate and a launch date.</span></li>
+      <li><b>03</b><span><strong>Clips go live</strong>You see the views and clips posted.</span></li>
+    </ul>
+  </div>
+</div></section>
+
 <section id="faq" style="padding-top:0"><div class="wrap faqgrid">
   <div class="reveal"><p class="kicker">FAQ</p><h2>Got any <span>questions left?</span></h2><p class="sub">The things people ask before they run their first stream through ClipKontrast.</p></div>
   <div class="reveal" style="--d:.08s">
@@ -406,7 +444,7 @@ details p{color:var(--dim);margin-top:12px;font-size:16px}
     <div class="fbrand"><a href="/" aria-label="ClipKontrast home"><img src="/brand/logo-light.svg" alt="ClipKontrast" width="120" height="30"></a>
       <p>AI clipping for Twitch, Kick and YouTube streams. Captioned vertical clips while the stream is still live. Free and open source.</p>
       <a class="fcta" href="/signup">Sign up</a></div>
-    <div><h4>Product</h4><ul><li><a href="/earn">Earn: paid campaigns</a></li><li><a href="/#how">How it works</a></li><li><a href="/#features">Features</a></li><li><a href="/#live">Live clipping</a></li><li><a href="/#open">Open source</a></li><li><a href="/#faq">FAQ</a></li></ul></div>
+    <div><h4>Product</h4><ul><li><a href="/earn">Earn: paid campaigns</a></li><li><a href="/launch">Launch a campaign</a></li><li><a href="/#how">How it works</a></li><li><a href="/#features">Features</a></li><li><a href="/#live">Live clipping</a></li><li><a href="/#open">Open source</a></li><li><a href="/#faq">FAQ</a></li></ul></div>
     <div><h4>Get started</h4><ul><li><a href="/signup">Create an account</a></li><li><a href="/login">Sign in</a></li><li><a href="/reset">Reset password</a></li></ul></div>
     <div><h4>Legal</h4><ul><li><a href="/terms">Terms of Service</a></li><li><a href="/privacy">Privacy Policy</a></li><li><a href="/acceptable-use">Acceptable Use</a></li></ul></div>
   </div>
