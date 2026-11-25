@@ -275,7 +275,25 @@ def _cleared():
 
 
 class AIError(RuntimeError):
-    pass
+    """A failed AI call. `wait`: the seconds the service asked us to wait before trying again, when it said so (a
+    Retry-After header, or Gemini's retryDelay). `daily`: the limit is for the whole day, so waiting won't help.
+    (From PeakCut upstream.)"""
+    def __init__(self, message, wait=None, daily=False):
+        super().__init__(message)
+        self.wait = wait
+        self.daily = daily
+
+
+def asked_wait(r):
+    """How long the service asked us to wait, in seconds, or None when it didn't say."""
+    try:
+        v = (r.headers.get("retry-after") or "").strip()
+        if v:
+            return max(0.0, float(v))
+    except (ValueError, AttributeError):
+        pass
+    m = re.search(r'"retryDelay"\s*:\s*"(\d+(?:\.\d+)?)s"', getattr(r, "text", "") or "")
+    return float(m.group(1)) if m else None
 
 
 problem = {"text": "", "at": 0.0}       # why the AI last failed, for the dashboard; cleared when it answers again
@@ -314,7 +332,9 @@ def clear_problem():
 
 def _fail(r, model):
     text = r.text[:300].replace(key() or "\0", "<key>")
-    raise AIError(f"HTTP {r.status_code} {text}")
+    limited = r.status_code in (429, 503)
+    raise AIError(f"HTTP {r.status_code} {text}", wait=asked_wait(r) if limited else None,
+                  daily=limited and bool(re.search(r"PerDay|per day|daily", r.text or "", re.I)))
 
 
 # ---------------------------------------------------------------- the schema, said in words for chat models

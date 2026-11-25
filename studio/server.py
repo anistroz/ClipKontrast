@@ -4,6 +4,7 @@ Public pages:  /  /login  /signup          The app:  /app  (signed-in users only
 Everything under /api, /media and /oauth needs a session, except /api/auth/* and /api/public."""
 import hashlib
 import hmac
+import ipaddress
 import json
 import os
 import re
@@ -274,6 +275,33 @@ def _from_cdn(addr: str) -> bool:
     return any(ip in n for n in _CDN_RANGES)
 
 
+# Private and local addresses: the only places a reverse proxy in front of ClipKontrast can sit (Caddy in the docker
+# network, nginx on the same machine). X-Forwarded-For from anywhere else is the visitor's own text. (From PeakCut.)
+_PROXY_CIDRS = ("127.0.0.0/8", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "100.64.0.0/10", "169.254.0.0/16",
+                "::1/128", "fc00::/7", "fe80::/10")
+_PROXY_RANGES = [ipaddress.ip_network(r) for r in _PROXY_CIDRS]
+
+
+def _trust_proxy() -> bool:
+    return (config.env("CLIPKONTRAST_TRUST_PROXY") or "").strip().lower() not in ("", "0", "false", "no")
+
+
+def _valid_ip(text: str) -> str:
+    """The address as text if it really is an IP address, otherwise ""."""
+    try:
+        ip = ipaddress.ip_address(text)
+    except ValueError:
+        return ""
+    if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped:
+        ip = ip.ipv4_mapped
+    return str(ip)
+
+
+def _from_proxy(addr: str) -> bool:
+    clean = _valid_ip(addr)
+    return bool(clean) and any(ipaddress.ip_address(clean) in n for n in _PROXY_RANGES)
+
+
 def _ip(request: Request) -> str:
     """The visitor's address, used for rate limits. The connection's own address, or the one the proxy in front
     reports (CLIPKONTRAST_TRUST_PROXY). If that connection comes from the CDN, the CDN's header names the real visitor
@@ -282,14 +310,18 @@ def _ip(request: Request) -> str:
 
     The proxy adds the address it saw at the END of X-Forwarded-For. Everything before that was written by the
     visitor, so only the last entry is believed."""
-    fwd = request.headers.get("x-forwarded-for", "")
-    peer = (fwd.split(",")[-1].strip() if fwd and config.env("CLIPKONTRAST_TRUST_PROXY") else "") or (request.client.host if request.client else "")
+    # ...and only when the connection itself came from a proxy on a private address (from PeakCut upstream)
+    direct = request.client.host if request.client else ""
+    peer = direct
+    fwd = ",".join(request.headers.getlist("x-forwarded-for"))
+    if _trust_proxy() and fwd and _from_proxy(direct):
+        peer = _valid_ip(fwd.rsplit(",", 1)[-1].strip()) or direct
     named = config.env("CLIPKONTRAST_CLIENT_IP_HEADER")
     # Behind a Cloudflare Tunnel, every request arrives from cloudflared on this same machine, so the header is
     # believed when the connection comes from this machine itself and CLIPKONTRAST_TUNNEL=1 says a tunnel is in use.
     local = config.env("CLIPKONTRAST_TUNNEL") == "1" and peer in ("127.0.0.1", "::1")
     if named and request.headers.get(named) and (local or _from_cdn(peer)):
-        return request.headers[named].split(",")[0].strip()[:64]
+        return _valid_ip(request.headers[named].split(",")[0].strip()[:64]) or peer
     return peer
 
 
@@ -972,13 +1004,35 @@ def _up_root() -> Path:
     return d
 
 
+UP_IDLE_SEC = 15 * 60     # an upload of your own that hasn't moved for this long was left behind (tab closed, page reloaded)
+
+
+def _up_active(d: Path) -> float:
+    """When this upload last moved: its folder, or any piece in it (a piece being sent grows as it arrives)."""
+    newest = d.stat().st_mtime
+    for f in d.iterdir():
+        try:
+            newest = max(newest, f.stat().st_mtime)
+        except OSError:
+            pass
+    return newest
+
+
 def _up_sweep():
-    """Forget uploads that were started and never finished (after six hours)."""
+    """Forget uploads that were started and never finished: anyone's after six hours, and the asker's own once they
+    have stood still for UP_IDLE_SEC. An upload cut short by closing the tab or reloading the page never says it
+    stopped, and it must not keep counting against the limit of uploads at once. (From PeakCut upstream.)"""
+    me = ctx.uid_or_none()
     for d in _up_root().glob("up-*"):
         try:
-            if d.is_dir() and time.time() - d.stat().st_mtime > 6 * 3600:
+            if not d.is_dir():
+                continue
+            idle = time.time() - _up_active(d)
+            if idle > 6 * 3600:
                 shutil.rmtree(d, ignore_errors=True)
-        except OSError:
+            elif me and idle > UP_IDLE_SEC and json.loads((d / "meta.json").read_text(encoding="utf-8")).get("user") == me:
+                shutil.rmtree(d, ignore_errors=True)
+        except (OSError, ValueError):
             pass
 
 
@@ -1313,10 +1367,17 @@ def delete_my_account(request: Request, body: dict = Body(...)):
 def media_file(jid: str, name: str, download: int = 0):
     if not re.fullmatch(r"[\w\-]+\.(mp4|jpg)", name):
         raise HTTPException(404)
-    f = Path(_job_or_404(jid)["dir"]) / "clips" / name
+    job = _job_or_404(jid)
+    f = Path(job["dir"]) / "clips" / name
     if not f.is_file():
         raise HTTPException(404)
-    return FileResponse(f, filename=name if download else None, headers={"Cache-Control": "private, max-age=300"})
+    save_as = name
+    if download and name.endswith(".mp4"):
+        # a clip is saved under its title, not "clip01.mp4", the same as when several are downloaded as a zip
+        clip = next((c for c in job.get("clips", []) if Path(str(c.get("file") or "")).name == name), None)
+        if clip:
+            save_as = account.clip_title_name(clip, Path(name).stem) + ".mp4"
+    return FileResponse(f, filename=save_as if download else None, headers={"Cache-Control": "private, max-age=300"})
 
 
 # ================================================================ creators and live recording
@@ -2631,10 +2692,10 @@ def main():
         # restart by itself whenever the server code changes (pages in web/ never need a restart)
         uvicorn.run("studio.server:app", host=config.HOST, port=config.PORT, log_level="warning", backlog=4096, reload=True,
                     reload_dirs=[str(config.ROOT / "studio")], reload_includes=["*.py"],
-                    proxy_headers=bool(config.env("CLIPKONTRAST_TRUST_PROXY")), forwarded_allow_ips="*")
+                    proxy_headers=_trust_proxy(), forwarded_allow_ips=list(_PROXY_CIDRS))
         return
     uvicorn.run(app, host=config.HOST, port=config.PORT, log_level="warning", backlog=4096,
-                proxy_headers=bool(config.env("CLIPKONTRAST_TRUST_PROXY")), forwarded_allow_ips="*")
+                proxy_headers=_trust_proxy(), forwarded_allow_ips=list(_PROXY_CIDRS))
 
 
 if __name__ == "__main__":

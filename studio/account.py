@@ -19,6 +19,13 @@ def _busy(job) -> bool:
 
 
 # ---------------------------------------------------------------- clips and videos
+def clip_title_name(clip: dict, fallback: str = "clip") -> str:
+    """The file name a downloaded clip gets, without the extension: its title, or its hook, made safe to save.
+    A clip with neither keeps `fallback` (its id), so a name is never empty. (From PeakCut upstream.)"""
+    text = clip.get("title") or clip.get("hook") or fallback
+    return "".join(ch if ch.isalnum() or ch in " -_" else "" for ch in text)[:60].strip() or fallback
+
+
 def delete_clip(jid: str, cid: str) -> bool:
     """Remove one clip and its files. The video and its other clips stay."""
     job = jobs.get(jid)
@@ -90,7 +97,7 @@ def zip_clips(clip_ids: list, limit_gb: float = 4.0) -> Path:
         total += f.stat().st_size
         if total > limit_gb * 1e9:
             raise ValueError(f"That is more than {limit_gb:g} GB of clips. Download them in smaller groups.")
-        base = "".join(ch if ch.isalnum() or ch in " -_" else "" for ch in (clip.get("title") or clip.get("hook") or cid))[:60].strip() or cid
+        base = clip_title_name(clip, cid)
         name, n = f"{base}.mp4", 2
         while name.lower() in seen:
             name, n = f"{base} ({n}).mp4", n + 1

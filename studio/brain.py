@@ -217,7 +217,34 @@ def loud_zscore(db):
 # a long video asks it many times, and waiting for every one of them to fail took half an hour. Clips are picked by
 # loudness meanwhile, at once.
 _down = {"until": 0.0, "why": None}
-QUOTA_WORDS = ("quota", "exceeded", "credit", "billing", "insufficient", "limit: 0", "per day", "perday")
+TRIES = 3
+RATE_WAIT = (20, 40)      # seconds to wait after "too many requests", when the service doesn't say how long
+BUSY_WAIT = (5, 10)       # and after the service says it is overloaded (HTTP 5xx)
+MAX_WAIT = 60             # never wait longer than this for one retry
+LIVE_MAX_WAIT = 15        # a live check (it has a timeout) has a short budget of its own
+# A "too many requests" that waiting won't fix: the day's limit, no credit left, a model the key can't use at all
+NO_WAIT = re.compile(r"per ?day|daily|credit|billing|insufficient|limit: 0\b", re.I)
+
+
+def out_of_credit(e) -> bool:
+    return "HTTP 429" in str(e) and (getattr(e, "daily", False) or bool(NO_WAIT.search(str(e))))
+
+
+def retry_wait(e, attempt, timeout=None):
+    """How long to wait before asking the same model again, or None when asking again won't help. (From PeakCut.)
+
+    A free Gemini key is limited per minute ("Quota exceeded ... retry in 38s"): that's waited out, as long as
+    the service asks (else 20, then 40 seconds), and is not taken as the key's credit having run out. A limit for
+    the whole day isn't waited out: the next model is tried instead. Nothing is waited after the last try."""
+    text = str(e)
+    rate = "HTTP 429" in text
+    if not (rate or "HTTP 5" in text) or attempt >= TRIES - 1:
+        return None
+    if rate and out_of_credit(e):
+        return None
+    asked = getattr(e, "wait", None)
+    wait = asked if asked is not None else (RATE_WAIT if rate else BUSY_WAIT)[min(attempt, 1)]
+    return min(float(wait), LIVE_MAX_WAIT if timeout else MAX_WAIT)
 
 
 _swapped = {"at": 0.0}       # when a model the service won't run was last swapped while clipping
@@ -234,9 +261,9 @@ def ask_ai(prompt, schema=None, purpose="AI call", timeout=None):
         raise RuntimeError("The AI is not set up on this server.")
     if ai_resting():
         raise RuntimeError(f"The AI did not answer: {ai.explain(_down['why']) or _down['why']}")
-    last, out_of_credit = None, False
+    last, no_credit = None, False
     for model in ai.models():
-        for attempt in range(2):
+        for attempt in range(TRIES):
             try:
                 out, sent, wrote = ai.call(model, prompt, schema or SCHEMA, timeout)
                 usage.record(sent, wrote, purpose)
@@ -245,14 +272,13 @@ def ask_ai(prompt, schema=None, purpose="AI call", timeout=None):
                 return out, model, sent + wrote
             except Exception as e:  # noqa: BLE001
                 last = e
-                text = str(e).lower()
-                if "http 429" in text and any(w in text for w in QUOTA_WORDS):
-                    out_of_credit = True        # waiting seconds won't bring a daily limit back: the next model
+                if out_of_credit(e):
+                    no_credit = True            # waiting won't bring a daily limit back: the next model
                     break
-                if ("http 429" in text or "http 5" in text) and attempt == 0:
-                    time.sleep(3)
-                    continue
-                break
+                wait = retry_wait(e, attempt, timeout)
+                if wait is None:
+                    break
+                time.sleep(wait)
     if last is not None and (ai.unknown_model(last) or ai.busy(last)) and time.time() - _swapped["at"] > (300 if ai.busy(last) else 1800):
         _swapped["at"] = time.time()
         try:
@@ -265,7 +291,7 @@ def ask_ai(prompt, schema=None, purpose="AI call", timeout=None):
         except Exception as e:  # noqa: BLE001 - no better model: said as before
             last = e if not (ai.unknown_model(e) or ai.busy(e)) else last
     ai.note_problem(last)
-    _down.update(until=time.time() + (600 if out_of_credit else 120), why=last)
+    _down.update(until=time.time() + (600 if no_credit else 120), why=last)
     try:
         tell_ai_down(last)
     except Exception:  # noqa: BLE001 - telling must never stop the clips
