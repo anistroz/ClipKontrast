@@ -49,11 +49,13 @@ header{position:sticky;top:14px;z-index:40;margin-top:14px}
 .who a.on i{opacity:1;box-shadow:0 0 10px var(--lime)}
 /* hero */
 .hero{position:relative;text-align:center;padding:84px 0 70px;isolation:isolate}
-.hero::before{content:"";position:absolute;inset:-140px 0 auto;height:720px;z-index:-1;pointer-events:none;
-  background:radial-gradient(67% 52% at 50% 38%,rgba(198,244,50,.22),transparent 70%),radial-gradient(42% 40% at 8% 20%,rgba(255,170,90,.08),transparent 70%)}
-.hero::after{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;opacity:.35;
-  background-image:linear-gradient(rgba(255,255,255,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.035) 1px,transparent 1px);background-size:56px 56px;
-  -webkit-mask-image:radial-gradient(60% 60% at 50% 35%,#000,transparent 75%);mask-image:radial-gradient(60% 60% at 50% 35%,#000,transparent 75%)}
+/* the hero's glow and grid span the whole screen (inside the hero's box their edges showed as a lighter panel) */
+body{position:relative}
+body::before{content:"";position:absolute;left:0;right:0;top:0;height:1000px;z-index:-1;pointer-events:none;
+  background:radial-gradient(52% 46% at 50% 26%,rgba(198,244,50,.2),transparent 70%),radial-gradient(34% 38% at 16% 12%,rgba(255,170,90,.07),transparent 70%)}
+body::after{content:"";position:absolute;left:0;right:0;top:0;height:1000px;z-index:-1;pointer-events:none;opacity:.35;
+  background-image:linear-gradient(rgba(255,255,255,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.035) 1px,transparent 1px);background-size:56px 56px;background-position:center top;
+  -webkit-mask-image:radial-gradient(55% 50% at 50% 30%,#000,transparent 78%);mask-image:radial-gradient(55% 50% at 50% 30%,#000,transparent 78%)}
 .proof[hidden]{display:none}
 .proof{display:inline-flex;align-items:center;gap:12px;padding:7px 16px 7px 8px;border-radius:999px;border:1px solid var(--line2);background:rgba(255,255,255,.04);font-size:14.5px;color:var(--dim);margin-bottom:30px}
 .proof .pmark{width:30px;height:30px;border-radius:50%;background:rgba(198,244,50,.14);box-shadow:inset 0 0 0 1px rgba(198,244,50,.35);display:grid;place-items:center}
@@ -75,7 +77,8 @@ header{position:sticky;top:14px;z-index:40;margin-top:14px}
 .clip{position:relative;flex:none;width:190px;aspect-ratio:9/16;border-radius:22px;overflow:hidden;border:1px solid var(--line2);background:#000;
   box-shadow:0 30px 60px -20px rgba(0,0,0,.8)}
 .clip video,.clip img{width:100%;height:100%;object-fit:cover;display:block}
-.clip .tagc{position:absolute;left:10px;top:10px;font-size:11px;font-weight:700;padding:4px 9px;border-radius:999px;background:rgba(0,0,0,.6);backdrop-filter:blur(6px);color:#fff}
+.clip .tagc{position:absolute;left:10px;top:10px;right:10px;width:max-content;max-width:calc(100% - 20px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;font-weight:700;padding:4px 9px;border-radius:999px;background:rgba(0,0,0,.6);backdrop-filter:blur(6px);color:#fff;display:flex;align-items:center;gap:5px}
+.clip .tagc svg{width:12px;height:12px;fill:var(--lime);flex:none}
 .reel-note{text-align:center;color:var(--faint);font-size:13px;margin-top:-6px}
 .pillbar{display:inline-flex;gap:18px;align-items:center;padding:10px 20px;border-radius:999px;border:1px solid var(--line2);background:rgba(255,255,255,.03);font-size:14px;color:var(--dim);margin:26px auto 34px}
 .pillbar i{width:5px;height:5px;border-radius:50%;background:var(--lime)}
@@ -255,7 +258,7 @@ footer a{color:var(--dim);text-decoration:none;margin-left:18px}
       <span><svg viewBox="0 0 256 256"><path d="M229.66,77.66l-128,128a8,8,0,0,1-11.32,0l-56-56a8,8,0,0,1,11.32-11.32L96,188.69,218.34,66.34a8,8,0,0,1,11.32,11.32Z"/></svg>YouTube · Instagram · X</span></div>
   </section>
   <div class="reel reveal" aria-hidden="true"><div class="reel-in" id="reel"></div></div>
-  <p class="reel-note">Clips made with the ClipKontrast clip maker: captions, layout and heading done for every clip.</p>
+  <p class="reel-note">Videos from campaigns we ran, and clips made with the ClipKontrast clip maker. Credited to their creators.</p>
   <div style="text-align:center"><div class="pillbar"><span>Short-form distribution</span><i></i><span>Hundreds of creators</span><i></i><span>Pay for real views</span></div></div>
 
   <div class="stats reveal" id="stats">
@@ -447,10 +450,19 @@ $("#lf").addEventListener("submit", async e => {
   } catch (x) { fail(x.message); }
   finally { go.disabled = false; go.style.opacity = ""; }
 });
-// the reel: the clip maker's own demo clips, playing, on a gentle curve
-const DEMOS = ["bounce", "hype", "clean", "hype", "bounce", "clean", "bounce"], NAMES = {bounce: "Bounce captions", hype: "Hype captions", clean: "Clean captions"};
-$("#reel").innerHTML = DEMOS.map((d, i) => { const k = i - 3, rot = k * -9, z = -Math.abs(k) * 40, y = Math.abs(k) * 14;
-  return `<div class="clip" style="transform:translateY(${y}px) translateZ(${z}px) rotateY(${rot}deg)"><video src="/brand/demo-${d}.mp4" poster="/brand/demo-${d}.jpg" muted loop playsinline autoplay preload="metadata"></video><span class="tagc">${NAMES[d]}</span></div>`; }).join("");
+// the reel: videos from campaigns we ran and the clip maker's demo clips, playing, on a gentle curve. A clip's tag
+// shows its real view count once one is filled in here (views: "4.2M"); until then, who it's from.
+const CLIPS = {
+  efootball: {name: "eFootball × Sunil Chhetri", views: ""},
+  jonathan: {name: "Jonathan Gaming", views: ""},
+  hype: {name: "IShowSpeed · GTA 6", views: ""},
+  bounce: {name: "Kai Cenat · GTA 6", views: ""},
+  clean: {name: "GTA 6 trailer reaction", views: ""},
+};
+const DEMOS = ["bounce", "jonathan", "hype", "efootball", "clean", "jonathan", "hype"];
+const eye = '<svg viewBox="0 0 256 256" aria-hidden="true"><path d="M247.31,124.76c-.35-.79-8.82-19.58-27.65-38.41C194.57,61.26,162.88,48,128,48S61.43,61.26,36.34,86.35C17.51,105.18,9,124,8.69,124.76a8,8,0,0,0,0,6.5c.35.79,8.82,19.57,27.65,38.4C61.43,194.74,93.12,208,128,208s66.57-13.26,91.66-38.34c18.83-18.83,27.3-37.61,27.65-38.4A8,8,0,0,0,247.31,124.76ZM128,168a40,40,0,1,1,40-40A40,40,0,0,1,128,168Z"/></svg>';
+$("#reel").innerHTML = DEMOS.map((d, i) => { const k = i - 3, rot = k * -9, z = -Math.abs(k) * 40, y = Math.abs(k) * 14, c = CLIPS[d];
+  return `<div class="clip" style="transform:translateY(${y}px) translateZ(${z}px) rotateY(${rot}deg)"><video src="/brand/demo-${d}.mp4" poster="/brand/demo-${d}.jpg" muted loop playsinline autoplay preload="metadata"></video><span class="tagc${c.views ? " v" : ""}">${c.views ? eye + c.views + " views" : c.name}</span></div>`; }).join("");
 // the steps
 const STEPS = [
   ["Step 01", "Book a strategy call", "Tell us your goal and your budget. You get a plan for your campaign: what to clip, where, and what your budget can do.", "Your plan", ["Your goals", "The brief and the rules", "A views forecast"]],
