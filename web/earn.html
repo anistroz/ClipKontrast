@@ -26,7 +26,7 @@
 *{box-sizing:border-box}
 [hidden]{display:none!important}
 html{scroll-behavior:smooth}
-[id]{scroll-margin-top:80px}
+[id]{scroll-margin-top:96px}
 body{margin:0;background:#fff;color:var(--text);font:16px/1.55 "Geist","Segoe UI",system-ui,sans-serif;-webkit-font-smoothing:antialiased;overflow-x:hidden}
 h1,h2,h3,h4,p{margin:0}
 a{color:inherit}
@@ -57,31 +57,47 @@ section{padding:80px 0;position:relative}
 @keyframes slide{to{transform:translateX(-50%)}}
 
 /* nav */
-header.nav{position:sticky;top:0;z-index:30;background:#fff;border-bottom:1px solid transparent;transition:border-color .2s ease}
-header.nav.stuck{border-color:var(--line)}
-header.nav .wrap{display:flex;align-items:center;gap:20px;height:62px}
-header.nav img{height:38px;display:block}
-header.nav nav{display:flex;gap:2px;flex:1;justify-content:center;font-size:15px;font-weight:500}
-header.nav nav a{white-space:nowrap;text-decoration:none;color:var(--dim);padding:8px 13px;border-radius:var(--r);transition:color .15s ease,background-color .15s ease}
-header.nav nav a:hover{color:var(--text);background:var(--muted)}
-header.nav nav a.on{color:var(--ink);background:var(--soft)}
-header.nav .right{display:flex;align-items:center;gap:8px;flex:none;white-space:nowrap}
-@media (max-width:1320px){header.nav nav a{padding:8px 10px}header.nav nav .nv-x{display:none}}
-header.nav .signin{text-decoration:none;font-weight:500;font-size:15px;padding:8px 12px;border-radius:var(--r);transition:background-color .15s ease}
-header.nav .signin:hover{background:var(--muted)}
-header.nav .btn{height:40px;border-radius:999px}
-.menu-btn{display:none;width:42px;height:42px;border:1px solid var(--line);border-radius:12px;background:#fff;flex-direction:column;justify-content:center;align-items:center;gap:5px;cursor:pointer;flex:none}
-.menu-btn span{display:block;width:18px;height:2px;border-radius:2px;background:var(--ink);transition:transform .2s ease}
+/* header: a floating dark pill, like the launch page's. It sits over the top of the hero (which starts 74px higher). */
+header.nav{position:sticky;top:12px;z-index:30;padding-top:12px;margin-bottom:-74px;pointer-events:none}
+header.nav .wrap{pointer-events:auto;display:flex;align-items:center;gap:14px;height:62px;width:calc(100% - 32px);max-width:1132px;margin:0 auto;padding:0 9px 0 20px;
+  border-radius:999px;border:1px solid rgba(255,255,255,.12);background:rgba(21,16,13,.88);backdrop-filter:blur(16px) saturate(1.3);-webkit-backdrop-filter:blur(16px) saturate(1.3);
+  box-shadow:0 12px 40px -14px rgba(0,0,0,.45);transition:box-shadow .2s ease}
+header.nav.stuck .wrap{box-shadow:0 16px 44px -12px rgba(0,0,0,.55)}
+header.nav img{height:30px;display:block}
+header.nav nav{display:flex;gap:2px;margin-left:10px;font-size:14.5px;font-weight:500}
+header.nav nav a{white-space:nowrap;text-decoration:none;color:#B9ABA2;padding:8px 13px;border-radius:999px;transition:color .15s ease,background-color .15s ease}
+header.nav nav a:hover{color:#fff;background:rgba(255,255,255,.07)}
+header.nav nav a.on{color:#C6F432;background:rgba(198,244,50,.1)}
+header.nav .sp{flex:1}
+header.nav .who{display:flex;padding:4px;border-radius:999px;border:1px solid rgba(255,255,255,.12);background:rgba(0,0,0,.28);flex:none}
+header.nav .who a{text-decoration:none;font-size:13.5px;font-weight:600;padding:7px 14px;border-radius:999px;color:#B9ABA2;display:flex;align-items:center;gap:7px;white-space:nowrap}
+header.nav .who a:hover{color:#fff}
+header.nav .who a i{width:6px;height:6px;border-radius:50%;background:currentColor;opacity:.6}
+header.nav .who a.on{background:rgba(198,244,50,.14);color:#C6F432;box-shadow:inset 0 0 0 1px rgba(198,244,50,.35)}
+header.nav .who a.on i{opacity:1;box-shadow:0 0 10px #C6F432}
+header.nav .right{display:flex;align-items:center;gap:6px;flex:none;white-space:nowrap}
+header.nav .signin{text-decoration:none;font-weight:500;font-size:14.5px;color:#F4EEEA;padding:8px 12px;border-radius:999px;transition:background-color .15s ease}
+header.nav .signin:hover{background:rgba(255,255,255,.07)}
+header.nav .btn{height:44px;border-radius:999px}
+header.nav .btn.primary{box-shadow:0 10px 30px -8px rgba(198,244,50,.55)}
+@media (max-width:1180px){header.nav nav a{padding:8px 10px}header.nav nav .nv-x{display:none}}
+@media (max-width:1060px){header.nav nav{display:none!important}header.nav .menu-btn{display:inline-flex}}
+/* an admin has one more link on the right: the section links go to the menu sooner */
+@media (max-width:1500px){header.nav.more nav{display:none!important}header.nav.more .menu-btn{display:inline-flex}}
+@media (max-width:900px){header.nav.more .right .signin{display:none}}
+@media (max-width:760px){header.nav .wrap{padding-left:14px;gap:8px;width:calc(100% - 24px)}header.nav img{height:26px}header.nav .who a{padding:7px 10px;font-size:13px}header.nav .who .long{display:none}header.nav .right .signin{display:none}}
+.menu-btn{display:none;width:44px;height:44px;border:1px solid rgba(255,255,255,.14);border-radius:50%;background:transparent;flex-direction:column;justify-content:center;align-items:center;gap:5px;cursor:pointer;flex:none}
+.menu-btn span{display:block;width:16px;height:2px;border-radius:2px;background:#fff;transition:transform .2s ease}
 .menu-btn[aria-expanded="true"] span:first-child{transform:translateY(3.5px) rotate(45deg)}.menu-btn[aria-expanded="true"] span:last-child{transform:translateY(-3.5px) rotate(-45deg)}
-.mnav{border-top:1px solid var(--line);background:#fff;padding:6px 20px 18px;display:grid}
+.mnav{pointer-events:auto;position:absolute;left:12px;right:12px;top:82px;max-width:1132px;margin:0 auto;max-height:calc(100vh - 100px);overflow:auto;border-radius:22px;border:1px solid rgba(255,255,255,.12);background:#15100D;padding:6px 20px 18px;display:grid;box-shadow:0 20px 50px -12px rgba(0,0,0,.5)}
 .mnav[hidden]{display:none}
-.mnav > a{padding:14px 2px;border-bottom:1px solid var(--line);text-decoration:none;color:var(--text);font-weight:550;font-size:17px}
+.mnav > a{padding:14px 2px;border-bottom:1px solid rgba(255,255,255,.08);text-decoration:none;color:#F4EEEA;font-weight:550;font-size:17px}
 .mnav-auth{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px}
 .mnav-auth .btn{height:48px;border-radius:999px;justify-content:center}
 .badge-new{font-size:10px;font-weight:700;background:var(--brand);color:var(--ink);padding:2px 6px;border-radius:999px;margin-left:4px;vertical-align:2px}
 
 /* hero */
-.hero{background:var(--frame);color:var(--frame-text);position:relative;overflow:hidden;padding:72px 0 0}
+.hero{background:var(--frame);color:var(--frame-text);position:relative;overflow:hidden;padding:146px 0 0}
 .hero .ga{position:absolute;inset:0;pointer-events:none;opacity:.9;-webkit-mask-image:linear-gradient(180deg,transparent,#000 20%,#000 70%,transparent);mask-image:linear-gradient(180deg,transparent,#000 20%,#000 70%,transparent)}
 .hero-in{position:relative;z-index:2;display:grid;grid-template-columns:1.12fr .88fr;gap:48px;align-items:center}
 .pill-live{display:inline-flex;align-items:center;gap:10px;border:1px solid var(--frame-line);background:var(--frame-2);border-radius:999px;padding:6px 14px 6px 8px;font-size:14px;color:var(--frame-text);text-decoration:none;transition:border-color .15s ease}
@@ -369,23 +385,19 @@ footer.site .fbottom{display:flex;justify-content:space-between;gap:12px;flex-wr
   .calc{grid-template-columns:1fr;padding:28px}
   .faq-grid{grid-template-columns:1fr;gap:20px}.faq-l{position:static}
   .aside{order:-1}
-  .menu-btn{display:inline-flex}
-  header.nav .right{margin-left:auto}   /* with the section links hidden, keep the buttons and the menu on the right */
   .ticker,.kpis{grid-template-columns:1fr 1fr}
   .checks{grid-template-columns:1fr 1fr}.steps{grid-template-columns:1fr 1fr}
   .grid2{grid-template-columns:1fr}
   .sheet .inner{grid-template-columns:1fr}.aside{position:static}
-  header.nav nav{display:none}
   footer.site .fgrid{grid-template-columns:1fr 1fr}
   .lb-row{grid-template-columns:44px 1fr 90px 100px}.lb-row .hide-s{display:none}
 }
 @media (max-width:560px){
   section{padding:56px 0}
-  .hero{padding-top:48px}
+  .hero{padding-top:118px}
   .checks,.steps,.row2{grid-template-columns:1fr}
   .camps{grid-template-columns:1fr}
-  header.nav .signin{display:none}
-  header.nav .right .btn{display:none}
+  header.nav .right{display:none}
   .chip.c1,.chip.c3{display:none}.chip.c2{right:-2%;top:52%}
   .paths{grid-template-columns:1fr}
   .reel3{gap:8px}.reel3 .ph{border-width:4px;border-radius:16px}.reel3 figure.mid{transform:translateY(-14px)}
@@ -417,7 +429,7 @@ footer.site .fbottom{display:flex;justify-content:space-between;gap:12px;flex-wr
   .panel{padding:18px}
 }
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}.js .reveal{opacity:1;transform:none}}
-.annc{display:block;background:#1E1612;color:#F4EEEA;text-align:center;font-size:14px;font-weight:500;padding:9px 16px;text-decoration:none;line-height:1.4}
+.annc{position:relative;z-index:31;display:block;background:#1E1612;color:#F4EEEA;text-align:center;font-size:14px;font-weight:500;padding:9px 16px;text-decoration:none;line-height:1.4}
 .annc b{background:#C6F432;color:#1A2100;border-radius:999px;padding:1px 8px;font-size:11px;letter-spacing:.04em;margin-right:8px}
 .annc u{text-decoration:none;color:#C6F432;font-weight:600;margin-left:6px;white-space:nowrap}
 .annc:hover u{text-decoration:underline}
@@ -524,15 +536,56 @@ footer.site .fbottom{display:flex;justify-content:space-between;gap:12px;flex-wr
 .fb-r strong{color:var(--ink);font-size:16px;font-weight:650}
 @media (max-width:960px){.fb-card{grid-template-columns:1fr;gap:28px;padding:32px 24px}}
 @media (max-width:560px){.fb-ctas .btn{width:100%}.fb-ctas{gap:14px}}
+
+/* footer: the closing call, the four steps, clippers or brands, then the links */
+.nf{background:#0E0B09;color:#F4EEEA;padding:96px 0 0;position:relative;overflow:hidden}
+.nf .w{max-width:1180px;margin:0 auto;padding:0 24px;position:relative;z-index:1}
+.nf::before{content:"";position:absolute;left:50%;top:-220px;width:1100px;height:620px;transform:translateX(-50%);background:radial-gradient(ellipse at center,rgba(198,244,50,.22),rgba(198,244,50,0) 62%);pointer-events:none}
+.nf-cta{text-align:center}
+.nf-cta .k{display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#C6F432}
+.nf-cta .k i{width:6px;height:6px;border-radius:50%;background:#C6F432}
+.nf-cta h2{margin:16px auto 0;font-size:clamp(40px,6vw,76px);line-height:1;letter-spacing:-.045em;font-weight:700;color:#fff;max-width:900px}
+.nf-cta h2 em{font-style:normal;color:#1A2100;background:#C6F432;padding:0 .14em;border-radius:.14em;white-space:nowrap;display:inline-block;line-height:1.05}
+.nf-cta p{color:#A99A91;font-size:18px;margin:18px auto 0;max-width:560px}
+.nf-flow{display:grid;grid-template-columns:1fr auto 1fr auto 1fr auto 1fr;align-items:center;gap:10px;margin:48px auto 0;max-width:980px}
+.nf-step{display:block;background:#1A1411;border:1px solid rgba(255,255,255,.08);border-radius:18px;padding:18px 16px;text-align:left;text-decoration:none;color:inherit}
+a.nf-step:hover{border-color:rgba(198,244,50,.4)}
+.nf-step b{display:block;font-size:12px;color:#C6F432;letter-spacing:.06em}
+.nf-step strong{display:block;font-size:16px;color:#fff;margin-top:6px}
+.nf-step span{display:block;font-size:13px;color:#A99A91;margin-top:3px}
+.nf-step.last{background:#C6F432;border-color:#C6F432}.nf-step.last b,.nf-step.last span{color:#3D5200}.nf-step.last strong{color:#1A2100}
+.nf-ar{color:#5B4E46;font-size:20px}
+.nf-two{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:40px}
+.nf-card{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:26px 28px;border-radius:22px;text-decoration:none;border:1px solid rgba(255,255,255,.08);background:#1A1411;color:#fff;transition:transform .2s ease,border-color .2s ease}
+.nf-card:hover{transform:translateY(-2px);border-color:rgba(198,244,50,.35)}
+.nf-card small{display:block;font-size:13px;color:#A99A91}
+.nf-card strong{display:block;font-size:22px;letter-spacing:-.02em;margin-top:4px}
+.nf-card .go{flex:none;width:52px;height:52px;border-radius:50%;display:grid;place-items:center;background:#C6F432}
+.nf-card .go svg{width:22px;height:22px;fill:#1A2100}
+.nf-card.b .go{background:#fff}
+.nf-links{display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr 1fr;gap:28px;margin-top:72px;padding-top:40px;border-top:1px solid rgba(255,255,255,.08)}
+.nf-links img{height:30px;display:block}
+.nf-links p{color:#A99A91;font-size:14px;line-height:1.6;margin-top:14px;max-width:300px}
+.nf-links .soc{display:flex;gap:8px;margin-top:16px;flex-wrap:wrap}
+.nf-links .soc a{display:inline-flex;align-items:center;height:38px;padding:0 14px;border-radius:999px;border:1px solid rgba(255,255,255,.12);color:#F4EEEA;text-decoration:none;font-size:14px}
+.nf-links .soc a:hover{border-color:#C6F432;color:#C6F432}
+.nf-links h4{font-size:13px;color:#fff;font-weight:600;margin:4px 0 14px}
+.nf-links ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}
+.nf-links ul a{color:#A99A91;text-decoration:none;font-size:14px}.nf-links ul a:hover{color:#C6F432}
+.nf-bot{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-top:44px;padding:20px 0;border-top:1px solid rgba(255,255,255,.08);color:#7D6F66;font-size:13px}
+.nf-word{font-weight:800;letter-spacing:-.06em;line-height:.78;font-size:clamp(56px,13.6vw,190px);text-align:center;margin:30px 0 -10px;background:linear-gradient(180deg,rgba(198,244,50,.28),rgba(198,244,50,0) 85%);-webkit-background-clip:text;background-clip:text;color:transparent;user-select:none;white-space:nowrap}
+@media (max-width:900px){.nf{padding-top:72px}.nf-flow{grid-template-columns:1fr 1fr}.nf-ar{display:none}.nf-two{grid-template-columns:1fr}.nf-links{grid-template-columns:1fr 1fr}.nf-links>div:first-child{grid-column:1/-1}}
 </style>
 </head>
 <body>
 <a class="annc" href="/download"><b>NEW</b>The ClipKontrast app is out<span class="annc-long">: clip streams on your own PC, free. Windows, Mac and Linux.</span><span class="annc-short">.</span><u>Download →</u></a>
 <header class="nav" id="nav"><div class="wrap">
-  <a href="/" aria-label="ClipKontrast home"><img src="/brand/logo.svg" alt="ClipKontrast"></a>
+  <a href="/" aria-label="ClipKontrast home"><img src="/brand/logo-light.svg" alt="ClipKontrast"></a>
   <nav aria-label="Sections">
-    <a href="#how">How it works</a><a href="#campaigns">Campaigns</a><a class="nv-x" href="#leaderboard">Leaderboard</a><a href="#faq">FAQ</a><a class="nv-x" href="/download">Download app</a><a href="/launch">For brands</a>
+    <a href="#how">How it works</a><a href="#campaigns">Campaigns</a><a class="nv-x" href="#leaderboard">Leaderboard</a><a href="#faq">FAQ</a>
   </nav>
+  <span class="sp"></span>
+  <div class="who" role="navigation" aria-label="Who you are"><a class="on" href="/earn" aria-current="page"><i></i><span class="long">For </span>Clippers</a><a href="/launch"><i></i><span class="long">For </span>Brands</a></div>
   <div class="right" id="navRight">
     <a class="signin" href="/login?next=%2Fearn">Sign in</a>
     <a class="btn primary" href="/signup?next=%2Fearn%23me">Start earning</a>
@@ -540,7 +593,7 @@ footer.site .fbottom{display:flex;justify-content:space-between;gap:12px;flex-wr
   <button class="menu-btn" type="button" data-act="menu" aria-label="Menu" aria-expanded="false" aria-controls="mnav"><span></span><span></span></button>
 </div>
 <div class="mnav" id="mnav" hidden>
-  <a href="#how">How it works</a><a href="#campaigns">Campaigns</a><a href="#leaderboard">Leaderboard</a><a href="#faq">FAQ</a><a href="/download">Download app</a><a href="/launch">For brands</a>
+  <a href="#how">How it works</a><a href="#campaigns">Campaigns</a><a href="#leaderboard">Leaderboard</a><a href="#faq">FAQ</a><a href="/download">Download the app</a><a href="/launch">For brands: launch a campaign</a>
   <div class="mnav-auth" id="mnavAuth"><a class="btn" href="/login?next=%2Fearn">Sign in</a><a class="btn primary" href="/signup?next=%2Fearn%23me">Start earning</a></div>
 </div></header>
 
@@ -708,25 +761,35 @@ footer.site .fbottom{display:flex;justify-content:space-between;gap:12px;flex-wr
     </div>
   </div>
 </section>
-<section id="start" class="final">
-  <div class="wrap final-in reveal">
-    <h2>Your next clip could <span class="hl">pay you.</span></h2>
-    <p>Free clip maker. Paid campaigns. Money straight to your UPI.</p>
-    <div class="ctas"><a class="btn primary" id="finalCta" href="/signup?next=%2Fearn%23me">Start earning <svg viewBox="0 0 256 256" aria-hidden="true"><path d="M221.66,133.66l-72,72a8,8,0,0,1-11.32-11.32L196.69,136H40a8,8,0,0,1,0-16H196.69L138.34,61.66a8,8,0,0,1,11.32-11.32l72,72A8,8,0,0,1,221.66,133.66Z"/></svg></a><a class="btn ghost-d" id="finalDl" href="#download">Download the clip maker</a></div>
-  </div>
-</section>
+
 </main>
 
-<footer class="site"><div class="wrap">
-  <div class="fgrid">
-    <div><a href="/"><img src="/brand/logo-light.svg" alt="ClipKontrast" width="120" height="30"></a>
-      <p>The AI clip maker for streams, and paid clipping campaigns for the people who post them.</p></div>
-    <div><h4>Earn</h4><ul><li><a href="#campaigns">Live campaigns</a></li><li><a href="#checks">How we verify</a></li><li><a href="#leaderboard">Leaderboard</a></li><li><a href="#me">My earnings</a></li><li><a href="/launch">Launch a campaign</a></li></ul></div>
-    <div><h4>Clip maker</h4><ul><li><a href="/clip-maker">What it does</a></li><li><a href="#download">Download free</a></li><li><a href="/signup">Create an account</a></li><li><a href="/report">Report a problem</a></li></ul></div>
-    <div><h4>Legal</h4><ul><li><a href="/terms">Terms of Service</a></li><li><a href="/privacy">Privacy Policy</a></li><li><a href="/acceptable-use">Acceptable Use</a></li></ul></div>
+<footer class="nf" id="start"><div class="w">
+  <div class="nf-cta reveal">
+    <span class="k"><i></i>Free clip maker · Paid campaigns</span>
+    <h2>Your next clip could <em>pay you.</em></h2>
+    <p>Clip a stream with the free app, post it from your own accounts, and get paid for every 1,000 views.</p>
   </div>
-  <div class="fbottom"><span>© <span id="yr"></span> ClipKontrast</span><span>Want clippers for your channel? <a href="/launch" style="color:inherit;font-weight:600">Launch a campaign →</a></span></div>
-  <p class="fnote">Example clips on this site come from public streams and are credited to their creators. ClipKontrast isn't affiliated with or endorsed by them.</p>
+  <div class="nf-flow reveal">
+    <a class="nf-step" id="finalDl" href="/download"><b>01</b><strong>Get the app</strong><span>Free, on your PC</span></a><span class="nf-ar" aria-hidden="true">→</span>
+    <a class="nf-step" href="#campaigns"><b>02</b><strong>Join a campaign</strong><span>Pick a streamer</span></a><span class="nf-ar" aria-hidden="true">→</span>
+    <div class="nf-step"><b>03</b><strong>Post your clips</strong><span>Shorts, Reels, X</span></div><span class="nf-ar" aria-hidden="true">→</span>
+    <div class="nf-step last"><b>04</b><strong>Get paid</strong><span>Straight to UPI</span></div>
+  </div>
+  <div class="nf-two reveal">
+    <a class="nf-card a" id="nfEarn" href="/signup?next=%2Fearn%23me"><div><small>For clippers</small><strong>Start earning</strong></div><span class="go"><svg viewBox="0 0 256 256" aria-hidden="true"><path d="M221.66,133.66l-72,72a8,8,0,0,1-11.32-11.32L196.69,136H40a8,8,0,0,1,0-16H196.69L138.34,61.66a8,8,0,0,1,11.32-11.32l72,72A8,8,0,0,1,221.66,133.66Z"/></svg></span></a>
+    <a class="nf-card b" href="/launch"><div><small>For streamers and brands</small><strong>Launch a campaign</strong></div><span class="go"><svg viewBox="0 0 256 256" aria-hidden="true"><path d="M221.66,133.66l-72,72a8,8,0,0,1-11.32-11.32L196.69,136H40a8,8,0,0,1,0-16H196.69L138.34,61.66a8,8,0,0,1,11.32-11.32l72,72A8,8,0,0,1,221.66,133.66Z"/></svg></span></a>
+  </div>
+  <div class="nf-links">
+    <div><a href="/" aria-label="ClipKontrast home"><img src="/brand/logo-light.svg" alt="ClipKontrast" width="120" height="30"></a><p>The free AI clip maker for streams, and paid clipping campaigns for the people who post them.</p>
+      <div class="soc"><a href="https://instagram.com/anistroz.ai" target="_blank" rel="noopener">Instagram</a><a href="mailto:hello@clipkontrast.com">Email us</a></div></div>
+    <div><h4>Earn</h4><ul><li><a href="#campaigns">Live campaigns</a></li><li><a href="#checks">How we verify</a></li><li><a href="#leaderboard">Leaderboard</a></li><li><a href="#me">My earnings</a></li></ul></div>
+    <div><h4>Clip maker</h4><ul><li><a href="/clip-maker">What it does</a></li><li><a href="/download">Download free</a></li><li><a href="/download">How to install</a></li><li><a href="/report">Report a problem</a></li></ul></div>
+    <div><h4>For brands</h4><ul><li><a href="/launch">Launch a campaign</a></li><li><a href="/launch#how">How it works</a></li><li><a href="/launch#handled">What we handle</a></li></ul></div>
+    <div><h4>Legal</h4><ul><li><a href="/terms">Terms</a></li><li><a href="/privacy">Privacy</a></li><li><a href="/acceptable-use">Acceptable use</a></li></ul></div>
+  </div>
+  <div class="nf-bot"><span>© <span id="yr"></span> ClipKontrast</span><span>Example clips on this site come from public streams and are credited to their creators. ClipKontrast isn't affiliated with or endorsed by them.</span></div>
+  <div class="nf-word" aria-hidden="true">ClipKontrast</div>
 </div></footer>
 
 <div id="sheet"></div>
@@ -1105,12 +1168,14 @@ function drawNav() {
   const r = $("#navRight");
   if (S.user) {
     // on the website the button opens the app installed on this computer (or offers it), never the clip studio page
-    r.innerHTML = `<a class="signin" href="#me">My earnings</a>${S.data.earn_only && S.user.is_admin ? `<a class="signin" href="/admin/earn">Admin</a>` : ""}<a class="signin" href="#" data-act="signout">Sign out</a>${S.data.earn_only ? `<a class="btn primary" href="${esc(S.data.download_url)}" data-openapp>Open the app</a>` : `<a class="btn primary" href="/app">Open ClipKontrast</a>`}`;
+    r.innerHTML = `<a class="signin" href="#me">My earnings</a>${S.data.earn_only && S.user.is_admin ? `<a class="signin" href="/admin/earn">Admin</a>` : ""}${S.data.earn_only ? `<a class="btn primary" href="${esc(S.data.download_url)}" data-openapp>Open the app</a>` : `<a class="btn primary" href="/app">Open ClipKontrast</a>`}`;
+    $("#nav").classList.toggle("more", !!(S.data.earn_only && S.user.is_admin));
+    const fe = $("#nfEarn"); if (fe) { fe.href = "#me"; fe.querySelector("strong").textContent = "My earnings"; }
     // signed in: join a campaign first, then the button takes them to their earnings
     const open = S.data.campaigns.filter(c => c.open), joined = open.filter(c => (S.me?.joined || []).includes(c.id));
     if (joined.length || !open.length) setCtas("#me", "My earnings");
     else setCtas("#c=" + open[0].slug, open.length > 1 ? "Join a campaign" : `Join ${open[0].title}`);
-    $("#mnavAuth").innerHTML = `<a class="btn primary" href="#me">My earnings</a><a class="btn" href="#" data-act="signout">Sign out</a>`;
+    $("#mnavAuth").innerHTML = `<a class="btn primary" href="#me">My earnings</a><a class="btn" href="#" data-act="signout">Sign out</a>${S.data.earn_only && S.user.is_admin ? `<a class="btn" href="/admin/earn" style="grid-column:1/-1">Admin</a>` : ""}`;
   } else if (S.data && S.data.accounts === false) {
     r.innerHTML = `<a class="btn primary" href="/app">Open ClipKontrast</a>`;
   }

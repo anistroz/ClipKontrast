@@ -66,8 +66,8 @@ import re as _re
 for _f in ("earn.html", "landing.html"):
     _h = (ROOT / "web" / _f).read_text(encoding="utf-8") if "ROOT" in globals() else open(f"web/{_f}", encoding="utf-8").read()
     _nav = _re.search(r'<header class="nav".*?</header>', _h, _re.S).group(0)
-    check(f"{_f}: 'For brands' in the menu, a Launch a campaign section and a footer link",
-          ('href="/launch">For brands' in _nav, 'id="brands"' in _h and 'href="/launch"' in _h.split('id="brands"')[1].split("</section>")[0],
+    check(f"{_f}: brands reach the launch page from the menu, a Launch a campaign section and a footer link",
+          ('href="/launch"' in _nav, 'id="brands"' in _h and 'href="/launch"' in _h.split('id="brands"')[1].split("</section>")[0],
            'href="/launch">Launch a campaign</a></li>' in _h), (True, True, True))
     _text = _re.sub(r"<[^>]+>", " ", _re.sub(r"<(style|script)\b.*?</\1>", " ", _h, flags=_re.S)).lower()
     check(f"{_f}: no fee or pricing shown to clippers", not any(w in _text for w in ("management fee", "agency fee", "30%")))
