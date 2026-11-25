@@ -87,5 +87,8 @@ check("the Windows app saves clipkontrast:// links at every start (nothing to do
 _iss = open("packaging/windows/clipkontrast.iss", encoding="utf-8").read()
 check("...and the installer saves them too, removed on uninstall",
       'Subkey: "Software\\Classes\\clipkontrast\\shell\\open\\command"' in _iss and "uninsdeletekey" in _iss)
+_lp = open("web/launch.html", encoding="utf-8").read()
+check("ads vs clipping: a finished campaign's reported views against the same budget on ads, with where the ad rate comes from",
+      ("const AD_CPM = 100" in _lp, "if (x < 1.5) return;" in _lp, "a typical rate for Instagram Reels ads in India" in _lp), (True, True, True))
 print(f"  {len(fails)} failed" if fails else "  ALL PASSED")
 sys.exit(1 if fails else 0)

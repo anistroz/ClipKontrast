@@ -58,8 +58,8 @@ section{padding:80px 0;position:relative}
 
 /* nav */
 /* header: a floating dark pill, like the launch page's. It sits over the top of the hero (which starts 74px higher). */
-header.nav{position:sticky;top:12px;z-index:30;padding-top:12px;margin-bottom:-74px;pointer-events:none}
-header.nav .wrap{pointer-events:auto;display:flex;align-items:center;gap:14px;height:62px;width:calc(100% - 32px);max-width:1132px;margin:0 auto;padding:0 9px 0 20px;
+header.nav{position:sticky;top:0;z-index:30;padding-top:14px;margin-bottom:-76px;pointer-events:none}
+header.nav .wrap{pointer-events:auto;display:flex;align-items:center;gap:14px;height:62px;width:calc(100% - 48px);max-width:1112px;margin:0 auto;padding:0 9px 0 20px;
   border-radius:999px;border:1px solid rgba(255,255,255,.12);background:rgba(21,16,13,.88);backdrop-filter:blur(16px) saturate(1.3);-webkit-backdrop-filter:blur(16px) saturate(1.3);
   box-shadow:0 12px 40px -14px rgba(0,0,0,.45);transition:box-shadow .2s ease}
 header.nav.stuck .wrap{box-shadow:0 16px 44px -12px rgba(0,0,0,.55)}
@@ -85,11 +85,11 @@ header.nav .btn.primary{box-shadow:0 10px 30px -8px rgba(198,244,50,.55)}
 /* an admin has one more link on the right: the section links go to the menu sooner */
 @media (max-width:1500px){header.nav.more nav{display:none!important}header.nav.more .menu-btn{display:inline-flex}}
 @media (max-width:900px){header.nav.more .right .signin{display:none}}
-@media (max-width:760px){header.nav .wrap{padding-left:14px;gap:8px;width:calc(100% - 24px)}header.nav img{height:26px}header.nav .who a{padding:7px 10px;font-size:13px}header.nav .who .long{display:none}header.nav .right .signin{display:none}}
+@media (max-width:760px){header.nav .wrap{padding-left:14px;gap:8px;width:calc(100% - 32px)}header.nav img{height:26px}header.nav .who a{padding:7px 10px;font-size:13px}header.nav .who .long{display:none}header.nav .right .signin{display:none}}
 .menu-btn{display:none;width:44px;height:44px;border:1px solid rgba(255,255,255,.14);border-radius:50%;background:transparent;flex-direction:column;justify-content:center;align-items:center;gap:5px;cursor:pointer;flex:none}
 .menu-btn span{display:block;width:16px;height:2px;border-radius:2px;background:#fff;transition:transform .2s ease}
 .menu-btn[aria-expanded="true"] span:first-child{transform:translateY(3.5px) rotate(45deg)}.menu-btn[aria-expanded="true"] span:last-child{transform:translateY(-3.5px) rotate(-45deg)}
-.mnav{pointer-events:auto;position:absolute;left:12px;right:12px;top:82px;max-width:1132px;margin:0 auto;max-height:calc(100vh - 100px);overflow:auto;border-radius:22px;border:1px solid rgba(255,255,255,.12);background:#15100D;padding:6px 20px 18px;display:grid;box-shadow:0 20px 50px -12px rgba(0,0,0,.5)}
+.mnav{pointer-events:auto;position:absolute;left:16px;right:16px;top:84px;max-width:1112px;margin:0 auto;max-height:calc(100vh - 100px);overflow:auto;border-radius:22px;border:1px solid rgba(255,255,255,.12);background:#15100D;padding:6px 20px 18px;display:grid;box-shadow:0 20px 50px -12px rgba(0,0,0,.5)}
 .mnav[hidden]{display:none}
 .mnav > a{padding:14px 2px;border-bottom:1px solid rgba(255,255,255,.08);text-decoration:none;color:#F4EEEA;font-weight:550;font-size:17px}
 .mnav-auth{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px}
@@ -97,7 +97,7 @@ header.nav .btn.primary{box-shadow:0 10px 30px -8px rgba(198,244,50,.55)}
 .badge-new{font-size:10px;font-weight:700;background:var(--brand);color:var(--ink);padding:2px 6px;border-radius:999px;margin-left:4px;vertical-align:2px}
 
 /* hero */
-.hero{background:var(--frame);color:var(--frame-text);position:relative;overflow:hidden;padding:146px 0 0}
+.hero{background:var(--frame);color:var(--frame-text);position:relative;overflow:hidden;padding:148px 0 0}
 .hero .ga{position:absolute;inset:0;pointer-events:none;opacity:.9;-webkit-mask-image:linear-gradient(180deg,transparent,#000 20%,#000 70%,transparent);mask-image:linear-gradient(180deg,transparent,#000 20%,#000 70%,transparent)}
 .hero-in{position:relative;z-index:2;display:grid;grid-template-columns:1.12fr .88fr;gap:48px;align-items:center}
 .pill-live{display:inline-flex;align-items:center;gap:10px;border:1px solid var(--frame-line);background:var(--frame-2);border-radius:999px;padding:6px 14px 6px 8px;font-size:14px;color:var(--frame-text);text-decoration:none;transition:border-color .15s ease}
@@ -396,7 +396,7 @@ footer.site .fbottom{display:flex;justify-content:space-between;gap:12px;flex-wr
 }
 @media (max-width:560px){
   section{padding:56px 0}
-  .hero{padding-top:118px}
+  .hero{padding-top:120px}
   .checks,.steps,.row2{grid-template-columns:1fr}
   .camps{grid-template-columns:1fr}
   header.nav .right{display:none}
@@ -580,7 +580,6 @@ a.nf-step:hover{border-color:rgba(198,244,50,.4)}
 </style>
 </head>
 <body>
-<a class="annc" href="/download"><b>NEW</b>The ClipKontrast app is out<span class="annc-long">: clip streams on your own PC, free. Windows, Mac and Linux.</span><span class="annc-short">.</span><u>Download →</u></a>
 <header class="nav" id="nav"><div class="wrap">
   <a href="/" aria-label="ClipKontrast home"><img src="/brand/logo-light.svg" alt="ClipKontrast"></a>
   <nav aria-label="Sections">

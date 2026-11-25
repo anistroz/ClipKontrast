@@ -85,7 +85,7 @@ with patch("httpx.get", return_value=Bad()):
     server._APP_VERSION.update(at=0, v=None)
     check("a strange latest.json shows nothing", web.get("/api/public/app-version").json(), {})
 check("the Earn page's download buttons lead to the download page", web.get("/api/public").json()["download_url"], config.EARN_URL + "/download")
-check("the Earn page announces the app", "The ClipKontrast app is out" in web.get("/earn").text)
+check("the Earn page leads to the app download (its buttons, menu and footer)", 'href="/download"' in web.get("/earn").text)
 
 print(f"  {len(fails)} failed" if fails else "  ALL PASSED")
 sys.exit(1 if fails else 0)
