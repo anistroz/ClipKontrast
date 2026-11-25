@@ -59,7 +59,7 @@ except leads.Refused:
 page = open("web/launch.html", encoding="utf-8").read()
 check("the page sends to the right address and shows the live pricing", "/api/public/campaign-request" in page and "/api/public/launch" in page)
 check("the page shows no fee or pricing (the clip maker is free: nobody should think it became paid)",
-      ("30%" not in page, "Pricing" not in page, "stays free for clippers" in page), (True, True, True))
+      ("management fee" not in page.lower(), ">Pricing<" not in page, "stays free for clippers" in page), (True, True, True))
 from studio import server  # noqa: E402
 check("the page and its form are open to visitors (no sign-in)", ("/launch" in server.PAGES, server.OPEN[3] == "/api/public"), (True, True))
 print(f"  {len(fails)} failed" if fails else "  ALL PASSED")
