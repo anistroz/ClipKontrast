@@ -232,7 +232,7 @@ def public(job) -> dict:
     out = {k: v for k, v in job.items() if k not in HIDDEN}
     out["source"] = {k: v for k, v in job["source"].items() if k != "path"}
     out["clips"] = [{k: v for k, v in c.items() if k not in ("src", "fixed_words", "fixed_for", "hl_words", "hl_for", "en_words",
-                                                              "en_for", "hi_words", "hi_for")} for c in job["clips"]]
+                                                              "en_for", "hi_words", "hi_for", "heard")} for c in job["clips"]]
     ai = job.get("ai") or {}
     out["ai"] = {"tokens": ai.get("tokens", 0), "note": ai.get("note", ""), "used": bool(ai.get("model"))}   # never the model, never raw errors
     if job.get("status") == "queued":
@@ -552,6 +552,16 @@ def _render_one(job, clip, words):
             _piece_again(job, clip)
         src, meta = _clip_source(job, clip)
         off = clip.get("src_offset", 0.0) if clip.get("src") else 0.0
+        if not clip.get("heard") and not clip.get("version") and not clip.get("listen_error") and brain.can_listen():
+            # The first time only (a clip someone has re-trimmed keeps their cut): Gemini hears it once, for the cut,
+            # the heading and the words. Anything wrong with that, and the clip is made exactly as before.
+            try:
+                usage.set_context(job.get("creator"), job.get("title") or "")
+                _listen_clip(job, clip, src, off, words)
+            except brain.NoSpeech:
+                clip["listen_error"] = "Nobody talks in it."
+            except Exception as e:  # noqa: BLE001
+                clip["listen_error"] = str(e)[:200] or type(e).__name__
         local = dict(clip, start=clip["start"] - off, end=clip["end"] - off, hook=roman.to_roman(clip.get("hook") or ""))
         local["tag"] = tagmod.spec(_with_channel(job), clip)          # the streamer's handle on it, if asked for
         near = _caption_words(job, clip, words, off, src) if clip.get("captions", True) else []
@@ -714,8 +724,58 @@ def _english_words(job, clip, src, off, sound=None):
     return words
 
 
+# Seconds of sound the AI hears before and after a decided clip, to find where it really starts and ends. More after:
+# what a moment builds up to (the reveal, the punchline) often comes just after where it was first cut. (From PeakCut.)
+HEAR_BEFORE, HEAR_AFTER = 8, 20
+
+
+def _listen_sound(src: Path, a: float, b: float) -> tuple:
+    """This stretch of a file's sound: small and compressed for the AI, and as 16 kHz samples to find quiet moments."""
+    import tempfile
+    with tempfile.TemporaryDirectory(prefix="ck-listen-") as tmp:
+        wav, small = Path(tmp) / "a.wav", Path(tmp) / "a.ogg"
+        media.run(["ffmpeg", "-y", "-v", "error", "-ss", f"{max(0.0, a):.2f}", "-t", f"{b - a:.2f}", "-i", str(src), "-vn",
+                   "-ac", "1", "-ar", "16000", "-c:a", "pcm_s16le", str(wav)])
+        pcm = media.load_audio(wav)
+        try:
+            media.run(["ffmpeg", "-y", "-v", "error", "-i", str(wav), "-c:a", "libopus", "-b:a", "24k", "-application", "voip", str(small)])
+            return (small.read_bytes(), "audio/ogg"), pcm
+        except Exception:  # noqa: BLE001 - no Opus in this ffmpeg: the plain sound, larger but the same to the AI
+            return (wav.read_bytes(), "audio/wav"), pcm
+
+
+def _listen_clip(job, clip, src: Path, off: float, words: list):
+    """A decided clip, heard by the AI once: its start and end moved onto sentence boundaries with the payoff kept, a
+    heading for that cut, and the words said (clip["heard"], on the video's clock). From PeakCut upstream, adapted."""
+    lo = clip.get("src_offset", 0.0) if clip.get("src") else 0.0
+    hi = clip.get("src_end") or job.get("duration") or clip["end"]
+    a, b = max(lo, clip["start"] - HEAR_BEFORE), min(hi, clip["end"] + HEAR_AFTER)
+    if b - a < 3 or b - a > 240:
+        return
+    sound, pcm = _listen_sound(src, a - off, b - off)
+    o = job.get("options") or {}
+    local = [dict(w, s=w["s"] - a, e=w["e"] - a) for w in words if a <= w["s"] <= b]
+    got = brain.listen(sound, pcm, b - a, clip["start"] - a, clip["end"] - a, int(o.get("min_len", 15)), int(o.get("max_len", 60)),
+                       local, near=bool(o.get("exact") or clip.get("asked")), title=job.get("title") or "",
+                       why=clip.get("reason") or "", hook=clip.get("hook") or "")
+    if got.get("hook") and not clip.get("hook_by_you"):
+        clip.update(hook=got["hook"], first_hook=clip.get("hook") or "")
+    start, end = round(a + got["start"], 2), round(a + got["end"], 2)
+    clip.update(start=start, end=end, heard={"for": [start, end], "lang": got["lang"],
+                                             "words": [dict(w, s=round(w["s"] + a, 2), e=round(w["e"] + a, 2)) for w in got["words"]]})
+
+
 def _caption_words(job, clip, words, off, src=None):
     want = (job.get("options") or {}).get("caption_lang")
+    heard = clip.get("heard") or {}
+    if (want != "deva" and heard.get("for") == [round(clip["start"], 2), round(clip["end"], 2)]
+            and str(heard.get("lang") or "en").startswith("en")):
+        # English heard by the AI from the clip's own sound: its words, on the local model's exact timing. (Hindi
+        # clips keep the Hinglish model's words below; only their cut and heading came from listening.)
+        hw = [w for w in heard.get("words") or [] if clip["start"] - 0.2 <= w["s"] < clip["end"]]
+        if len(hw) >= 2:
+            clip["caption_by"] = "ai-listened"
+            return [dict(w, s=w["s"] - off, e=w["e"] - off) for w in roman.words(hw)]
     if want == "deva":
         # Hindi in its own script, as it was heard: no English fixing and no Roman letters. English words said in
         # it stay in English letters.

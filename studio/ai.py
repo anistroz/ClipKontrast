@@ -412,13 +412,22 @@ def _parse(text):
 
 
 # ---------------------------------------------------------------- one call
-def call(model: str, prompt: str, schema: dict, timeout: float | None = None):
+def call(model: str, prompt: str, schema: dict, timeout: float | None = None, audio: tuple = None, temperature: float = None):
     """Ask one model. Returns (the parsed JSON answer, tokens sent, tokens written back).
 
     `timeout` is how long one answer may take. A live stream passes a short one, because a slow
     answer must not stop the recording."""
     how = PROVIDERS[provider()][2]
+    if audio or temperature is not None:
+        if how != "gemini":
+            raise AIError("This AI service can't listen to audio.")
+        return _gemini(model, prompt, schema, timeout, audio=audio, temperature=temperature)
     return {"gemini": _gemini, "openai": _openai, "anthropic": _anthropic}[how](model, prompt, schema, timeout)
+
+
+def can_hear() -> bool:
+    """Can the AI in use listen to a clip's sound? Only Gemini can. (From PeakCut upstream.)"""
+    return ready() and PROVIDERS.get(provider(), ("", "", ""))[2] == "gemini"
 
 
 def see(prompt: str, image: bytes, timeout: float | None = None) -> tuple[str, int, int]:
@@ -470,16 +479,19 @@ def see(prompt: str, image: bytes, timeout: float | None = None) -> tuple[str, i
     return text, int(u.get("prompt_tokens") or 0), int(u.get("completion_tokens") or 0)
 
 
-def _gemini(model, prompt, schema, timeout=None):
-    body = {"contents": [{"role": "user", "parts": [{"text": prompt}]}],
-            "generationConfig": {"temperature": 0.4, "responseMimeType": "application/json", "responseSchema": schema}}
+def _gemini(model, prompt, schema, timeout=None, audio=None, temperature=None):
+    # a stretch of sound to listen to (bytes, type), sent with the question: only Gemini takes it
+    sound = [{"inline_data": {"mime_type": audio[1], "data": base64.b64encode(audio[0]).decode()}}] if audio else []
+    temp = 0.4 if temperature is None else float(temperature)
+    body = {"contents": [{"role": "user", "parts": sound + [{"text": prompt}]}],
+            "generationConfig": {"temperature": temp, "responseMimeType": "application/json", "responseSchema": schema}}
     r = httpx.post(f"{base_url()}/{model}:generateContent", json=body, headers={"x-goog-api-key": key()}, timeout=timeout or 120)
     plain = False
     if r.status_code == 400 and re.search(r"JSON mode is not enabled|response_?mime_?type|response_?schema", r.text, re.I):
         # A model that won't answer in JSON mode (some Gemma and experimental ones): asked again plainly, with the
         # answer's shape said in words, and the JSON found in what it writes.
-        body = {"contents": [{"role": "user", "parts": [{"text": _wrapped(prompt, schema)}]}],
-                "generationConfig": {"temperature": 0.4}}
+        body = {"contents": [{"role": "user", "parts": sound + [{"text": _wrapped(prompt, schema)}]}],
+                "generationConfig": {"temperature": temp}}
         r = httpx.post(f"{base_url()}/{model}:generateContent", json=body, headers={"x-goog-api-key": key()}, timeout=timeout or 120)
         plain = True
     if r.status_code != 200:
