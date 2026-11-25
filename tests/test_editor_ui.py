@@ -9,8 +9,10 @@ BASE = f"http://127.0.0.1:{PORT}"
 data = tempfile.mkdtemp(prefix="ck-editor-ui-")
 src = Path(data) / "source.mp4"
 # a stand-in stream: moving picture and a tone, 40 seconds, landscape like a stream
+# (the sound has loud bursts, like a streamer's reactions, so Hype Edit has moments to find)
 subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc2=s=1280x720:r=30:d=40", "-f", "lavfi", "-i",
-                "sine=f=220:d=40", "-shortest", "-c:v", "libx264", "-preset", "ultrafast", "-c:a", "aac", str(src)], check=True)
+                "aevalsrc='0.08*sin(2*PI*220*t)*(1+9*gt(mod(t\\,7)\\,5.6))':d=40:s=44100", "-shortest", "-c:v", "libx264",
+                "-preset", "ultrafast", "-c:a", "aac", str(src)], check=True)
 env = {**os.environ, "CLIPKONTRAST_DATA": data, "DATABASE_URL": "", "CLIPKONTRAST_ACCOUNTS": "0", "CLIPKONTRAST_FETCH_MODEL": "0",
        "CLIPKONTRAST_WHISPER": "0", "CLIPKONTRAST_UPDATE_CHECK": "0", "CLIPKONTRAST_AUTO_RELOAD": "0", "CLIPKONTRAST_OPEN_BROWSER": "0"}
 subprocess.run([sys.executable, "tests/editor_seed.py", str(src)], cwd=ROOT, check=True, env=env)
