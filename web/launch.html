@@ -170,6 +170,7 @@ form .hint{color:var(--dim);font-size:14.5px;margin:4px 0 22px}
 .seg label{position:relative;text-align:center;padding:10px 8px;border-radius:10px;font-size:14px;font-weight:600;color:var(--dim);cursor:pointer}
 .seg input{position:absolute;opacity:0;pointer-events:none}
 .seg label:has(input:checked){background:var(--lime);color:var(--ink)}
+@media(max-width:560px){.seg .long{display:none}}
 .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .f{display:flex;flex-direction:column;gap:7px;margin-bottom:14px;font-size:13.5px;font-weight:600;color:var(--dim)}
 .f small{font-weight:400;color:var(--faint)}
@@ -323,7 +324,7 @@ footer a{color:var(--dim);text-decoration:none;margin-left:18px}
         <div id="formBody">
           <h3>Your details</h3><p class="hint">Fields with * are needed.</p>
           <div class="seg" role="radiogroup" aria-label="You are">
-            <label><input type="radio" name="role" value="creator" checked>Creator / streamer</label>
+            <label><input type="radio" name="role" value="creator" checked>Creator<span class="long"> / streamer</span></label>
             <label><input type="radio" name="role" value="brand">Brand</label>
             <label><input type="radio" name="role" value="agency">Agency</label>
           </div>
