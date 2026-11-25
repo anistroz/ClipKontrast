@@ -1245,6 +1245,51 @@ def local_ai_pull(request: Request):
     return dict(_PULL, busy=True)
 
 
+@app.get("/api/jobs/{jid}/clips/{cid}/editor")
+def clip_editor(jid: str, cid: str):
+    """Open a clip in the editor: its preview copy (made the first time it's opened), words, sound and layout."""
+    job = _job_or_404(jid)
+    if not any(c["id"] == cid for c in job["clips"]):
+        raise HTTPException(404, "No such clip")
+    try:
+        return jobs.editor_data(jid, cid)
+    except (ValueError, RuntimeError) as e:
+        raise HTTPException(400, safe.friendly(e, 300))
+
+
+@app.get("/api/jobs/{jid}/clips/{cid}/editor/{name}")
+def clip_editor_file(jid: str, cid: str, name: str):
+    """The editor's preview copy of a clip, and its thumbnail strip."""
+    job = _job_or_404(jid)
+    if name not in ("preview.mp4", "strip.jpg") or not re.fullmatch(r"[\w\-]{1,40}", cid):
+        raise HTTPException(404)
+    f = Path(job["dir"]) / "edit" / cid / name
+    if not f.is_file():
+        raise HTTPException(404)
+    return FileResponse(f, headers={"Cache-Control": "private, max-age=3600"})
+
+
+@app.get("/api/edit/sound/{kind}")
+def edit_sound(kind: str):
+    """A sound effect, to hear it in the editor before it's used."""
+    from . import edit as editmod
+    f = editmod.sound_file(kind.removesuffix(".wav"))
+    if not f:
+        raise HTTPException(404)
+    return FileResponse(f, media_type="audio/wav", headers={"Cache-Control": "private, max-age=86400"})
+
+
+@app.get("/api/edit/font/{name}")
+def edit_font(name: str):
+    """The caption and heading fonts, so the editor's preview draws text the way the clip will."""
+    if name not in render.FONT_FILES.values():
+        raise HTTPException(404)
+    f = Path(__file__).resolve().parent / "fonts" / name
+    if not f.is_file():
+        raise HTTPException(404)
+    return FileResponse(f, media_type="font/ttf", headers={"Cache-Control": "public, max-age=604800"})
+
+
 @app.get("/api/jobs/{jid}/clips/{cid}/frame")
 def clip_frame(jid: str, cid: str):
     """A frame of the video a clip is cut from, to draw the webcam's place on."""

@@ -15,7 +15,7 @@ import uuid
 import numpy as np
 from pathlib import Path
 
-from . import brain, config, creators, ctx, facecam, games, load, media, quality, render, roman, safe, transcribe, usage, whisper
+from . import brain, config, creators, ctx, edit, facecam, games, load, media, quality, render, roman, safe, transcribe, usage, whisper
 from . import tag as tagmod
 
 class _FairQueue:
@@ -531,13 +531,80 @@ def request_render(jid, cid, changes: dict):
     for k in ("hook", "title", "description", "style", "layout"):
         if k in changes:
             new[k] = str(changes[k])[:{"hook": 60, "title": 100, "description": 2000}.get(k, 20)]
+    if "edit" in changes or new.get("edit"):
+        # what was done in the editor; checked again against the clip's (maybe new) start and end
+        lo = clip.get("src_offset", 0.0) if "src_offset" in clip else 0.0
+        hi = clip.get("src_end") if "src_end" in clip else (job.get("duration") or new["end"] + edit.PAD)
+        ed = edit.clean(changes["edit"] if "edit" in changes else new.get("edit"), new["start"], new["end"],
+                        max(lo, new["start"] - edit.PAD), min(hi, new["end"] + edit.PAD))
+        if ed:
+            new["edit"] = ed
+        else:
+            new.pop("edit", None)
     if new.get("style") not in render.STYLES:
         new["style"] = DEFAULTS["style"]
     if new.get("layout") not in render.LAYOUTS:
         new["layout"] = DEFAULTS["layout"]
     clip.update(new, status="queued")
+    if "edit" not in new:
+        clip.pop("edit", None)          # the edit was taken away
     save(job)
     _q.put(("clip", jid, cid))
+
+
+def editor_data(jid, cid) -> dict:
+    """Everything the editor needs to open a clip: its preview copy (made the first time), thumbnails, words,
+    loudness and hype, where things sit in the frame, the caption styles and the editor's choices."""
+    job = _jobs[jid]
+    clip = next(c for c in job["clips"] if c["id"] == cid)
+    if not clip.get("src") and not job.get("source_path"):
+        if job.get("kind") == "live":
+            raise ValueError("This clip's piece of the stream is no longer on this computer, so it can't be opened in the editor.")
+        _piece_again(job, clip)
+    src, meta = _clip_source(job, clip)
+    off = clip.get("src_offset", 0.0) if clip.get("src") else 0.0
+    info = edit.prepare(job, clip, src, meta, off, [])
+    d = Path(job["dir"])
+    words = []
+    for f in (d / "clips" / f"{cid}.words.json", d / "words.json"):
+        if f.is_file():
+            try:
+                got = json.loads(f.read_text(encoding="utf-8"))
+            except ValueError:
+                continue
+            words = [{"s": w["s"], "e": w["e"], "w": w["w"]} for w in got
+                     if isinstance(w, dict) and info["p0"] - 0.5 <= w.get("s", -1) <= info["p1"]]
+            if words:
+                break
+    sw, sh = info["w"] or meta.get("width") or job.get("width") or 1920, info["h"] or meta.get("height") or job.get("height") or 1080
+    face = clip.get("facecam")
+    want = clip.get("layout", "blur")
+    if want in render.FACECAM_LAYOUTS and clip.get("camera") == "full":
+        want = "crop"
+    elif want in render.FACECAM_LAYOUTS and not (face and len(face) == 4):
+        want = "blur"
+    top_h = render.split_top(clip)
+    layout, fg_h, hook_y, cap_y = render.geometry(sw, sh, want, top_h)
+    hook_y = render._hook_y(layout, hook_y, face)
+    styles = {}
+    for k, st in render.STYLES.items():
+        f = render._Font.get(st["font"])
+        css = lambda c: "#" + c[4:6] + c[2:4] + c[0:2]          # noqa: E731 - ASS is BBGGRR
+        styles[k] = {"label": st["label"], "font": st["font"], "file": render.FONT_FILES.get(st["font"]),
+                     "px": round(f.em(st["size"]), 1), "base": css(st["base"]), "active": css(st["active"]),
+                     "strong": css(st["strong"]), "outline": st["outline"], "line": css(st.get("outline_colour", "000000")),
+                     "upper": st["upper"], "per": st["per"], "box": css(st["box"]) if st.get("box") else "",
+                     "band": bool(st.get("band")), "keep": bool(st.get("keep"))}
+    hf = render._Font.get(render.HOOK["font"])
+    return {"preview": f"/api/jobs/{jid}/clips/{cid}/editor/preview.mp4?v={info['key'][3]}",
+            "strip": f"/api/jobs/{jid}/clips/{cid}/editor/strip.jpg?v={info['key'][3]}",
+            "p0": info["p0"], "p1": info["p1"], "step": info["step"], "thumbs": info["thumbs"], "peaks": info["peaks"],
+            "hype": info["hype"], "words": words, "src_w": sw, "src_h": sh, "out_w": render.W, "out_h": render.H,
+            "layout": layout, "fg_h": fg_h, "top_h": top_h, "hook_y": hook_y, "cap_y": cap_y, "facecam": face,
+            "game": render._box(clip.get("game")), "pip_w": render.PIP_W, "pip_margin": render.PIP_MARGIN,
+            "styles": styles, "hook": {"font": render.HOOK["font"], "file": render.FONT_FILES[render.HOOK["font"]],
+                                       "px": round(hf.em(render.HOOK["size"]), 1), "max_w": render.HOOK["max_w"]},
+            "options": edit.options(), "lo": round(max(off, info["p0"]), 3), "hi": info["p1"]}
 
 
 def _with_channel(job) -> dict:
@@ -600,8 +667,14 @@ def _render_one(job, clip, words):
         local["tag"] = tagmod.spec(_with_channel(job), clip)          # the streamer's handle on it, if asked for
         near = _caption_words(job, clip, words, off, src) if clip.get("captions", True) else []
         # the size of the file this clip is really cut from (a piece can come in another size than the first one)
+        try:          # the words this clip's captions were made from, in its source time: the editor shows them
+            (d / "clips" / f"{clip['id']}.words.json").write_text(json.dumps(
+                [{"s": round(w["s"] + off, 3), "e": round(w["e"] + off, 3), "w": w["w"]} for w in near]), encoding="utf-8")
+        except (OSError, KeyError, TypeError):
+            pass
         out = render.render_clip(src, d / "clips", clip["id"], local, near, meta["width"] or job["width"],
                                  meta["height"] or job["height"])
+        fx_note = out.pop("fx_note", "")
         # The layout chosen stays the clip's choice; what was really used is kept beside it, with why if they differ.
         used = out.pop("layout", clip.get("layout"))
         note = ""
@@ -612,6 +685,8 @@ def _render_one(job, clip, words):
         from . import tools as _tools
         if clip.get("captions", True) and not _tools.can_draw_captions():
             note = (note + " " if note else "") + _tools.NO_CAPTIONS
+        if fx_note:
+            note = (note + " " if note else "") + fx_note
         clip.update(out, layout_used=used, layout_note=note, status="done", version=clip.get("version", 0) + 1, error=None)
         post = {k: clip.get(k) for k in ("title", "description", "hashtags", "hook", "start", "end", "score")}
         (d / "clips" / f"{clip['id']}.json").write_text(json.dumps(post, indent=1), encoding="utf-8")
@@ -1557,6 +1632,10 @@ def _run_job(job):
             return None
         if cz is None:
             return None
+        try:          # kept for the editor's hype curve: how much chat went off, second by second
+            (Path(job["dir"]) / "chat.json").write_text(json.dumps([round(float(v), 2) for v in cz]), encoding="utf-8")
+        except (OSError, TypeError, ValueError):
+            pass
         m = len(db) - s0 if m is None else m
         job["chat_messages"] = len(msgs)
         return {"z": cz[s0: s0 + m], "msgs": [(t - abs0 - s0, who, text) for t, who, text in msgs], "offset": 0.0}

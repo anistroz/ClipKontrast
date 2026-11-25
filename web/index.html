@@ -1702,7 +1702,9 @@ function updateHow() {
 }
 /* "What's new": what the latest versions brought, for the people clipping (nothing about the website or the build).
    Change NEWS.id when the list changes: the line at the top shows again for everyone, until they close it. */
-const NEWS = {id: "2026-11-26b", items: [
+const NEWS = {id: "2026-11-27", items: [
+  {e: "🎬", t: "The ClipKontrast editor", d: "Open any clip and edit it like a pro: a live preview that changes as you edit, a timeline with your words, split and cut (or delete words from the transcript), 9 transitions (flash, whoosh, zoom, glitch, wipe…), sound effects, punch-ins, colour looks, text effects, and a drag-to-move big text. Then Export.", new: true},
+  {e: "🔥", t: "Hype Edit", d: "One click in the editor: it finds the moments the streamer and chat went off, punches in, lands a flash and a boom on the peak, whooshes the cuts and cuts the filler words. Undo takes it all back.", new: true},
   {e: "✍️", t: "Your own text on every clip", d: "Under Options: one big text and one description for all clips (a campaign's set text, links and #tags stay exactly as you write them). Leave them empty and the AI writes them, now with 3-5 fitting hashtags.", new: true},
   {e: "👂", t: "The AI listens to every clip", d: "With a Gemini key, each clip is heard once before it's made: it ends after the payoff (not before it), never mid-sentence, gets a heading written for that exact cut, and English captions come from the sound itself.", new: true},
   {e: "⏹️", t: "Stop a video", d: "Changed your mind? Press Stop on a video being made. The clips already made stay; re-make any of the rest later.", new: true},
@@ -2791,7 +2793,7 @@ function clipHtml(j, c) {
         <button class="btn sm icon ghost" data-act="tocampaign" ${a} title="Send to a paid campaign" aria-label="Send to a paid campaign">${ic("money")}</button>
         ${busyClip ? "" : `<button class="btn sm icon ghost" data-act="delclip" ${a} title="Delete this clip" aria-label="Delete this clip">${ic("trash")}</button>`}
         <span class="grow"></span>
-        ${c.status === "done" ? `<button class="btn sm" data-act="openclip" ${a}>${ic("send")}Post</button>` : ""}
+        ${c.status === "done" || c.status === "error" ? `<button class="btn sm" data-act="openclip" ${a} title="Open in the editor: cut, transitions, sounds, text, then post">${ic("scissors")}Edit</button>` : ""}
       </div>
     </div></article>`;
 }
@@ -3404,7 +3406,12 @@ async function drawSettings() {
 async function saveSettings() { const d = {}; $$("#sform [data-s]").forEach(i => d[i.dataset.s] = i.value); await send("/api/settings", d, "PUT"); }
 
 /* ============================================================ clip editor */
-function openClip(jid, cid) { D.jid = jid; D.cid = cid; D.sig = ""; drawClipDlg(true); $("#clipdlg").showModal(); }
+function openClip(jid, cid) {
+  // a clip that's made (or that failed) opens in the editor; one still being made shows its progress here
+  const c = jobOf(jid)?.clips.find(x => x.id === cid);
+  if (window.CKEditor && c && (c.status === "done" || c.status === "error")) return CKEditor.open(jid, cid);
+  D.jid = jid; D.cid = cid; D.sig = ""; drawClipDlg(true); $("#clipdlg").showModal();
+}
 function drawClipDlg(full) {
   const j = jobOf(D.jid), c = j?.clips.find(x => x.id === D.cid), dlg = $("#clipdlg");
   if (!c) { if (dlg.open) dlg.close(); return; }
@@ -3840,5 +3847,6 @@ $("#main").addEventListener("scroll", () => $(".topbar").classList.toggle("stuck
   setInterval(async () => { try { S.status = await api("/api/status"); drawShell(); if (S.view === "overview") drawOverview(); checkNew(); } catch {} }, 15000);
 })();
 </script>
+<script src="/assets/editor.js?v=1"></script>
 </body>
 </html>

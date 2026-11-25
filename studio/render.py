@@ -184,8 +184,13 @@ def _rounded(x0, y0, x1, y1, r):
             f"l {n(x0)} {n(y0 + r)} b {n(x0)} {n(y0)} {n(x0)} {n(y0)} {n(x0 + r)} {n(y0)}")
 
 
-def _hook_events(hook, dur, y):
-    """The heading: dark text in a white rounded box that fits it, on one line or two balanced ones."""
+LIME, INK, WHITE = "32F4C6", "14100E", "FFFFFF"     # ASS colours (&HBBGGRR)
+
+
+def _hook_events(hook, dur, y, fx="box", until=0.0):
+    """The heading: by default dark text in a white rounded box that fits it, on one line or two balanced ones.
+    fx changes how it looks and comes in (pop, lime, outline, glow, typewriter); until, when set, is how many
+    seconds it stays (it fades out then)."""
     f, size = _Font.get(HOOK["font"]), HOOK["size"]
     words = hook.split()
     if not words:
@@ -200,13 +205,44 @@ def _hook_events(hook, dur, y):
         widest = max(f.width(l, size) for l in lines)
     line_h = f.em(size) * 1.16
     bw, bh = widest + 2 * HOOK["pad_x"], line_h * len(lines) + 2 * HOOK["pad_y"]
-    x0, y0 = (W - bw) / 2, y - bh / 2
-    box = _rounded(x0, y0, x0 + bw, y0 + bh, min(HOOK["radius"], bh / 2))
-    span = f"{_ts(0)},{_ts(dur)}"
-    ev = [f"Dialogue: 3,{span},Hook,,0,0,0,,{{\\an7\\pos(0,0)\\fad(160,0)\\c&H{HOOK['box']}&\\p1}}{box}{{\\p0}}"]
+    end = min(dur, until) if until and until > 0 else dur
+    span = f"{_ts(0)},{_ts(end)}"
+    fade = "\\fad(160,220)" if end < dur else "\\fad(160,0)"
+    ev = []
+    boxed = fx in ("box", "pop", "lime", "type")
+    if boxed:
+        colour = LIME if fx == "lime" else HOOK["box"]
+        if fx == "pop":
+            # the box and its text grow in from small with a little overshoot, together, from the middle
+            box = _rounded(0, 0, bw, bh, min(HOOK["radius"], bh / 2))
+            ev.append(f"Dialogue: 3,{span},Hook,,0,0,0,,{{\\an5\\pos({W // 2},{y:.0f}){fade}\\c&H{colour}&\\fscx30\\fscy30"
+                      f"\\t(0,170,\\fscx112\\fscy112)\\t(170,300,\\fscx100\\fscy100)\\p1}}{box}{{\\p0}}")
+        else:
+            x0, y0 = (W - bw) / 2, y - bh / 2
+            box = _rounded(x0, y0, x0 + bw, y0 + bh, min(HOOK["radius"], bh / 2))
+            ev.append(f"Dialogue: 3,{span},Hook,,0,0,0,,{{\\an7\\pos(0,0){fade}\\c&H{colour}&\\p1}}{box}{{\\p0}}")
     for i, line in enumerate(lines):
         cy = y - line_h * (len(lines) - 1) / 2 + i * line_h - f.cap_shift(size)
-        ev.append(f"Dialogue: 4,{span},Hook,,0,0,0,,{{\\an5\\pos({W // 2},{cy:.0f})\\fad(160,0)\\fs{size}}}{line}")
+        pos = f"\\an5\\pos({W // 2},{cy:.0f}){fade}\\fs{size}"
+        if fx == "pop":
+            # the line is scaled around the box's middle, so the text stays in its place inside it
+            ev.append(f"Dialogue: 4,{span},Hook,,0,0,0,,{{{pos}\\org({W // 2},{y:.0f})\\fscx30\\fscy30"
+                      f"\\t(0,170,\\fscx112\\fscy112)\\t(170,300,\\fscx100\\fscy100)}}{line}")
+        elif fx == "type":
+            # letter by letter, the way a typewriter writes it (a whole heading in about 0.6 s)
+            n = max(1, len("".join(lines)))
+            step = max(18, min(45, int(600 / n)))
+            before = sum(len(x) for x in lines[:i])
+            chars = "".join(f"{{\\alpha&HFF&\\t({(before + k) * step},{(before + k) * step + 1},\\alpha&H00&)}}{ch}"
+                            for k, ch in enumerate(line))
+            ev.append(f"Dialogue: 4,{span},Hook,,0,0,0,,{{{pos}}}{chars}")
+        elif fx == "outline":
+            ev.append(f"Dialogue: 4,{span},Hook,,0,0,0,,{{{pos}\\c&H{WHITE}&\\3c&H000000&\\bord9\\shad4\\4c&H000000&}}{line}")
+        elif fx == "glow":
+            ev.append(f"Dialogue: 3,{span},Hook,,0,0,0,,{{{pos}\\c&H{LIME}&\\3c&H{LIME}&\\bord16\\blur14\\1a&H40&}}{line}")
+            ev.append(f"Dialogue: 4,{span},Hook,,0,0,0,,{{{pos}\\c&H{WHITE}&\\3c&H14100E&\\bord3}}{line}")
+        else:
+            ev.append(f"Dialogue: 4,{span},Hook,,0,0,0,,{{{pos}}}{line}")
     return ev
 
 
@@ -216,7 +252,7 @@ def _mark_y(cap_y):
     return cap_y + 128 if cap_y + 128 <= 1660 else cap_y - 140
 
 
-def build_ass(words, start, end, hook, style_name, highlight, hook_y, cap_y, watermark="") -> str:
+def build_ass(words, start, end, hook, style_name, highlight, hook_y, cap_y, watermark="", hook_fx="box", hook_dur=0.0) -> str:
     st = STYLES.get(style_name, STYLES["bounce"])
     words = [dict(w, s=w["s"] - CAPTION_LEAD, e=w["e"] - CAPTION_LEAD) for w in words]
     strong = {_key(h) for h in highlight if _key(h)}
@@ -237,7 +273,7 @@ Style: Mark,{MARK['font']},{MARK['size']},&H60FFFFFF,&H60FFFFFF,&H90000000,&H000
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
     dur = end - start
-    ev = _hook_events(_clean(hook), dur, hook_y)
+    ev = _hook_events(_clean(hook), dur, hook_y, hook_fx, hook_dur)
     mark = _clean(watermark)[:40]
     if mark:
         ev.append(f"Dialogue: 5,{_ts(0)},{_ts(dur)},Mark,,0,0,0,,{{\\an5\\pos({W // 2},{_mark_y(cap_y)})\\q2}}{mark}")
@@ -589,15 +625,25 @@ def render_clip(src: Path, out_dir: Path, name: str, clip: dict, words: list, sr
     game = _box(clip.get("game"))
     layout, fg_h, hook_y, cap_y = geometry(src_w, src_h, want, top_h)
     hook_y = _hook_y(layout, hook_y, face)
+    from . import edit as editmod
+    ed = clip.get("edit") or {}                     # what was done in the editor: cuts, effects, sounds, text
+    hook_y, cap_y = ed.get("hook_y") or hook_y, ed.get("cap_y") or cap_y
+    hook_fx, hook_dur = ed.get("hook_fx", "box"), ed.get("hook_dur", 0)
     keep = tighten_plan(src, start, end, words) if clip.get("tighten") else []
+    if ed.get("cuts"):                              # the parts cut out in the editor, together with the silences cut
+        keep = editmod.intersect(keep, editmod.keep_from_cuts(ed["cuts"], start, end)) or [(0.0, round(end - start, 3))]
+        if keep == [(0.0, round(end - start, 3))]:
+            keep = []
     shown = tightened_words(words, start, keep) if keep else words
     length = sum(b - a for a, b in keep) if keep else end - start
     ass = build_ass(shown if clip.get("captions", True) else [], start, start + length, clip.get("hook", ""), clip.get("style", "bounce"),
-                    clip.get("highlight_words", []), hook_y, cap_y, watermark=clip.get("watermark", ""))
+                    clip.get("highlight_words", []), hook_y, cap_y, watermark=clip.get("watermark", ""), hook_fx=hook_fx, hook_dur=hook_dur)
     moments = zoom_moments(src, start, end) if clip.get("zoom") else []
     if keep:
         moments = [m for m in (_remap(t, keep) for t in moments) if m is not None and 0.8 < m < length - 1.5]
     z = zoom_expr(moments)
+    post = editmod.post_graph(ed, start, keep, length, W, H, config.OUT_FPS)
+    sfx = editmod.sounds_for(ed, start, keep, length)
     # The clip is made in a short work folder and moved into place afterwards. The caption step of ffmpeg cannot
     # open files whose full path is longer than 260 characters on Windows, which a data folder deep inside other
     # folders easily reaches. Inside the work folder every name is short and relative (a drive colon would also
@@ -618,15 +664,27 @@ def render_clip(src: Path, out_dir: Path, name: str, clip: dict, words: list, sr
             print(f"  Creator tag not drawn: {e}", flush=True)
             tag = None
     try:
+        out = None
+        if post or sfx:
+            try:
+                out = _render_in(work, src, out_dir, name, start, end, layout, fg_h, ass, face=face, z=z, keep=keep,
+                                 game=game, top_h=top_h, tag=tag, post=post, sfx=sfx)
+            except RuntimeError as e:
+                # effects this ffmpeg can't make: the clip is still made, with the edit's cuts and text, without them
+                print(f"  Effects not added to {name}: {str(e)[-300:]}", flush=True)
+                out = None
         try:
-            out = _render_in(work, src, out_dir, name, start, end, layout, fg_h, ass, face=face, z=z, keep=keep,
-                             game=game, top_h=top_h, tag=tag)
+            if out is None:
+                out = _render_in(work, src, out_dir, name, start, end, layout, fg_h, ass, face=face, z=z, keep=keep,
+                                 game=game, top_h=top_h, tag=tag)
+                if post or sfx:
+                    out["fx_note"] = "The effects couldn't be added on this computer, so the clip was made without them."
         except RuntimeError:
             if not z and not keep:
                 raise
             # a zoom or cuts this ffmpeg can't make: the clip is made without them, never not at all
             ass = build_ass(words if clip.get("captions", True) else [], start, end, clip.get("hook", ""), clip.get("style", "bounce"),
-                            clip.get("highlight_words", []), hook_y, cap_y, watermark=clip.get("watermark", ""))
+                            clip.get("highlight_words", []), hook_y, cap_y, watermark=clip.get("watermark", ""), hook_fx=hook_fx, hook_dur=hook_dur)
             out = _render_in(work, src, out_dir, name, start, end, layout, fg_h, ass, face=face, game=game, top_h=top_h, tag=tag)
             keep = []
         out["tightened"] = round((end - start) - sum(b - a for a, b in keep), 1) if keep else 0
@@ -636,22 +694,39 @@ def render_clip(src: Path, out_dir: Path, name: str, clip: dict, words: list, sr
 
 
 def _render_in(work: Path, src: Path, out_dir: Path, name: str, start, end, layout, fg_h, ass: str, face=None, z="", keep=None,
-               game=None, top_h=SPLIT_TOP, tag=None) -> dict:
+               game=None, top_h=SPLIT_TOP, tag=None, post="", sfx=None) -> dict:
     (work / f"{name}.ass").write_text(ass, encoding="utf-8")
     (work / "f").mkdir(exist_ok=True)
     for f in config.FONTS_DIR.glob("*.ttf"):
         shutil.copyfile(f, work / "f" / f.name)
     from . import tools as _tools
+    pic = _filter(layout, fg_h, face, z, game, top_h)
+    if post:             # the editor's look, punch-ins and transitions, on the laid-out picture, under the captions
+        pic += post + ";"
+    lab = "[vp]" if post else "[v0]"
     if _tools.can_draw_captions():
-        fc = _filter(layout, fg_h, face, z, game, top_h) + f"[v0]ass=filename={name}.ass:fontsdir=f[v]"   # option names said: newer ffmpeg refuses the short form
+        fc = pic + f"{lab}ass=filename={name}.ass:fontsdir=f[v]"   # option names said: newer ffmpeg refuses the short form
     else:                # an ffmpeg without libass (Homebrew's plain one): the clip is still made, without captions
-        fc = _filter(layout, fg_h, face, z, game, top_h) + "[v0]null[v]"
+        fc = pic + f"{lab}null[v]"
     extra = []
     if tag:             # the creator tag (t.png, written by render_clip) laid over everything
         fc = fc[:-3] + f"[va];[va][1:v]overlay={int(tag[0])}:{int(tag[1])}[v]"
         extra = ["-i", "t.png"]
     if keep:            # silences and filler words cut out first; the sound evened out in the same graph
-        fc = _tighten_filter(keep, fc) + ";[ca]loudnorm=I=-14:TP=-1.5:LRA=11[a]"
+        fc = _tighten_filter(keep, fc)
+    if sfx:             # the editor's sound effects, each at its moment, over the evened-out voice
+        first = 1 + (1 if tag else 0)
+        for f, _at, _vol in sfx:
+            extra += ["-i", str(f)]
+        mix = [f"{'[ca]' if keep else '[0:a:0]'}loudnorm=I=-14:TP=-1.5:LRA=11[an]"]
+        for i, (_f, at, vol) in enumerate(sfx):
+            ms = int(at * 1000)
+            mix.append(f"[{first + i}:a]aresample=48000,adelay={ms}|{ms},volume={vol:.2f}[x{i}]")
+        mix.append("[an]" + "".join(f"[x{i}]" for i in range(len(sfx))) + f"amix=inputs={len(sfx) + 1}:duration=first:normalize=0,alimiter=limit=0.95[a]")
+        fc += ";" + ";".join(mix)
+        sound = ["-map", "[a]"]
+    elif keep:
+        fc += ";[ca]loudnorm=I=-14:TP=-1.5:LRA=11[a]"
         sound = ["-map", "[a]"]
     else:
         sound = ["-map", "0:a:0", "-af", "loudnorm=I=-14:TP=-1.5:LRA=11"]
