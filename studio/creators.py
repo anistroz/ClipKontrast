@@ -21,6 +21,7 @@ DEFAULTS = {"name": "", "channel": "", "style": "bounce", "layout": "blur", "cap
             "trigger_words": "clip that, clip it",
             "autopost": False, "accounts": [], "post_min_score": 75, "post_gap_min": 45, "daily_cap": 6,
             "privacy": "public", "post_footer": "", "rate_per_1k": 0.0, "channels": {}, "zoom": True, "watermark": "", "tighten": True,
+            "hook_text": "", "description_text": "",
             # watch_once: record their next (or current) stream once, then stop watching (Live clipping from Home).
             # hold: Stop was pressed while they were live: not recorded again by itself until they've gone offline.
             "watch_once": False, "hold": False,
@@ -75,6 +76,9 @@ def _clean(data: dict) -> dict:
         elif k == "watermark":
             from .jobs import clean_watermark
             v = clean_watermark(v)
+        elif k in ("hook_text", "description_text"):
+            from .jobs import clean_hook, clean_description
+            v = clean_hook(v) if k == "hook_text" else clean_description(v)
         elif k in ("tag", "tag_handle", "tag_platforms", "tag_style", "tag_pos"):
             from .jobs import clean_options
             got = clean_options({k: v})

@@ -114,12 +114,43 @@ on_clip_ready: list = []   # callbacks (job, clip), run once when a clip first f
 
 DEFAULTS = {"max_clips": 6, "min_len": 15, "max_len": 60, "style": "bounce", "layout": "blur", "quality": 720,
             "range_start": None, "range_end": None, "captions": True, "lang": "auto", "caption_lang": "auto",
-            "zoom": True, "watermark": "", "tighten": True, "cam_hint": "auto",
+            "zoom": True, "watermark": "", "tighten": True, "cam_hint": "auto", "hook_text": "", "description_text": "",
             "cam_box": None, "game_box": None, "split": "balanced",
             "tag": False, "tag_handle": "", "tag_platforms": [], "tag_style": "clean", "tag_pos": "bottom_left",
             "exact": False}
 EXACT_MIN, EXACT_MAX = 3, 180          # an exact moment: one clip of exactly the part chosen, 3 seconds to 3 minutes
 TAG_KEYS = ("tag", "tag_handle", "tag_platforms", "tag_style", "tag_pos")      # the creator tag (studio/tag.py)
+
+
+def clean_hook(v) -> str:
+    """The big text a person typed for their clips: one line, as they wrote it (links and @names stay, a campaign may
+    need them), and short enough to sit in the box on the video. (From PeakCut upstream.)"""
+    return " ".join("".join(ch if ch.isprintable() else " " for ch in str(v or "")).split())[:60]
+
+
+def clean_description(v) -> str:
+    """The description a person typed for their clips: as they wrote it, line breaks included, so a campaign's set
+    text (links, @names, hashtags) is not changed. Control characters go; at most 2000 characters."""
+    nl, cr, tab = chr(10), chr(13), chr(9)
+    lines = ("".join(ch if ch.isprintable() or ch == tab else " " for ch in line).rstrip()
+             for line in str(v or "").replace(cr + nl, nl).replace(cr, nl).split(nl))
+    return nl.join(lines).strip()[:2000]
+
+
+def own_text(c: dict, o: dict, words: list, title="", uploader="", game=None) -> dict:
+    """The person's own big text and description on a new clip, in place of the AI's; with no description of their
+    own, 3 to 5 fitting hashtags go at the end of the AI's (studio/hashtags.py). From PeakCut upstream."""
+    from . import hashtags
+    if o.get("hook_text"):
+        c["hook"], c["hook_by_you"] = o["hook_text"], True
+    if o.get("description_text"):
+        c["description"], c["fixed_description"] = o["description_text"], True
+    else:
+        try:
+            hashtags.apply(c, words or [], title, uploader, game)
+        except Exception:  # noqa: BLE001 - tags are a nicety: the clip is made without them
+            pass
+    return c
 CAM_PRESETS = {"tl": [0.0, 0.0, 0.28, 0.28], "tr": [0.72, 0.0, 0.28, 0.28], "bl": [0.0, 0.72, 0.28, 0.28],
                "br": [0.72, 0.72, 0.28, 0.28], "bc": [0.36, 0.72, 0.28, 0.28]}
 CLIP_LOOK = ("style", "layout", "captions", "zoom", "watermark", "tighten") + TAG_KEYS     # what each clip carries from its video's settings
@@ -186,6 +217,9 @@ def clean_options(options) -> dict:
             continue
         if k == "watermark":
             out[k] = clean_watermark(v)
+            continue
+        if k in ("hook_text", "description_text"):     # kept even when empty: it clears the creator's own text for this video
+            out[k] = clean_hook(v) if k == "hook_text" else clean_description(v)
             continue
         if k == "cam_hint":
             out[k] = v if v in CAM_PRESETS or v == "none" else "auto"
@@ -423,7 +457,7 @@ def create(source: dict, options: dict, enqueue=True, creator=None, kind="video"
     if c:
         d = creators.root(c["id"]) / ("live" if kind == "live" else "videos") / jid
         base = {**DEFAULTS, **{k: c[k] for k in ("max_clips", "min_len", "max_len", "style", "layout", "captions", "lang", "caption_lang",
-                                                 "zoom", "watermark", "tighten", "cam_hint") + TAG_KEYS if k in c}}
+                                                 "zoom", "watermark", "tighten", "cam_hint", "hook_text", "description_text") + TAG_KEYS if k in c}}
     else:
         d, base, creator = config.user_dir(ctx.uid()) / "jobs" / jid, dict(DEFAULTS), None
     opts = {**base, **clean_options(options)}
@@ -1687,6 +1721,7 @@ def _run_job(job):
                      captions=o.get("captions", True), zoom=o.get("zoom", True), watermark=o.get("watermark", ""),
                      tighten=o.get("tighten", True), **{k: o.get(k, DEFAULTS[k]) for k in TAG_KEYS},
                      status="queued", version=0)
+            own_text(c, o, words, job.get("title") or "", job.get("uploader") or "", game)
             # Only the facecam layouts use a webcam, so it is only looked for then, and only once: a
             # stream with no webcam is not looked for again on every clip of it.
             job["clips"].append(c)

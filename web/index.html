@@ -1702,7 +1702,8 @@ function updateHow() {
 }
 /* "What's new": what the latest versions brought, for the people clipping (nothing about the website or the build).
    Change NEWS.id when the list changes: the line at the top shows again for everyone, until they close it. */
-const NEWS = {id: "2026-11-26", items: [
+const NEWS = {id: "2026-11-26b", items: [
+  {e: "✍️", t: "Your own text on every clip", d: "Under Options: one big text and one description for all clips (a campaign's set text, links and #tags stay exactly as you write them). Leave them empty and the AI writes them, now with 3-5 fitting hashtags.", new: true},
   {e: "👂", t: "The AI listens to every clip", d: "With a Gemini key, each clip is heard once before it's made: it ends after the payoff (not before it), never mid-sentence, gets a heading written for that exact cut, and English captions come from the sound itself.", new: true},
   {e: "⏹️", t: "Stop a video", d: "Changed your mind? Press Stop on a video being made. The clips already made stay; re-make any of the rest later.", new: true},
   {e: "💰", t: "Paid campaigns, right here", d: "Clip & get paid: the campaign that's live now is on Home and under Paid campaigns, with its clipper pool, every stream to clip (tap one) and the moments the team marked. Join on clipkontrast.com, clip here, post, get paid for your views.", new: true, act: "go", v: "campaigns", btn: "See it"},
@@ -1934,6 +1935,10 @@ function drawAdd(variant) {
       <div class="ob"><div class="ot">Your watermark</div>
         <label class="f">Your @handle on every clip<input id="o_wm" maxlength="40" placeholder="@yourname" value="${esc(c ? (c.watermark || "") : lsGet("ck_wm"))}"></label>
         <small class="sub">Small and see-through, under the captions. Leave empty for none.</small></div>
+      <div class="ob"><div class="ot">Your own text <span class="sub" style="font-weight:400">(optional)</span></div>
+        <label class="f">Big text on every clip<input id="o_hook_text" maxlength="60" placeholder="Leave empty: the AI writes one for each clip" value="${esc(c?.hook_text || "")}"></label>
+        <label class="f">Description for every clip<textarea id="o_desc_text" rows="2" maxlength="2000" placeholder="Leave empty: the AI writes one, with 3-5 hashtags. A campaign's set text goes here.">${esc(c?.description_text || "")}</textarea></label>
+        <small class="sub">Used exactly as you write it (links, @names and #tags stay).</small></div>
       <div class="ob"><div class="ot">Language spoken</div><div class="langs">
         <label class="f">Spoken<select id="o_lang" title="Hindi and other languages use Whisper, installed the first time it's needed">${opts(S.status.languages || {auto:"Auto-detect"}, c?.lang ?? "auto")}</select></label>
         <label class="f">Captions in<select id="o_caplang">${opts(S.status.caption_langs || {auto:"As spoken"}, c?.caption_lang ?? "auto")}</select></label></div>
@@ -2497,7 +2502,8 @@ function jobOptions() {
              tag:!!$("#o_tag")?.checked, tag_handle:($("#o_tag_handle")?.value || "").trim(),
              tag_platforms:($("#o_tag_plats")?.value || "").split(",").filter(Boolean),
              tag_style:$("#o_tag_style")?.value || "clean", tag_pos:$("#o_tag_pos")?.value || "bottom_left",
-             watermark:($("#o_wm")?.value || "").trim()};
+             watermark:($("#o_wm")?.value || "").trim(),
+             hook_text:($("#o_hook_text")?.value || "").trim(), description_text:($("#o_desc_text")?.value || "").trim()};
   lsSet("ck_style", o.style); lsSet("ck_layout", o.layout); lsSet("ck_caps", o.captions ? "1" : "0"); lsSet("ck_zoom", o.zoom ? "1" : "0"); lsSet("ck_tight", o.tighten ? "1" : "0"); lsSet("ck_cam", o.cam_hint); lsSet("ck_wm", o.watermark);
   lsSet("ck_tag", o.tag ? "1" : "0"); lsSet("ck_tag_style", o.tag_style); lsSet("ck_tag_pos", o.tag_pos); lsSet("ck_tag_plats", o.tag_platforms.join(","));
   if (n("#o_from") !== null) o.range_start = n("#o_from") * 60;
@@ -2952,6 +2958,8 @@ function drawCreatorForm() {
         <label class="sw span"><input type="checkbox" data-k="zoom" ${c.zoom === false ? "" : "checked"}><span>Auto zoom<small>The picture punches in on the loudest moments: a shout, a laugh, the big reaction.</small></span></label>
         <label class="sw span"><input type="checkbox" data-k="tighten" ${c.tighten === false ? "" : "checked"}><span>Cut silences<small>Quiet pauses and filler words (um, uh) are cut out, so clips move faster. The game's action is never cut.</small></span></label>
         <label class="f">Your watermark<input data-k="watermark" maxlength="40" value="${esc(c.watermark || "")}" placeholder="@yourname"><small class="sub" style="font-weight:400">Your @handle, small and see-through on every clip. Empty for none.</small></label>
+        <label class="f">Big text on every clip<input data-k="hook_text" maxlength="60" value="${esc(c.hook_text || "")}" placeholder="Empty: the AI writes one per clip"><small class="sub" style="font-weight:400">Your own heading on all of this streamer's clips, in place of the AI's.</small></label>
+        <label class="f span">Description for every clip<textarea data-k="description_text" rows="2" maxlength="2000" placeholder="Empty: the AI writes one, with 3-5 hashtags">${esc(c.description_text || "")}</textarea><small class="sub" style="font-weight:400">Posted exactly as written: a campaign's set text, links and #tags stay.</small></label>
         <label class="f">Language spoken<select data-k="lang">${opts(S.status.languages || {auto:"Auto-detect"}, c.lang || "auto")}</select></label>
         <label class="f">Captions in<select data-k="caption_lang">${opts(S.status.caption_langs || {auto:"As spoken"}, c.caption_lang || "auto")}</select></label>
         <label class="f">Game<input data-k="game" value="${esc(c.game || "")}" placeholder="Read from the title"><small class="sub" style="font-weight:400">Left empty, the game is read from the stream's title. Set it for a streamer whose title says nothing: GTA 6, Fortnite, Elden Ring.</small></label>

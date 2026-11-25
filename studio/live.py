@@ -660,6 +660,8 @@ class Session:
                  watermark=self.settings.get("watermark", ""), tighten=self.settings.get("tighten", True),
                  **{k: self.settings.get(k, jobs.DEFAULTS[k]) for k in jobs.TAG_KEYS},
                  status="queued", version=0, made_at=time.time())
+        o = {k: self.job["options"].get(k) or self.settings.get(k) or "" for k in ("hook_text", "description_text")}
+        jobs.own_text(c, o, list(self.words), self.job.get("title", ""), self.job.get("uploader", ""), getattr(self, "game", "") or None)
         with self.lock:
             self.job["clips"].append(c)
         jobs.save(self.job)

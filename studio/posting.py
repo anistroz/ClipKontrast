@@ -101,7 +101,9 @@ def on_clip_ready(job, clip):
 
 
 def _caption(clip, creator):
-    tags = " ".join("#" + h for h in clip.get("hashtags", []))
+    # A description the person wrote is posted as it is, and one that already ends with its hashtags doesn't get
+    # them twice (from PeakCut upstream)
+    tags = "" if clip.get("fixed_description") or clip.get("hashtags_in_description") else " ".join("#" + h for h in clip.get("hashtags", []))
     return "\n\n".join(x for x in (clip.get("description", ""), tags, creator.get("post_footer", "")) if x)
 
 
