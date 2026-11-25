@@ -13,6 +13,7 @@ import calendar
 import csv
 import io
 import json
+import os
 import re
 import secrets
 import threading
@@ -32,6 +33,10 @@ SETTINGS = DIR / "settings.json"
 PLATFORMS = {"youtube": "YouTube Shorts", "instagram": "Instagram Reels", "x": "X", "tiktok": "TikTok"}
 STATUSES = ("draft", "soon", "live", "paused", "ended")    # soon: shown to everyone as "coming soon", nobody can join yet
 YT_API = "https://www.googleapis.com/youtube/v3"
+# A clip not reviewed yet counts toward the public view numbers (the Earn page, the leaderboard, the launch page) only
+# up to this many views. A bigger claim waits for an admin's approval: one wrong or botted count must not become the
+# number brands and clippers see. Approved and paid clips always count in full. Admin pages show everything.
+PENDING_VIEW_CAP = int(os.environ.get("CLIPKONTRAST_PENDING_VIEW_CAP") or 300_000)
 _lock = threading.RLock()
 _channels: dict = {}          # YouTube channel id -> (when looked up, "@handle" lower case)
 
@@ -350,17 +355,27 @@ def _estimate(views: int, camp) -> float:
     return round(amt, 2)
 
 
+def _trusted_views():
+    """The views of a clip that the public numbers count (see PENDING_VIEW_CAP)."""
+    s = db.earn_submissions.c
+    return sa.case((s.status.in_(("approved", "paid")), s.views),
+                   (sa.and_(s.status == "pending", s.views <= PENDING_VIEW_CAP), s.views), else_=0)
+
+
 def _stats(c, ids: list) -> dict:
     s = db.earn_submissions.c
-    out = {i: {"committed": 0.0, "paid": 0.0, "pending_est": 0.0, "clips": 0, "views": 0, "clippers": 0, "pending": 0} for i in ids}
+    out = {i: {"committed": 0.0, "paid": 0.0, "pending_est": 0.0, "clips": 0, "views": 0, "views_public": 0, "clippers": 0,
+               "pending": 0} for i in ids}
     if not ids:
         return out
-    for cid, status, n, amt, views in c.execute(sa.select(s.campaign_id, s.status, sa.func.count(), sa.func.sum(s.amount), sa.func.sum(s.views))
-                                                .where(s.campaign_id.in_(ids)).group_by(s.campaign_id, s.status)):
+    for cid, status, n, amt, views, vpub in c.execute(sa.select(s.campaign_id, s.status, sa.func.count(), sa.func.sum(s.amount),
+                                                                sa.func.sum(s.views), sa.func.sum(_trusted_views()))
+                                                      .where(s.campaign_id.in_(ids)).group_by(s.campaign_id, s.status)):
         o = out[cid]
         if status != "rejected":
             o["clips"] += n
             o["views"] += int(views or 0)
+            o["views_public"] += int(vpub or 0)
         if status in ("approved", "paid"):
             o["committed"] += float(amt or 0)
         if status == "paid":
@@ -583,6 +598,8 @@ def drive_embed(url: str) -> str:
 
 
 def _camp_dict(r, st: dict, admin=False, member=False, detail=True) -> dict:
+    if not admin:
+        st = {**st, "views": st.get("views_public", st["views"])}
     committed = round(st["committed"], 2)
     d = {"id": r.id, "slug": r.slug, "title": r.title, "creator_name": r.creator_name, "creator_url": r.creator_url,
          "tagline": r.tagline, "brief": r.brief, "rules": [x.strip() for x in r.rules.splitlines() if x.strip()],
@@ -674,7 +691,7 @@ def campaign(key: str, admin=False, uid: str = "") -> dict:
             db.earn_members.c.campaign_id == r.id, db.earn_members.c.user_id == uid)).first())
     d = _camp_dict(r, st, admin, member)
     # an ended campaign is a showcase: its numbers, not who clipped what
-    d["leaderboard"] = leaderboard(r.id) if admin or d["state"] != "ended" else []
+    d["leaderboard"] = leaderboard(r.id, public=not admin) if admin or d["state"] != "ended" else []
     return d
 
 
@@ -685,15 +702,20 @@ def _public_name(name: str, email: str) -> str:
     return e[:2] + "•" * max(2, min(5, len(e) - 2))
 
 
-def leaderboard(cid: str = "", limit: int = 10) -> list:
+def leaderboard(cid: str = "", limit: int = 10, public: bool = True) -> list:
+    """Top clippers by views. In public, by the views that can be trusted (see PENDING_VIEW_CAP)."""
     s, p, u = db.earn_submissions.c, db.earn_profiles.c, db.users.c
     earned = sa.func.sum(sa.case((s.status.in_(("approved", "paid")), s.amount), else_=0))
-    q = (sa.select(s.user_id, sa.func.count(), sa.func.sum(s.views), earned, p.display_name, u.email)
+    views = sa.func.sum(_trusted_views() if public else s.views)
+    q = (sa.select(s.user_id, sa.func.count(), views, earned, p.display_name, u.email)
          .select_from(db.earn_submissions.join(db.users, u.id == s.user_id).outerjoin(db.earn_profiles, p.user_id == s.user_id))
          .where(s.status != "rejected"))
     if cid:
         q = q.where(s.campaign_id == cid)
-    q = q.group_by(s.user_id, p.display_name, u.email).order_by(sa.func.sum(s.views).desc()).limit(limit)
+    q = q.group_by(s.user_id, p.display_name, u.email)
+    if public:
+        q = q.having(views > 0)          # someone whose only clip waits for review isn't ranked with 0 views
+    q = q.order_by(views.desc()).limit(limit)
     with db.engine.connect() as c:
         return [{"name": _public_name(dn or "", email), "clips": n, "views": int(v or 0), "earned": round(float(e or 0), 2)}
                 for _, n, v, e, dn, email in c.execute(q)]
@@ -747,7 +769,9 @@ def overview() -> dict:
         clippers = c.execute(sa.select(sa.func.count(sa.distinct(db.earn_members.c.user_id)))).scalar() or 0
     live = [x for x in cs if x["open"]]
     return {"live": len(live), "live_budget": round(sum(x["remaining"] for x in live), 2), "paid_out": round(float(paid), 2),
-            "clippers": int(clippers), "views": sum(x["views"] for x in cs),
+            # views: a finished campaign by the results it was reported with, a running one by the clips that can be trusted
+            "clippers": int(clippers), "views": sum(((x.get("showcase") or {}).get("views") or x["views"]) if x["state"] == "ended"
+                                                    else x["views"] for x in cs),
             # what the campaigns that ended were worth, together (their budgets)
             "ended_budget": round(sum(x["budget"] or 0 for x in cs if x["state"] == "ended"), 2)}
 

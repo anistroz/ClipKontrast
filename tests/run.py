@@ -53,6 +53,7 @@ def main() -> int:
                 ("confirming the email with a six-digit code", ["tests/test_otp.py", str(ROOT)]),
                 ("mail through Brevo's web API", ["tests/test_mail_api.py"]),
                 ("Earn: handles with dots, and campaign states", ["tests/test_earn_states.py"]),
+                ("Earn: public view numbers count only clips that can be trusted", ["tests/test_public_views.py"]),
                 ("abuse and limits", ["tests/test_abuse.py", BASE, str(ROOT)]),
                 ("queue under load", ["tests/test_load_queue.py", str(ROOT)]),
                 ("deleting and bulk actions", ["tests/test_delete.py"]),

@@ -23,12 +23,17 @@ h1,h2,p{margin:0}
 a{color:inherit}
 :focus-visible{outline:2px solid var(--brand);outline-offset:2px}
 .wrap{max-width:640px;margin:0 auto;padding:0 20px}
-header{background:var(--frame);color:var(--frame-text)}
-header .bar{display:flex;align-items:center;gap:16px;height:64px;max-width:1080px;margin:0 auto;padding:0 20px}
-header .bar img{height:28px;width:auto}
-header .bar nav{margin-left:auto;display:flex;gap:6px}
-header .bar nav a{color:var(--frame-dim);text-decoration:none;font-size:14px;font-weight:500;padding:8px 12px;border-radius:10px}
-header .bar nav a:hover{color:var(--frame-text);background:var(--frame-2)}
+header{background:var(--frame);color:var(--frame-text);padding-top:12px}
+header .bar{display:flex;align-items:center;gap:14px;height:62px;width:calc(100% - 32px);max-width:1132px;margin:0 auto;padding:0 9px 0 20px;
+  border-radius:999px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.035)}
+header .bar img{height:30px;width:auto;display:block}
+header .bar nav{margin-left:auto;display:flex;gap:2px}
+header .bar nav a{color:#B9ABA2;text-decoration:none;font-size:14.5px;font-weight:500;padding:8px 12px;border-radius:999px;white-space:nowrap}
+header .bar nav a:hover{color:#fff;background:rgba(255,255,255,.07)}
+header .bar .cta{display:inline-flex;align-items:center;height:44px;padding:0 20px;border-radius:999px;background:#C6F432;color:#1A2100;font-weight:600;font-size:15px;text-decoration:none;white-space:nowrap;box-shadow:0 10px 30px -8px rgba(198,244,50,.55)}
+header .bar .cta:hover{background:#D4FA5A}
+@media (max-width:700px){header .bar{padding-left:14px;width:calc(100% - 24px)}header .bar img{height:26px}header .bar nav a.hide-s{display:none}}
+@media (max-width:480px){header .bar nav{display:none}header .bar .cta{margin-left:auto}}
 .hero{background:var(--frame);color:var(--frame-text);padding:28px 0 72px}
 .hero h1{font-size:clamp(30px,5vw,42px);line-height:1.1;letter-spacing:-.02em;font-weight:800}
 .hero p{color:var(--frame-dim);margin-top:10px;font-size:17px}
@@ -58,7 +63,8 @@ input:focus,textarea:focus,select:focus{outline:none;border-color:#9BC21A;box-sh
 <body>
 <header><div class="bar">
   <a href="/" aria-label="ClipKontrast home"><img src="/brand/logo-light.svg" alt="ClipKontrast"></a>
-  <nav><a href="/download">Download app</a><a href="/#campaigns">Campaigns</a></nav>
+  <nav><a class="hide-s" href="/earn#campaigns">Campaigns</a><a class="hide-s" href="/launch">For brands</a><a href="/download">Download app</a></nav>
+  <a class="cta" href="/earn">Start earning</a>
 </div></header>
 
 <section class="hero"><div class="wrap">

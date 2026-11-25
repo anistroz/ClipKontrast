@@ -15,6 +15,7 @@
 *{box-sizing:border-box}
 [hidden]{display:none!important}
 html{scroll-behavior:smooth}
+html,body{overflow-x:clip}
 body{margin:0;background:var(--bg);color:var(--text);font:16px/1.55 "Geist","Segoe UI",system-ui,sans-serif;-webkit-font-smoothing:antialiased;overflow-x:hidden}
 a{color:inherit}
 h1,h2,h3,p{margin:0}
@@ -48,13 +49,15 @@ header{position:sticky;top:14px;z-index:40;margin-top:14px}
 .who a.on i{opacity:1;box-shadow:0 0 10px var(--lime)}
 /* hero */
 .hero{position:relative;text-align:center;padding:84px 0 70px;isolation:isolate}
-.hero::before{content:"";position:absolute;inset:-140px -20% auto;height:720px;z-index:-1;pointer-events:none;
-  background:radial-gradient(48% 52% at 50% 38%,rgba(198,244,50,.22),transparent 70%),radial-gradient(30% 40% at 20% 20%,rgba(255,170,90,.08),transparent 70%)}
+.hero::before{content:"";position:absolute;inset:-140px 0 auto;height:720px;z-index:-1;pointer-events:none;
+  background:radial-gradient(67% 52% at 50% 38%,rgba(198,244,50,.22),transparent 70%),radial-gradient(42% 40% at 8% 20%,rgba(255,170,90,.08),transparent 70%)}
 .hero::after{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;opacity:.35;
   background-image:linear-gradient(rgba(255,255,255,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.035) 1px,transparent 1px);background-size:56px 56px;
   -webkit-mask-image:radial-gradient(60% 60% at 50% 35%,#000,transparent 75%);mask-image:radial-gradient(60% 60% at 50% 35%,#000,transparent 75%)}
+.proof[hidden]{display:none}
 .proof{display:inline-flex;align-items:center;gap:12px;padding:7px 16px 7px 8px;border-radius:999px;border:1px solid var(--line2);background:rgba(255,255,255,.04);font-size:14.5px;color:var(--dim);margin-bottom:30px}
-.proof .faces{display:flex}
+.proof .pmark{width:30px;height:30px;border-radius:50%;background:rgba(198,244,50,.14);box-shadow:inset 0 0 0 1px rgba(198,244,50,.35);display:grid;place-items:center}
+.proof .pmark svg{width:16px;height:16px;fill:var(--lime)}
 .proof .faces span{width:30px;height:30px;border-radius:50%;border:2px solid var(--bg);margin-left:-8px;display:grid;place-items:center;font-size:12px;font-weight:700;color:var(--ink)}
 .proof .faces span:first-child{margin-left:0}
 .proof b{color:var(--lime);font-weight:700}
@@ -214,7 +217,7 @@ footer a{color:var(--dim);text-decoration:none;margin-left:18px}
 .js .reveal.in{opacity:1;transform:none}
 @media (max-width:980px){.steps{grid-template-columns:1fr 1fr}.inc,.launch,.live,.stage{grid-template-columns:1fr}.calc{position:static}.navbar nav{display:none}
   .vs{grid-template-columns:1fr}.vs .mid{display:none}.live-r{min-height:220px}}
-@media (max-width:640px){.wrap{padding:0 16px}.stats{grid-template-columns:1fr 1fr}.stats div:nth-child(3){border-left:0}.stats div:nth-child(n+3){border-top:1px solid var(--line)}
+@media (max-width:640px){.wrap{padding:0 16px}.reel{margin:10px -16px 0}.stats{grid-template-columns:1fr 1fr}.stats div:nth-child(3){border-left:0}.stats div:nth-child(n+3){border-top:1px solid var(--line)}
   .steps,.list,.row{grid-template-columns:1fr}.who a{padding:7px 11px;font-size:13px}.who .long{display:none}.navbar{padding-left:14px}.navbar .logo img{height:26px}.hide-s{display:none}
   .hero{padding:56px 0 30px}section{padding-top:72px}form.card,.calc,.inc-card,.live-l,.stage{padding:22px}
   .reel{height:300px}.clip{width:130px;border-radius:16px}.dots{margin:0 10px 22px}.orb.ck{width:200px;height:200px}.pillbar{display:none}}
@@ -231,7 +234,7 @@ footer a{color:var(--dim);text-decoration:none;margin-left:18px}
   </div></header>
 
   <section class="hero" style="padding-top:84px">
-    <div class="proof reveal" id="proof"><span class="faces" aria-hidden="true"><span style="background:#C6F432">K</span><span style="background:#FFB86B">M</span><span style="background:#7FD3FF">S</span></span>
+    <div class="proof reveal" id="proof" hidden><span class="pmark" aria-hidden="true"><svg viewBox="0 0 256 256"><path d="M232,208a8,8,0,0,1-8,8H32a8,8,0,0,1-8-8V48a8,8,0,0,1,16,0v94.37L90.73,98a8,8,0,0,1,10.07-.38l58.81,44.11L218.73,90a8,8,0,1,1,10.54,12l-64,56a8,8,0,0,1-10.07.38L96.39,114.29,40,163.63V200H224A8,8,0,0,1,232,208Z"/></svg></span>
       <span>Clippers behind <b id="pViews">millions of</b> views</span></div>
     <h1 class="reveal">Turn your streams into <span class="serif">millions</span> of views</h1>
     <p class="sub reveal">Launch a paid clipping campaign. Hundreds of clippers turn your streams and videos into Shorts and Reels every day, and you pay only for real, verified views.</p>
@@ -404,6 +407,7 @@ fetch("/api/public/launch").then(r => r.ok ? r.json() : null).then(d => {
   if (wa) document.querySelectorAll(".talk").forEach(a => { a.hidden = false; a.href = `https://wa.me/${wa}?text=${encodeURIComponent("Hi! I'd like to launch a clipping campaign with ClipKontrast.")}`; a.target = "_blank"; a.rel = "noopener"; });
   const s = d.stats || {};
   if (s.clippers) $("#sClippers").textContent = Number(s.clippers).toLocaleString("en-IN") + "+";
+  $("#proof").hidden = !(s.views >= 100000);      // shown only with a counted number behind it
   if (s.views) { $("#sViews").textContent = short(s.views) + "+"; $("#pViews").textContent = short(s.views) + "+"; }
   else { $("#sViews").textContent = s.live ? String(s.live) : "New"; $("#sViews").nextElementSibling.textContent = s.live ? "campaigns live now" : "campaigns every month"; }
   if (s.ended_budget || s.live) $("#sCamp").textContent = s.ended_budget ? short(s.ended_budget).replace(/^/, "₹") + "+" : "Live now";

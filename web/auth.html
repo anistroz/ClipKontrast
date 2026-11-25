@@ -111,7 +111,7 @@ const next = new URLSearchParams(location.search).get("next");
 const dest = next && /^\/(?![\/\\])[^\\\t\r\n]*$/.test(next) ? next : "/app";
 document.title = up ? "Create your ClipKontrast account" : "Sign in to ClipKontrast";
 $("h").textContent = up ? "Create your account" : "Welcome back";
-$("p").textContent = up ? "Start clipping in a couple of minutes." : "Sign in to get back to your clips.";
+$("p").textContent = up ? "Join paid campaigns in a couple of minutes." : "Sign in to see your campaigns and earnings.";
 $("go").textContent = up ? "Create account" : "Sign in";
 $("gtext").textContent = up ? "Sign up with Google" : "Sign in with Google";
 $("namebox").hidden = !up; $("pwhint").hidden = !up; $("forgot").hidden = up;

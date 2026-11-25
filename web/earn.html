@@ -213,7 +213,8 @@ header.nav .btn.primary{box-shadow:0 10px 30px -8px rgba(198,244,50,.55)}
 .marq div span b{color:var(--brand)}
 
 /* campaigns */
-.camps{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:18px;margin-top:36px}
+.camps{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:18px;margin-top:36px}
+.camps:has(> :only-child),.done-grid:has(> :only-child){grid-template-columns:minmax(0,560px)}
 .camp{border:1px solid var(--line);border-radius:var(--r-lg);overflow:hidden;background:#fff;display:flex;flex-direction:column;cursor:pointer;transition:border-color .15s ease;text-align:left;padding:0}
 .camp:hover{border-color:#CFC4BC}
 .cover{position:relative;aspect-ratio:16/8.4;background:var(--frame);overflow:hidden}
@@ -324,6 +325,7 @@ tr:last-child td{border-bottom:0}
 .lb{border:1px solid var(--line);border-radius:var(--r-lg);overflow:hidden;margin-top:36px}
 .lb-row{display:grid;grid-template-columns:56px 1fr 120px 120px 120px;align-items:center;padding:14px 20px;border-bottom:1px solid var(--line);font-size:15px}
 .lb-row:last-child{border-bottom:0}
+.lb.noearn .lb-row{grid-template-columns:56px 1fr 140px 140px}
 .lb-row.head{font-size:12px;color:var(--faint);padding:12px 20px;background:var(--muted)}
 .lb-row .rk{font-weight:700;color:var(--faint)}
 .lb-row:nth-child(2) .rk{color:var(--ink);background:var(--brand);width:30px;height:30px;border-radius:9px;display:grid;place-items:center}
@@ -390,7 +392,7 @@ footer.site .fbottom{display:flex;justify-content:space-between;gap:12px;flex-wr
   .grid2{grid-template-columns:1fr}
   .sheet .inner{grid-template-columns:1fr}.aside{position:static}
   footer.site .fgrid{grid-template-columns:1fr 1fr}
-  .lb-row{grid-template-columns:44px 1fr 90px 100px}.lb-row .hide-s{display:none}
+  .lb-row,.lb.noearn .lb-row{grid-template-columns:44px 1fr 90px 100px}.lb-row .hide-s{display:none}
 }
 @media (max-width:560px){
   section{padding:56px 0}
@@ -425,7 +427,7 @@ footer.site .fbottom{display:flex;justify-content:space-between;gap:12px;flex-wr
   table.stack td[data-l]::before{content:attr(data-l);display:block;font-size:11px;color:var(--faint);margin-bottom:2px}
   table.stack td:empty{display:none}
   .hero .ctas .btn{flex:1 1 auto;justify-content:center}
-  .lb-row{grid-template-columns:36px 1fr 90px}.lb-row .hide-xs{display:none}
+  .lb-row,.lb.noearn .lb-row{grid-template-columns:36px 1fr 90px}.lb-row .hide-xs{display:none}
   .panel{padding:18px}
 }
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}.js .reveal{opacity:1;transform:none}}
@@ -437,15 +439,15 @@ footer.site .fbottom{display:flex;justify-content:space-between;gap:12px;flex-wr
 @media (max-width:640px){.annc-long{display:none}.annc-short{display:inline}}
 .done-head{margin-top:64px}
 .done-head h3{font-size:clamp(24px,3vw,34px);letter-spacing:-.03em;margin:8px 0 6px;color:var(--ink)}
-.done-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:18px;margin-top:24px}
+.done-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:18px;margin-top:24px}
 .done{display:flex;flex-direction:column;text-align:left;padding:0;border:0;border-radius:var(--r-lg);overflow:hidden;background:var(--frame);color:var(--frame-text);cursor:pointer;font:inherit}
 .done:hover{background:var(--frame-2)}
 .done-art{position:relative;aspect-ratio:16/7;overflow:hidden;background:var(--frame-2)}
 .done-art img,.done-art .gen{width:100%;height:100%;object-fit:cover;display:block;filter:saturate(.85)}
-.done-art::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(30,22,18,0) 40%,rgba(30,22,18,.95))}
+.done-art::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(30,22,18,0) 15%,rgba(30,22,18,.8) 58%,#1E1612 90%)}
 .tag.done-tag{background:var(--brand);color:var(--ink);font-weight:700}
 .done-art .done-tag{position:absolute;left:12px;top:12px;z-index:1}
-.done-body{padding:4px 20px 20px;display:flex;flex-direction:column;gap:10px;margin-top:-28px;position:relative}
+.done-body{padding:4px 20px 20px;display:flex;flex-direction:column;gap:10px;margin-top:-18px;position:relative}
 .done .by{font-size:13px;color:var(--frame-dim)}
 .done h4{font-size:20px;letter-spacing:-.02em;color:var(--frame-text);margin:0}
 .done-big{display:flex;align-items:baseline;gap:10px}
@@ -632,13 +634,13 @@ a.nf-step:hover{border-color:rgba(198,244,50,.4)}
         <figure><div class="ph"><video src="/brand/demo-bounce.mp4" poster="/brand/demo-bounce.jpg" autoplay muted loop playsinline preload="metadata"></video></div><figcaption><b>Kai Cenat</b>GTA 6 reaction</figcaption></figure>
         <figure class="mid"><div class="ph"><video src="/brand/demo-hype.mp4" poster="/brand/demo-hype.jpg" autoplay muted loop playsinline preload="metadata"></video></div><figcaption><b>IShowSpeed</b>on GTA 6</figcaption></figure>
         <figure><div class="ph"><video src="/brand/demo-clean.mp4" poster="/brand/demo-clean.jpg" autoplay muted loop playsinline preload="metadata"></video></div><figcaption><b>GTA 6 trailer</b>stream reaction</figcaption></figure>
-        <div class="chip c2" aria-hidden="true">Example: 100K views<b class="lime" id="exAmt">₹2,500</b><span id="exSub">at ₹25 per 1K views</span></div>
+        <div class="chip c2" aria-hidden="true">Example: 50K views<b class="lime" id="exAmt">₹1,250</b><span id="exSub">at ₹25 per 1K views</span></div>
         <span id="chipBudget" hidden></span>
         <p class="reel-note">Example clips made with our clip maker, credited to the creators.</p>
       </div>
     </div>
     <div class="ticker reveal" style="--d:.24s">
-      <div><b class="lime" id="tLive">₹0</b><span>budget open right now</span></div>
+      <div><b class="lime" id="tLive">0</b><span id="tLiveL">clips sent in</span></div>
       <div><b id="tPaid">₹0</b><span id="tPaidL">paid out to clippers</span></div>
       <div><b id="tClippers">0</b><span>clippers in campaigns</span></div>
       <div><b id="tViews">0</b><span>views counted</span></div>
@@ -999,10 +1001,11 @@ function drawCamps() {
 // ---------------------------------------------------------------- leaderboard
 function drawLb() {
   const lb = S.data.leaderboard;
-  $("#lb").innerHTML = lb.length ? `<div class="lb reveal">
-    <div class="lb-row head"><span>#</span><span>Clipper</span><span class="r hide-xs">Clips</span><span class="r">Views</span><span class="r hide-s">Earned</span></div>
+  const earned = lb.some(r => r.earned > 0);
+  $("#lb").innerHTML = lb.length ? `<div class="lb reveal${earned ? "" : " noearn"}">
+    <div class="lb-row head"><span>#</span><span>Clipper</span><span class="r hide-xs">Clips</span><span class="r">Views</span>${earned ? `<span class="r hide-s">Earned</span>` : ""}</div>
     ${lb.map((r, i) => `<div class="lb-row"><span class="rk">${i + 1}</span><span class="nm"><i>${esc((r.name[0] || "?").toUpperCase())}</i>${esc(r.name)}</span>
-      <span class="r num hide-xs">${num(r.clips)}</span><span class="r num">${short(r.views)}</span><span class="r num hide-s">${inr(r.earned)}</span></div>`).join("")}
+      <span class="r num hide-xs">${num(r.clips)}</span><span class="r num">${short(r.views)}</span>${earned ? `<span class="r num hide-s">${inr(r.earned)}</span>` : ""}</div>`).join("")}
   </div>` : `<div class="empty"><b>No one's on the board yet</b>The first clipper to send in a clip takes the top spot.</div>`;
   watchReveal();
 }
@@ -1041,7 +1044,7 @@ async function openCampaign(slug) {
         ${streamsSection(c)}
         ${resources(c)}
         <h4>Top clippers in this campaign</h4>
-        ${c.leaderboard.length ? `<div class="mini-lb">${c.leaderboard.map((r, i) => `<div><span>${i + 1}. ${esc(r.name)}</span><span class="num">${short(r.views)} views · ${inr(r.earned)}</span></div>`).join("")}</div>` : `<div class="locked">No clips yet. Yours could be first.</div>`}
+        ${c.leaderboard.length ? `<div class="mini-lb">${c.leaderboard.map((r, i) => `<div><span>${i + 1}. ${esc(r.name)}</span><span class="num">${short(r.views)} views${r.earned > 0 ? " · " + inr(r.earned) : ""}</span></div>`).join("")}</div>` : `<div class="locked">No clips yet. Yours could be first.</div>`}
       </div>
       <aside class="aside">
         ${c.rate_per_1k ? `<div><div class="big">${inr2(c.rate_per_1k)}</div><div style="color:var(--dim);font-size:14px">per 1,000 views</div></div>` : `<div><div class="big">Soon</div><div style="color:var(--dim);font-size:14px">The rate and budget are announced when it opens.</div></div>`}
@@ -1203,7 +1206,10 @@ function drawCalc() {
 }
 function drawHero() {
   const o = S.data.overview, live = S.data.campaigns.filter(c => c.open);
-  countTo($("#tLive"), o.live_budget, v => inr(v));
+  // the budget open right now is the big number in the hero already: this tile says how many clips came in
+  const clips = S.data.campaigns.reduce((t, c) => t + (c.state !== "ended" ? Number(c.clips) || 0 : 0), 0);
+  if (clips) countTo($("#tLive"), clips, v => num(Math.round(v)));
+  else { countTo($("#tLive"), o.live_budget, v => inr(v)); $("#tLiveL").textContent = "budget open right now"; }
   // Paid out so far is shown once it's a number worth showing; before that (the first campaign's first week, when
   // views are still being counted), the best rate on offer says more: "₹60 paid out" next to ₹1 lakh reads wrong.
   const best = Math.max(0, ...live.map(c => Number(c.rate_per_1k) || 0));
@@ -1214,20 +1220,21 @@ function drawHero() {
   countTo($("#tClippers"), o.clippers, v => num(Math.round(v))); countTo($("#tViews"), o.views, v => short(Math.round(v)));
   const soon = S.data.campaigns.filter(c => c.state === "soon" || c.state === "starts");
   const ex = calcCamp();
-  $("#exAmt").textContent = inr(payFor(100000, ex)); $("#exSub").textContent = `at ${inr2(ex.rate_per_1k)} per 1K views` + (ex.title ? ` · ${ex.title}` : "");
+  $("#exAmt").textContent = inr(payFor(50000, ex)); $("#exSub").textContent = `at ${inr2(ex.rate_per_1k)} per 1K views` + (ex.title ? ` · ${ex.title}` : "");
   drawCalc();
   const c0 = live.filter(c => c.rate_per_1k).sort((a, b) => b.remaining - a.remaining)[0];
   if (c0) {
     // the hook with the real numbers: the rate, what's left to earn and the most one clip can make
     $("#rateLine").innerHTML = `<span><b>${esc(inr2(c0.rate_per_1k))}</b> per 1,000 views</span>` + (c0.max_per_clip ? `<span>Up to <b>${esc(inr(c0.max_per_clip))}</b> a clip</span>` : "") + "<span>Paid to your UPI</span>";
-    $("#heroLede").innerHTML = `Our <b>free AI app</b> turns streams into captioned shorts on <b>your PC</b>. Post them, send us the link, get paid to <b>UPI</b>. One clip with <b>100K views = ${esc(inr(payFor(100000, c0)))}</b>.`;
+    $("#heroLede").innerHTML = `Our <b>free AI app</b> turns streams into captioned shorts on <b>your PC</b>. Post them, send us the link, get paid to <b>UPI</b>. One clip with <b>50K views = ${esc(inr(payFor(50000, c0)))}</b>.`;
     if (c0.max_per_clip) { $("#exAmt").parentElement.firstChild.textContent = "One clip can earn up to"; $("#exAmt").textContent = inr(c0.max_per_clip); $("#exSub").textContent = `${inr2(c0.rate_per_1k)} per 1K views · ${c0.title}`; }
     $("#pot").hidden = false;
     countTo($("#potAmt"), o.live_budget, v => inr(v));
     const leftPct = c0.budget ? Math.max(0, Math.min(100, 100 - c0.used_pct)) : 100;
     requestAnimationFrame(() => setTimeout(() => $("#potBar").style.width = Math.max(2, leftPct) + "%", 200));
-    $("#potLeft").textContent = live.length > 1 ? `Across ${live.length} live campaigns` : `${Math.round(leftPct)}% of the ${c0.title} budget still left`;
-    $("#heroNotes").innerHTML = (c0.max_per_clip ? `<span>Up to ${esc(inr(c0.max_per_clip))} a clip</span>` : "") + "<span>No followers needed</span><span>Paid to UPI</span>";
+    // what is left, and why it is still almost all of it: views are paid once they've been counted
+    $("#potLeft").textContent = live.length > 1 ? `Across ${live.length} live campaigns` : `of ${inr(c0.budget)} · views are counted ${c0.hold_days || 7} days after posting`;
+    $("#heroNotes").innerHTML = "<span>No followers needed</span><span>No editing skills needed</span><span>Post on YouTube, Instagram or X</span>";
   }
   if (live[0]) { $("#heroPillText").textContent = `${live[0].title}: ${inr2(live[0].rate_per_1k)} per 1K views`; $("#heroPill").href = "#c=" + live[0].slug; $("#chipBudget").textContent = inr(live[0].budget); }
   else if (soon[0]) { $("#heroPill").querySelector("b").innerHTML = "<i></i>SOON"; $("#heroPillText").textContent = `Coming soon: ${soon[0].title}`; $("#heroPill").href = "#c=" + soon[0].slug; }
