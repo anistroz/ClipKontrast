@@ -26,6 +26,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800&family=Inter:wght@300&display=swap" rel="stylesheet">
 <script>document.documentElement.classList.add("js")</script>
 <script src="/assets/gradient-ascii.js" defer></script>
+<script src="/assets/openapp.js?v=1" defer></script>
 <style>
 :root{--brand:#C6F432;--brand-hi:#D4FA5A;--ink:#1A2100;--soft:#F5FDE0;--line-b:#E3F7A8;--deep:#4E6B00;
   --frame:#1E1612;--frame-2:#2C221D;--frame-text:#F4EEEA;--frame-dim:#A99A91;
@@ -506,7 +507,8 @@ $$(".linkform").forEach(f => f.addEventListener("submit", e => {
 
 // On the Earn website, clips are made with the free download: the link bar and upload buttons lead there.
 let earnOnly = false;
-fetch("/api/public").then(r => r.json()).then(p => {
+const pub = fetch("/api/public").then(r => r.json());
+pub.then(p => {
   if (!p.earn_only) return;
   earnOnly = true;
   const dl = p.download_url || "{{DOWNLOAD}}";
@@ -523,10 +525,15 @@ fetch("/api/public").then(r => r.json()).then(p => {
 }).catch(() => {});
 $$(".linkform").forEach(f => f.addEventListener("submit", e => { if (earnOnly) { e.preventDefault(); e.stopImmediatePropagation(); location.href = $$('[data-auth="up2"]')[0]?.href || "/earn"; } }, true));
 
-fetch("/api/auth/me").then(r => r.json()).then(d => {
+Promise.all([fetch("/api/auth/me").then(r => r.json()), pub.catch(() => ({}))]).then(([d, p]) => {
   if (!d.user) return;
   signedIn = true;
   $$('[data-auth="in"]').forEach(e => e.remove());
+  if (p.earn_only) {      // on the website: the app installed on this computer (or the download), not the clip studio page
+    window.CK_DOWNLOAD = p.download_url || "/download";
+    $$('[data-auth="up"]').forEach(e => { e.href = window.CK_DOWNLOAD; e.textContent = "Open the app"; e.setAttribute("data-openapp", ""); e.removeAttribute("target"); });
+    return;
+  }
   $$('[data-auth="up"]').forEach(e => { e.href = "/app"; e.textContent = "Open ClipKontrast"; });
   $$('[data-auth="up2"]').forEach(e => { e.href = "/app"; });
 }).catch(() => {});

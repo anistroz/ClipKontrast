@@ -71,5 +71,21 @@ for _f in ("earn.html", "landing.html"):
            'href="/launch">Launch a campaign</a></li>' in _h), (True, True, True))
     _text = _re.sub(r"<[^>]+>", " ", _re.sub(r"<(style|script)\b.*?</\1>", " ", _h, flags=_re.S)).lower()
     check(f"{_f}: no fee or pricing shown to clippers", not any(w in _text for w in ("management fee", "agency fee", "30%")))
+# "Open the app" on the website opens the app installed on the computer (or offers the install), not the web page
+_oa = open("web/openapp.js", encoding="utf-8").read()
+check("openapp.js: tries clipkontrast:// and offers the install when nothing opened",
+      ("clipkontrast://open" in _oa, "Install ClipKontrast" in _oa, "runs on a computer" in _oa), (True, True, True))
+for _f in ("earn.html", "landing.html"):
+    _h = open(f"web/{_f}", encoding="utf-8").read()
+    check(f"{_f}: loads openapp.js and its signed-in button opens the installed app", ("/assets/openapp.js" in _h, "data-openapp" in _h), (True, True))
+_e = open("web/earn.html", encoding="utf-8").read()
+check("earn.html: on the website no button leads to the clip studio page", 'S.data.earn_only && !S.user.is_admin ? `<a class="btn primary" href="#download">' not in _e
+      and 'S.data.earn_only ? `<a class="btn primary" href="${esc(S.data.download_url)}" data-openapp>Open the app</a>`' in _e)
+from studio import desktop as _desk  # noqa: E402
+check("the Windows app saves clipkontrast:// links at every start (nothing to do elsewhere)",
+      (_desk.LINK_KEY, _desk._register_links() if os.name != "nt" else False), (r"Software\Classes\clipkontrast", False))
+_iss = open("packaging/windows/clipkontrast.iss", encoding="utf-8").read()
+check("...and the installer saves them too, removed on uninstall",
+      'Subkey: "Software\\Classes\\clipkontrast\\shell\\open\\command"' in _iss and "uninsdeletekey" in _iss)
 print(f"  {len(fails)} failed" if fails else "  ALL PASSED")
 sys.exit(1 if fails else 0)

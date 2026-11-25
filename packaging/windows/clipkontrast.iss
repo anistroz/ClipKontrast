@@ -53,6 +53,14 @@ Name: "{autoprograms}\ClipKontrast"; Filename: "{app}\python\ClipKontrast.exe"; 
 ; the same with its log showing, for when something needs looking into
 Name: "{autoprograms}\ClipKontrast (with log window)"; Filename: "{app}\ClipKontrast.cmd"; WorkingDir: "{app}"; IconFilename: "{app}\clipkontrast.ico"
 
+[Registry]
+; clipkontrast:// links open the app (the website's "Open the app" button). studio/desktop.py saves the same at every
+; start, for apps that were updated in place; the uninstaller removes it.
+Root: HKCU; Subkey: "Software\Classes\clipkontrast"; ValueType: string; ValueName: ""; ValueData: "URL:ClipKontrast"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\Classes\clipkontrast"; ValueType: string; ValueName: "URL Protocol"; ValueData: ""
+Root: HKCU; Subkey: "Software\Classes\clipkontrast\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: """{app}\clipkontrast.ico"",0"
+Root: HKCU; Subkey: "Software\Classes\clipkontrast\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\python\ClipKontrast.exe"" -m studio.desktop ""%1"""
+
 [Run]
 Filename: "{app}\python\ClipKontrast.exe"; Parameters: "-m studio.desktop"; WorkingDir: "{app}"; Description: "Start ClipKontrast now"; Flags: postinstall nowait
 

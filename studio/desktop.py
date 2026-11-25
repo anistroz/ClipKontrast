@@ -242,6 +242,34 @@ def _run_native():
     os._exit(0)
 
 
+LINK_KEY = r"Software\Classes\clipkontrast"
+
+
+def _register_links() -> bool:
+    """clipkontrast:// links open this app: the website's "Open the app" button uses one. Saved for this Windows
+    user only (no administrator needed), at every start, so an app updated in place gets it too and it follows the
+    app if its folder moved. The link's own text is never read: it can only start ClipKontrast or bring it up."""
+    if sys.platform != "win32":
+        return False
+    exe = INSTALL / "python" / "ClipKontrast.exe"
+    if not exe.is_file():
+        return False
+    try:
+        import winreg
+        values = [(LINK_KEY, "", "URL:ClipKontrast"), (LINK_KEY, "URL Protocol", ""),
+                  (LINK_KEY + r"\shell\open\command", "", f'"{exe}" -m studio.desktop "%1"')]
+        ico = INSTALL / "clipkontrast.ico"
+        if ico.is_file():
+            values.append((LINK_KEY + r"\DefaultIcon", "", f'"{ico}",0'))
+        for key, name, value in values:
+            with winreg.CreateKey(winreg.HKEY_CURRENT_USER, key) as k:
+                winreg.SetValueEx(k, name, 0, winreg.REG_SZ, value)
+        return True
+    except Exception as e:  # noqa: BLE001 - only the website's button needs it
+        _note(f"clipkontrast:// links not set up ({e})")
+        return False
+
+
 def _start_server():
     LOG.parent.mkdir(parents=True, exist_ok=True)
     if LOG.is_file() and LOG.stat().st_size > 5_000_000:
@@ -270,6 +298,7 @@ def main():
             ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("ClipKontrast.App")
         except Exception:  # noqa: BLE001
             pass
+        _register_links()
     if _up():                      # already running (the icon was clicked again): just open its window
         if _native_ok():
             import webview

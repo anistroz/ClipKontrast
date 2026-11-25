@@ -28,6 +28,8 @@ Need (Test-Path "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\ClipKontrast
 $lnk = (New-Object -ComObject WScript.Shell).CreateShortcut("$env:APPDATA\Microsoft\Windows\Start Menu\Programs\ClipKontrast.lnk")
 Need ($lnk.TargetPath -like "*\python\ClipKontrast.exe" -and $lnk.Arguments -eq "-m studio.desktop") "the shortcut opens ClipKontrast.exe, with no console"
 Need ((Get-Item "$Dir\python\ClipKontrast.exe").VersionInfo.FileDescription -eq "ClipKontrast") "ClipKontrast.exe carries ClipKontrast's name and icon"
+$link = (Get-ItemProperty -Path "HKCU:\Software\Classes\clipkontrast\shell\open\command" -ErrorAction SilentlyContinue).'(default)'
+Need ($link -like "*\python\ClipKontrast.exe*-m studio.desktop*") "clipkontrast:// links open the app (the website's Open the app button)"
 $Py = "$Dir\python\python.exe"
 & $Py -c "import sherpa_onnx, faster_whisper, ctranslate2, numpy, soundfile, yt_dlp, yt_dlp_ejs, deno, fastapi, uvicorn, PIL, sqlalchemy; import subprocess; print(subprocess.run([deno.find_deno_bin(), '--version'], capture_output=True, text=True).stdout.splitlines()[0])"
 Need ($LASTEXITCODE -eq 0) "every library loads, Deno runs"

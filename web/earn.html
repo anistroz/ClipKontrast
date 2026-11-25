@@ -16,6 +16,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800&family=Geist+Mono:wght@500&display=swap" rel="stylesheet">
 <script>document.documentElement.classList.add("js")</script>
 <script src="/assets/gradient-ascii.js" defer></script>
+<script src="/assets/openapp.js?v=1" defer></script>
 <style>
 :root{--brand:#C6F432;--brand-hi:#D4FA5A;--ink:#1A2100;--soft:#F5FDE0;--line-b:#E3F7A8;--deep:#4E6B00;
   --frame:#1E1612;--frame-2:#2C221D;--frame-3:#382B25;--frame-line:rgba(255,255,255,.09);--frame-text:#F4EEEA;--frame-dim:#A99A91;
@@ -61,10 +62,11 @@ header.nav.stuck{border-color:var(--line)}
 header.nav .wrap{display:flex;align-items:center;gap:20px;height:62px}
 header.nav img{height:38px;display:block}
 header.nav nav{display:flex;gap:2px;flex:1;justify-content:center;font-size:15px;font-weight:500}
-header.nav nav a{text-decoration:none;color:var(--dim);padding:8px 13px;border-radius:var(--r);transition:color .15s ease,background-color .15s ease}
+header.nav nav a{white-space:nowrap;text-decoration:none;color:var(--dim);padding:8px 13px;border-radius:var(--r);transition:color .15s ease,background-color .15s ease}
 header.nav nav a:hover{color:var(--text);background:var(--muted)}
 header.nav nav a.on{color:var(--ink);background:var(--soft)}
-header.nav .right{display:flex;align-items:center;gap:8px}
+header.nav .right{display:flex;align-items:center;gap:8px;flex:none;white-space:nowrap}
+@media (max-width:1320px){header.nav nav a{padding:8px 10px}header.nav nav .nv-x{display:none}}
 header.nav .signin{text-decoration:none;font-weight:500;font-size:15px;padding:8px 12px;border-radius:var(--r);transition:background-color .15s ease}
 header.nav .signin:hover{background:var(--muted)}
 header.nav .btn{height:40px;border-radius:999px}
@@ -529,7 +531,7 @@ footer.site .fbottom{display:flex;justify-content:space-between;gap:12px;flex-wr
 <header class="nav" id="nav"><div class="wrap">
   <a href="/" aria-label="ClipKontrast home"><img src="/brand/logo.svg" alt="ClipKontrast"></a>
   <nav aria-label="Sections">
-    <a href="#how">How it works</a><a href="#campaigns">Campaigns</a><a href="#leaderboard">Leaderboard</a><a href="#faq">FAQ</a><a href="/download">Download app</a><a href="/launch">For brands</a>
+    <a href="#how">How it works</a><a href="#campaigns">Campaigns</a><a class="nv-x" href="#leaderboard">Leaderboard</a><a href="#faq">FAQ</a><a class="nv-x" href="/download">Download app</a><a href="/launch">For brands</a>
   </nav>
   <div class="right" id="navRight">
     <a class="signin" href="/login?next=%2Fearn">Sign in</a>
@@ -1079,7 +1081,7 @@ function drawDash() {
   $("#dash").innerHTML = `
     <div class="dash-top"><div class="hello"><div class="ava">${esc((p.display_name || u.name || "?")[0].toUpperCase())}</div>
       <div><div class="kicker" style="margin:0"><i></i>My earnings</div><h2 style="font-size:30px">Hey ${esc(p.display_name || u.name)}</h2></div></div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap">${u.is_admin ? `<a class="btn sm" href="/admin/earn">Manage campaigns</a>` : ""}<a class="btn sm" href="${S.data.earn_only && !u.is_admin ? "#download" : "/app"}">Make clips</a><button class="btn sm" data-act="signout">Sign out</button></div></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">${u.is_admin ? `<a class="btn sm" href="/admin/earn">Manage campaigns</a>` : ""}${S.data.earn_only ? `<a class="btn sm" href="${esc(S.data.download_url)}" data-openapp>Make clips</a>` : `<a class="btn sm" href="/app">Make clips</a>`}<button class="btn sm" data-act="signout">Sign out</button></div></div>
     ${verifyNote}
     <div class="kpis">
       <div class="kpi hi"><span>Owed to you</span><b>${inr2(t.owed)}</b><small>approved, waiting for payout</small></div>
@@ -1102,7 +1104,8 @@ function setCtas(href, text) {
 function drawNav() {
   const r = $("#navRight");
   if (S.user) {
-    r.innerHTML = `<a class="signin" href="#me">My earnings</a><a class="signin" href="#" data-act="signout">Sign out</a>${S.data.earn_only && !S.user.is_admin ? `<a class="btn primary" href="#download">Download clip maker</a>` : `<a class="btn primary" href="/app">Open ClipKontrast</a>`}`;
+    // on the website the button opens the app installed on this computer (or offers it), never the clip studio page
+    r.innerHTML = `<a class="signin" href="#me">My earnings</a>${S.data.earn_only && S.user.is_admin ? `<a class="signin" href="/admin/earn">Admin</a>` : ""}<a class="signin" href="#" data-act="signout">Sign out</a>${S.data.earn_only ? `<a class="btn primary" href="${esc(S.data.download_url)}" data-openapp>Open the app</a>` : `<a class="btn primary" href="/app">Open ClipKontrast</a>`}`;
     // signed in: join a campaign first, then the button takes them to their earnings
     const open = S.data.campaigns.filter(c => c.open), joined = open.filter(c => (S.me?.joined || []).includes(c.id));
     if (joined.length || !open.length) setCtas("#me", "My earnings");
@@ -1171,6 +1174,7 @@ async function load() {
   S.user = S.data.user;
   if (S.user) { try { S.me = await api("/api/earn/me"); } catch { S.me = null; S.user = null; } }
   const dl = S.data.download_url;
+  window.CK_DOWNLOAD = dl;
   if (S.data.earn_only || S.data.accounts === false) { for (const b of [$("#dlBtn"), $("#heroDl"), $("#finalDl"), $("#mbarDl")]) { if (!b) continue; b.href = dl; if (!dl.startsWith("/") && !dl.startsWith(location.origin)) { b.target = "_blank"; b.rel = "noopener"; } } }
   else { $("#dlBtn").textContent = "Open the clip maker"; $("#dlHelp").hidden = true; }
   drawNav(); drawHero(); drawCamps(); drawLb(); drawDash();
