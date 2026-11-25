@@ -223,7 +223,7 @@ footer a{color:var(--dim);text-decoration:none;margin-left:18px}
 <div class="wrap">
   <header><div class="navbar">
     <a class="logo" href="/" aria-label="ClipKontrast home"><img src="/brand/logo-light.svg" alt="ClipKontrast"></a>
-    <nav aria-label="Sections"><a href="#how">How it works</a><a href="#pricing">Pricing</a><a href="#faq">FAQ</a></nav>
+    <nav aria-label="Sections"><a href="#how">How it works</a><a href="#handled">What we handle</a><a href="#faq">FAQ</a></nav>
     <span class="sp"></span>
     <div class="who" role="navigation" aria-label="Who you are"><a href="/earn"><i></i><span class="long">For </span>Clippers</a><a class="on" href="/launch" aria-current="page"><i></i><span class="long">For Creators &amp; </span>Brands</a></div>
     <a class="btn sm hide-s talk" href="#start" hidden>Talk to us</a><a class="btn sm primary hide-s" href="#start">Launch a campaign</a>
@@ -284,13 +284,13 @@ footer a{color:var(--dim);text-decoration:none;margin-left:18px}
     </div>
   </section>
 
-  <section id="pricing">
-    <div class="kick mono reveal"><i></i>Pricing</div>
-    <h2 class="reveal">One simple fee. <span class="serif">Everything</span> handled.</h2>
+  <section id="handled">
+    <div class="kick mono reveal"><i></i>What we handle</div>
+    <h2 class="reveal">You bring the streams. <span class="serif">We handle</span> the rest.</h2>
     <div class="inc">
-      <div class="inc-card reveal"><h3>Management fee</h3><div class="pct" id="feePct">30%</div>
-        <p id="feeLine">of your campaign budget. The rest goes to the clippers, paid per 1,000 views.</p>
-        <p style="margin-top:18px">Campaigns start at <b style="color:var(--text)" id="minB">₹1,00,000</b>.</p></div>
+      <div class="inc-card reveal"><h3>A managed campaign</h3><div class="pct">0 work</div>
+        <p>for you after launch. We run your campaign end to end, and you see the clips and the views as they come in.</p>
+        <p style="margin-top:18px;padding-top:16px;border-top:1px solid var(--line)"><b style="color:var(--text)">The ClipKontrast clip maker stays free for clippers.</b> Campaigns are paid by the creators and brands who launch them.</p></div>
       <div class="list">
         <div class="reveal"><svg viewBox="0 0 256 256"><path d="M208,40H48A16,16,0,0,0,32,56v58.77c0,89.61,75.82,119.34,91,124.39a15.53,15.53,0,0,0,10,0c15.2-5.05,91-34.78,91-124.39V56A16,16,0,0,0,208,40Zm-34.32,69.66-56,56a8,8,0,0,1-11.32,0l-24-24a8,8,0,0,1,11.32-11.32L112,148.69l50.34-50.35a8,8,0,0,1,11.32,11.32Z"/></svg><span><b>Every clip verified</b>Right channel, right tag, posted on time.</span></div>
         <div class="reveal"><svg viewBox="0 0 256 256"><path d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm-8,56a8,8,0,0,1,16,0v56a8,8,0,0,1-16,0Zm8,104a12,12,0,1,1,12-12A12,12,0,0,1,128,184Z"/></svg><span><b>Fraud checks</b>Fake views and reuploads are caught before payout.</span></div>
@@ -315,10 +315,8 @@ footer a{color:var(--dim);text-decoration:none;margin-left:18px}
         <input type="range" id="rR" min="10" max="60" step="1" value="25" aria-label="Rate per 1,000 views">
         <div class="split">
           <div class="big"><span>Estimated views</span><b id="cV">28 L</b></div>
-          <div><span>Clipper pool</span><b id="cP">₹70,000</b></div>
-          <div><span id="cFl">Management fee (30%)</span><b id="cF">₹30,000</b></div>
         </div>
-        <p class="note">An estimate: views = clipper pool ÷ rate × 1,000. Real results depend on your content and the clips.</p>
+        <p class="note">An estimate. Real results depend on your content and the clips; we share a forecast for your campaign on the call.</p>
       </div>
 
       <form class="card reveal" id="lf" novalidate>
@@ -344,7 +342,7 @@ footer a{color:var(--dim);text-decoration:none;margin-left:18px}
           <input class="hp" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
           <div class="err" id="err" role="alert"></div>
           <button class="btn primary" type="submit" id="go">Send campaign request <svg viewBox="0 0 256 256"><path d="M221.66,133.66l-72,72a8,8,0,0,1-11.32-11.32L196.69,136H40a8,8,0,0,1,0-16H196.69L138.34,61.66a8,8,0,0,1,11.32-11.32l72,72A8,8,0,0,1,221.66,133.66Z"/></svg></button>
-          <p class="fine">No payment now. We'll talk first, then send the plan.</p>
+          <p class="fine">No payment now. We'll talk first, then send the plan. Campaigns start at ₹1,00,000.</p>
         </div>
         <div class="done" id="done" role="status"><div class="tick"><svg viewBox="0 0 256 256"><path d="M229.66,77.66l-128,128a8,8,0,0,1-11.32,0l-56-56a8,8,0,0,1,11.32-11.32L96,188.69,218.34,66.34a8,8,0,0,1,11.32,11.32Z"/></svg></div>
           <h3>Request sent</h3><p>Thanks! We'll reach you on email or WhatsApp with the next steps.</p></div>
@@ -358,7 +356,7 @@ footer a{color:var(--dim);text-decoration:none;margin-left:18px}
     <div class="faq">
       <details class="reveal"><summary>Who are the clippers?</summary><p>Creators of short videos across India who use ClipKontrast's free clip-maker. They join your campaign, make clips from your streams, and post them on their own YouTube, Instagram and X accounts.</p></details>
       <details class="reveal"><summary>How are views checked?</summary><p>Every clip sent in is checked before anyone is paid: that it's from the clipper's own account, posted after the campaign started, with the right tag. YouTube views are read from YouTube itself; Instagram and X views from the post's insights. Clips that break the rules or show fake views are rejected.</p></details>
-      <details class="reveal"><summary>What does the management fee cover?</summary><p>Setting up the campaign (brief, best moments, rules), putting it in front of our clippers, checking every clip, catching fraud, paying every clipper, and reporting the results to you.</p></details>
+      <details class="reveal"><summary>Is the ClipKontrast app still free?</summary><p>Yes. The ClipKontrast clip maker is free for everyone who clips, and it stays free. Campaigns are paid by the creators and brands who launch them, and that money goes to the clippers who make the clips.</p></details>
       <details class="reveal"><summary>What's the minimum budget?</summary><p id="faqMin">Campaigns start at ₹1,00,000.</p></details>
       <details class="reveal"><summary>Do I need to do anything after launch?</summary><p>No. We run the campaign and keep you posted on clips and views. You can send us new streams and moments any time.</p></details>
     </div>
@@ -382,9 +380,7 @@ function split(b) {
 function calc() {
   const b = Number($("#rB").value), r = Number($("#rR").value), s = split(b);
   $("#cB").textContent = inr(b); $("#cR").textContent = inr(r);
-  $("#cP").textContent = inr(s.pool); $("#cF").textContent = inr(s.fee);
   $("#cV").textContent = short(s.pool / r * 1000);
-  $("#cFl").textContent = `Management fee (${P.fee_pct}%${P.fee_mode === "on_top" ? ", on top" : ""})`;
 }
 $("#rB").addEventListener("input", () => { $("#budget").value = $("#rB").value; markBudget(); calc(); });
 $("#rR").addEventListener("input", () => { $("#rate").value = $("#rR").value; calc(); });
@@ -399,9 +395,7 @@ markBudget(); calc();
 fetch("/api/public/launch").then(r => r.ok ? r.json() : null).then(d => {
   if (!d) return;
   P = d.pricing || P; calc();
-  $("#feePct").textContent = P.fee_pct + "%";
-  $("#feeLine").textContent = P.fee_mode === "on_top" ? "added to your clipper budget. All of your budget goes to the clippers, paid per 1,000 views." : "of your campaign budget. The rest goes to the clippers, paid per 1,000 views.";
-  $("#minB").textContent = inr(P.min_budget); $("#faqMin").textContent = `Campaigns start at ${inr(P.min_budget)}.`;
+  $("#faqMin").textContent = `Campaigns start at ${inr(P.min_budget)}.`;
   $("#budget").min = P.min_budget; $("#rB").min = P.min_budget;
   $("#category").innerHTML = '<option value="">Choose</option>' + (d.categories || []).map(c => `<option>${c}</option>`).join("");
   $("#plats").innerHTML = Object.entries(d.platforms || {}).map(([k, v]) => `<label><input type="checkbox" name="platforms" value="${k}" ${k !== "tiktok" ? "checked" : ""}>${v}</label>`).join("");
