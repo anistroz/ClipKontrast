@@ -189,6 +189,7 @@ const TABS = {overview: ["Overview", "home", "Campaigns, clips waiting for revie
   review: ["Review clips", "check", "Check each clip, set its views, then approve or reject it"],
   clippers: ["Clippers", "users", "Everyone who signed up: payout details, account handles and campaigns"],
   payouts: ["Payouts", "money", "What each clipper is owed, and the record of what was sent"],
+  requests: ["Campaign requests", "flag", "Creators, brands and agencies who asked to launch a campaign (clipkontrast.com/launch)"],
   bugs: ["Bug reports", "bug", "Problems people reported from the app and the website, with what their app sent along"],
   settings: ["Settings", "gear", "The YouTube key that counts views automatically"]};
 const S = {tab: (location.pathname.split("/")[3] || "overview"), bugs: null, bStatus: "new", open: new Set(), sum: null, camps: [], queue: null, qStatus: "pending", qCamp: "", q: "", owed: null, sel: new Set()};
@@ -207,7 +208,7 @@ function toast(m, k = "") { $$(".toast").forEach(t => t.remove()); const t = doc
 
 function nav() {
   const pend = S.sum?.pending, owedN = S.sum?.owed_people;
-  $("#nav").innerHTML = Object.entries(TABS).map(([k, [l, i]]) => `<a class="ni ${S.tab === k ? "on" : ""}" href="/admin/earn/${k}" data-tab="${k}">${ic(i)}${l}${k === "review" && pend ? `<span class="cnt">${pend}</span>` : ""}${k === "payouts" && owedN ? `<span class="cnt">${owedN}</span>` : ""}${k === "bugs" && S.bugs && S.bugs.counts.new ? `<span class="cnt">${S.bugs.counts.new}</span>` : ""}</a>`).join("");
+  $("#nav").innerHTML = Object.entries(TABS).map(([k, [l, i]]) => `<a class="ni ${S.tab === k ? "on" : ""}" href="/admin/earn/${k}" data-tab="${k}">${ic(i)}${l}${k === "review" && pend ? `<span class="cnt">${pend}</span>` : ""}${k === "payouts" && owedN ? `<span class="cnt">${owedN}</span>` : ""}${k === "bugs" && S.bugs && S.bugs.counts.new ? `<span class="cnt">${S.bugs.counts.new}</span>` : ""}${k === "requests" && S.reqs && S.reqs.counts.new ? `<span class="cnt">${S.reqs.counts.new}</span>` : ""}</a>`).join("");
   const [t, , sub] = TABS[S.tab]; $("#title").textContent = t; $("#subtitle").textContent = sub;
   $("#actions").innerHTML = S.tab === "campaigns" || S.tab === "overview" ? `<button class="btn primary" data-act="new">+ New campaign</button>` :
     S.tab === "review" ? `<a class="btn" href="/api/admin/earn/submissions.csv" title="Every clip from every campaign, with clipper details, checks and views">Export all clips (CSV)</a><button class="btn" data-act="yt-refresh">Refresh YouTube views</button>` :
@@ -590,6 +591,34 @@ function momentsPreview() {
 
 
 // ---------------------------------------------------------------- bug reports
+// ---------------------------------------------------------------- campaign requests (clipkontrast.com/launch)
+const REQ_ROLE = {creator: "Creator / streamer", brand: "Brand", agency: "Agency"};
+const REQ_ST = {new: ["New", "pending"], contacted: ["Contacted", "draft"], won: ["Won", "ready"], lost: ["Lost", "rejected"]};
+function drawRequests() {
+  const r = S.reqs; if (!r) return "Loading…";
+  const st = S.rStatus || "new", items = r.items.filter(x => st === "all" || x.status === st), pr = r.pricing || {};
+  return `<div class="filters"><div class="seg">${[...Object.keys(REQ_ST), "all"].map(k => `<button class="${st === k ? "on" : ""}" data-act="rstatus" data-s="${k}">${k === "all" ? "All" : REQ_ST[k][0]}${r.counts[k] ? `<span class="c">${r.counts[k]}</span>` : ""}</button>`).join("")}</div>
+      <span style="color:var(--faint);font-size:13px">Minimum ${inr(pr.min_budget)} · fee ${pr.fee_pct}% ${pr.fee_mode === "on_top" ? "on top of" : "included in"} the budget · <a href="/launch" target="_blank" style="color:inherit">open the page ↗</a></span></div>
+    ${items.length ? items.map(x => `<div class="card" style="margin-top:0;margin-bottom:12px">
+      <div style="display:flex;gap:12px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap">
+        <div><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><b style="font-size:17px">${esc(x.org || x.name)}</b><span class="chip ${REQ_ST[x.status][1]}">${REQ_ST[x.status][0]}</span><span class="chip draft">${esc(REQ_ROLE[x.role] || x.role)}</span></div>
+          <div style="color:var(--faint);font-size:13px;margin-top:4px">#${x.id} · ${esc(ago(x.t))} · ${esc(x.name)} · <a href="mailto:${esc(x.email)}">${esc(x.email)}</a>${x.whatsapp ? ` · <a href="https://wa.me/${esc(x.whatsapp.replace(/\D/g, ""))}" target="_blank" rel="noopener">${esc(x.whatsapp)}</a>` : ""}</div></div>
+        <div style="text-align:right"><div style="font-size:22px;font-weight:700">${inr(x.budget)}</div>
+          <div style="color:var(--faint);font-size:12.5px">${inr(x.split.pool)} to clippers · ${inr(x.split.fee)} fee</div></div></div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px;margin-top:12px;font-size:13.5px">
+        ${x.rate ? `<div><span style="color:var(--faint)">Rate</span><br>${inr(x.rate)} / 1K views</div>` : ""}
+        ${x.platforms.length ? `<div><span style="color:var(--faint)">Platforms</span><br>${x.platforms.map(p => esc(PLAT[p] || p)).join(", ")}</div>` : ""}
+        ${x.category ? `<div><span style="color:var(--faint)">Content</span><br>${esc(x.category)}</div>` : ""}
+        ${x.start || x.duration ? `<div><span style="color:var(--faint)">When</span><br>${esc([x.start, x.duration].filter(Boolean).join(" · "))}</div>` : ""}</div>
+      ${x.links.length ? `<div style="margin-top:10px;font-size:13.5px">${x.links.map(l => `<a href="${esc(safeUrl(l))}" target="_blank" rel="noopener" style="display:block">${esc(l)}</a>`).join("")}</div>` : ""}
+      ${x.brief ? `<p style="margin:10px 0 0;white-space:pre-line;color:var(--dim);font-size:14px">${esc(x.brief)}</p>` : ""}
+      <textarea class="inp" data-rnotes="${x.id}" rows="2" placeholder="Your notes (only admins see them)" style="width:100%;height:auto;margin-top:12px;padding:8px 12px">${esc(x.notes || "")}</textarea>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">
+        ${Object.keys(REQ_ST).filter(k => k !== x.status).map(k => `<button class="btn xs" data-act="rset" data-id="${x.id}" data-s="${k}">Mark ${REQ_ST[k][0].toLowerCase()}</button>`).join("")}
+        <span style="flex:1"></span>${x.campaign_id ? `<span style="font-size:13px;color:var(--good)">Campaign made</span>` : `<button class="btn xs primary" data-act="rmake" data-id="${x.id}">Create campaign from this</button>`}</div></div>`).join("")
+      : `<div class="empty"><b>No requests here</b>Requests from clipkontrast.com/launch show up here, and you get a notification for each.</div>`}`;
+}
+
 function drawBugs() {
   const b = S.bugs; if (!b) return "Loading…";
   const c = b.counts, all = Object.values(c).reduce((x, y) => x + y, 0);
@@ -620,7 +649,7 @@ function drawBugs() {
 // ---------------------------------------------------------------- drawing and loading
 function draw() {
   nav();
-  $("#view").innerHTML = !S.sum ? "Loading…" : {overview: drawOverview, campaigns: drawCampaigns, review: drawReview, clippers: drawClippers, payouts: drawPayouts, bugs: drawBugs, settings: drawSettings}[S.tab]();
+  $("#view").innerHTML = !S.sum ? "Loading…" : {overview: drawOverview, campaigns: drawCampaigns, review: drawReview, clippers: drawClippers, payouts: drawPayouts, requests: drawRequests, bugs: drawBugs, settings: drawSettings}[S.tab]();
 }
 async function loadQueue() { S.queue = await api(`/api/admin/earn/submissions?status=${S.qStatus === "all" ? "" : S.qStatus}&campaign=${encodeURIComponent(S.qCamp)}&q=${encodeURIComponent(S.q)}`); }
 async function load() {
@@ -628,6 +657,8 @@ async function load() {
   if (S.tab === "review") await loadQueue();
   if (S.tab === "payouts") S.owed = await api("/api/admin/earn/owed");
   if (S.tab === "clippers") S.clippers = (await api("/api/admin/earn/clippers")).clippers;
+  if (S.tab === "requests") S.reqs = await api("/api/admin/earn/requests");
+  else if (!S.reqs) api("/api/admin/earn/requests").then(r => { S.reqs = r; nav(); }).catch(() => {});
   if (S.tab === "bugs") S.bugs = await api("/api/admin/feedback");
   else if (!S.bugs) api("/api/admin/feedback").then(b => { S.bugs = b; nav(); }).catch(() => {});
   if (S.tab === "settings") { try { S.mail = (await api("/api/public")).mail; } catch {} }
@@ -645,9 +676,20 @@ document.addEventListener("click", async e => {
     if (act === "cclear") { S.cf = {...CF_DEFAULT}; S.cq = ""; S.cLimit = 300; draw(); return; }
     if (act === "cmore") { S.cLimit = (S.cLimit || 300) + 300; draw(); return; }
     if (act === "ccsv") { clippersCsv(clippersShown()); toast("CSV downloaded."); return; }
-    if (act === "new") openForm();
+    if (act === "rstatus") { S.rStatus = a.dataset.s; draw(); return; }
+    if (act === "rset") { await api(`/api/admin/earn/requests/${id}`, {method: "POST", body: {status: a.dataset.s}}); S.reqs = await api("/api/admin/earn/requests"); draw(); toast("Saved."); return; }
+    if (act === "rmake") {
+      const x = S.reqs.items.find(i => String(i.id) === String(id)); if (!x) return;
+      S.fromReq = x.id;
+      openForm({title: (x.org || x.name) + " campaign", creator_name: x.org || x.name, creator_url: x.links[0] || "", tagline: "", category: x.category === "Gaming" ? "Gaming" : (x.category || "Gaming"),
+        brief: x.brief || "", raw_rules: "Hook the viewer in the first 2 seconds, with text on screen\nBurned-in captions, readable on a phone\nCredit the creator and link their channel in the caption\nNo copyrighted music\nNo botted or bought views",
+        raw_sources: "", platforms: x.platforms.length ? x.platforms : ["youtube", "instagram", "x"], required_tag: "", rate_per_1k: x.rate || 25, min_views: 1000, max_per_clip: 0,
+        budget: Math.round(x.split.pool), hold_days: 7, status: "draft", starts_at: null, ends_at: null, accent: "#C6F432"});
+      return;
+    }
+    if (act === "new") { S.fromReq = null; openForm(); }
     else if (act === "edit") openForm(S.camps.find(c => c.id === id));
-    else if (act === "close" || (act === "close-bg" && e.target === a)) $("#modal").innerHTML = "";
+    else if (act === "close" || (act === "close-bg" && e.target === a)) { $("#modal").innerHTML = ""; S.fromReq = null; }
     else if (act === "status") {
       const c = await api("/api/admin/earn/campaigns/" + id, {method: "PUT", body: {status: a.dataset.s}});
       toast(c && c.state === "open" ? "Live and open. Clippers can join now." : c && c.state === "starts" ? `Live. It opens ${fmtWhen(c.starts_at)}, and shows locked until then.` : "Campaign is now " + (STATUS_LABEL[a.dataset.s] || a.dataset.s).toLowerCase() + ".", c && c.state === "starts" ? "" : "good");
@@ -695,6 +737,10 @@ document.addEventListener("click", async e => {
   } catch (err) { toast(err.message, "bad"); }
 });
 document.addEventListener("change", async e => {
+  if (e.target.dataset.rnotes) {
+    try { await api(`/api/admin/earn/requests/${e.target.dataset.rnotes}`, {method: "POST", body: {notes: e.target.value}}); toast("Notes saved."); } catch (err) { toast(err.message, "bad"); }
+    return;
+  }
   if (e.target.dataset.sel) { e.target.checked ? S.sel.add(+e.target.dataset.sel) : S.sel.delete(+e.target.dataset.sel); draw(); return; }
   if (e.target.dataset.act === "qcamp") { S.qCamp = e.target.value; await loadQueue(); draw(); return; }
   if (e.target.dataset.cf) { S.cf = {...CF_DEFAULT, ...(S.cf || {}), [e.target.dataset.cf]: e.target.value}; S.cLimit = 300; draw(); return; }
@@ -733,6 +779,10 @@ document.addEventListener("submit", async e => {
       const file = f.cover_new && f.cover_new.files[0]; delete d.cover_new;
       const c = await api("/api/admin/earn/campaigns" + (f.dataset.id ? "/" + f.dataset.id : ""), {method: f.dataset.id ? "PUT" : "POST", body: d});
       if (file) { const fd = new FormData(); fd.append("file", file); try { await api(`/api/admin/earn/campaigns/${c.id}/cover`, {method: "POST", body: fd}); } catch (err) { toast("Saved, but the cover didn't upload: " + err.message, "bad"); } }
+      if (!f.dataset.id && S.fromReq) {          // made from a campaign request: it's won, and points at its campaign
+        try { await api(`/api/admin/earn/requests/${S.fromReq}`, {method: "POST", body: {status: "won", campaign_id: c.id}}); } catch {}
+        S.fromReq = null; S.reqs = null;
+      }
       toast(f.dataset.id ? "Saved." : (c.status === "live" ? "Campaign created and live." : "Campaign created. Press Go live when it's ready."), "good");
       await load();
       if (!f.dataset.id) openForm(S.camps.find(x => x.id === c.id)); else $("#modal").innerHTML = "";

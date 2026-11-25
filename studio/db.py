@@ -91,6 +91,28 @@ feedback = sa.Table(                                                          # 
     sa.Column("diag", sa.Text, nullable=False, server_default=""),           # technical details: recent errors, the log's end
     sa.Column("shot", sa.Integer, nullable=False, server_default="0"),       # 1 when a screenshot came with it
 )
+earn_requests = sa.Table(                                                     # "Launch a campaign": creators and brands asking
+    "earn_requests", meta,
+    sa.Column("id", sa.Integer, primary_key=True, autoincrement=True),
+    sa.Column("t", sa.Float, nullable=False, index=True),
+    sa.Column("status", sa.String(12), nullable=False, server_default="new", index=True),   # new | contacted | won | lost
+    sa.Column("role", sa.String(20), nullable=False, server_default=""),     # creator | brand | agency
+    sa.Column("name", sa.String(80), nullable=False),
+    sa.Column("email", sa.String(160), nullable=False),
+    sa.Column("whatsapp", sa.String(30), nullable=False, server_default=""),
+    sa.Column("org", sa.String(120), nullable=False, server_default=""),     # the channel or brand
+    sa.Column("links", sa.Text, nullable=False, server_default=""),          # channel links, one per line
+    sa.Column("budget", sa.Float, nullable=False),                            # what they want to spend, in rupees
+    sa.Column("rate", sa.Float),                                              # rupees per 1,000 views they'd like, if said
+    sa.Column("platforms", sa.String(80), nullable=False, server_default=""),
+    sa.Column("start", sa.String(40), nullable=False, server_default=""),
+    sa.Column("duration", sa.String(40), nullable=False, server_default=""),
+    sa.Column("category", sa.String(40), nullable=False, server_default=""),
+    sa.Column("brief", sa.Text, nullable=False, server_default=""),
+    sa.Column("notes", sa.Text, nullable=False, server_default=""),          # the admin's own notes
+    sa.Column("campaign_id", sa.String(24)),                                  # the campaign made from it, once there is one
+    sa.Column("updated_at", sa.Float, nullable=False),
+)
 notices = sa.Table(                                                           # the bell: things worth telling someone about
     "notices", meta,
     sa.Column("id", sa.Integer, primary_key=True, autoincrement=True),

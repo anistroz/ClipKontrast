@@ -90,6 +90,7 @@ def main() -> int:
                 ("from PeakCut upstream: visitor address, clip download names, uploads left behind, caption track", ["tests/test_upstream_phase1.py"]),
                 ("from PeakCut upstream: the AI listens to a clip (Gemini) for the cut, heading and English captions", ["tests/test_listen.py"]),
                 ("from PeakCut upstream: your own big text and description on every clip, hashtags", ["tests/test_own_text.py"]),
+                ("Launch a campaign: requests from creators and brands, pricing, admin list", ["tests/test_launch.py"]),
                 ("paid campaigns in the app: the website feed, pictures, Home and Paid campaigns, the admin editor", ["tests/test_campaigns_app.py", str(ROOT)]),
                 ("facecam-on-top layout and caption styles, rendered", ["tests/test_layouts_styles.py"]),
                 ("new caption styles, Hindi script, your @handle, auto zoom", ["tests/test_looks.py"]),

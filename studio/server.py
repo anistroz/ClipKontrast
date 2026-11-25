@@ -40,10 +40,11 @@ app = FastAPI(title="ClipKontrast", docs_url=None, redoc_url=None, openapi_url=N
 WEB = config.ROOT / "web"
 OPEN = ("/api/auth/", "/pub/", "/download/", "/api/public", "/api/earn/public/", "/earn/cover/", "/auth/google/", "/auth/verify", "/brand/", "/assets/", "/healthz", "/favicon.ico", "/robots.txt", "/sitemap.xml")
 # On an Earn-only website these are the only addresses people other than admins may change things through.
-EARN_ONLY_WRITES = ("/api/auth/", "/api/earn/", "/api/account/delete", "/api/notifications/", "/api/feedback", "/api/public/bug-report")
+EARN_ONLY_WRITES = ("/api/auth/", "/api/earn/", "/api/account/delete", "/api/notifications/", "/api/feedback", "/api/public/bug-report",
+                    "/api/public/campaign-request")
 PAGES = {"/": "landing.html", "/login": "auth.html", "/signup": "auth.html", "/reset": "reset.html",
          "/privacy": "legal.html", "/terms": "legal.html", "/acceptable-use": "legal.html", "/earn": "earn.html",
-         "/clip-maker": "landing.html", "/download": "download.html", "/report": "report.html"}
+         "/clip-maker": "landing.html", "/download": "download.html", "/report": "report.html", "/launch": "launch.html"}
 VIDEO_TYPES = {".mp4", ".mov", ".mkv", ".webm", ".m4v", ".ts", ".flv"}
 CSP = ("default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
        "font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; media-src 'self' blob:; connect-src 'self'; "
@@ -489,6 +490,14 @@ def report_page():
 @app.get("/download")
 def download_page():
     return _page("download.html", shared=True)
+
+
+@app.get("/launch")
+def launch_page():
+    """Launch a campaign: for creators, streamers, brands and agencies. On the downloaded app, the website's page."""
+    if not config.ACCOUNTS:
+        return RedirectResponse(config.EARN_URL + "/launch", 303)
+    return _page("launch.html", shared=True)
 
 
 @app.get("/download/{system}")
@@ -1457,6 +1466,65 @@ async def public_bug_report(request: Request, message: str = Form(""), steps: st
         return await run_in_threadpool(feedback.submit_report, message, steps, contact, app_info, diag, context,
                                        "app" if source == "app" else "website", data, me_.id if me_ else None)
     except feedback.Refused as e:
+        raise HTTPException(400, str(e))
+
+
+# ---------------------------------------------------------------- Launch a campaign (creators, brands, agencies)
+_LAUNCH: dict = {}
+
+
+@app.get("/api/public/launch")
+def launch_info():
+    """What the Launch a campaign page shows: the pricing, and the real numbers behind ClipKontrast (kept a minute)."""
+    from . import leads
+    hit = _LAUNCH.get("v")
+    if hit and time.time() - hit[0] < 60:
+        return hit[1]
+    stats = {}
+    if config.ACCOUNTS:
+        try:
+            ov = earn.overview()
+            stats = {"clippers": ov["clippers"], "views": ov["views"], "live": ov["live"], "ended_budget": ov.get("ended_budget", 0),
+                     "paid_out": ov["paid_out"] if ov["paid_out"] >= 10000 else 0}
+        except Exception:  # noqa: BLE001 - the page works without its numbers
+            stats = {}
+    from . import leads as _l
+    out = {"pricing": leads.pricing(), "stats": stats, "roles": _l.ROLES, "platforms": _l.PLATFORMS, "categories": list(_l.CATEGORIES)}
+    _LAUNCH["v"] = (time.time(), out)
+    return out
+
+
+@app.post("/api/public/campaign-request")
+def campaign_request(request: Request, body: dict = Body(...)):
+    """A creator, brand or agency asks to launch a campaign. Limited per address and in all, so it can't flood anyone."""
+    from . import leads
+    ip = _ip(request)
+    try:
+        auth.throttle("launch-ip:" + ip, 5, 3600)
+        auth.throttle("launch-ip-day:" + ip, 15, 86400)
+        auth.throttle("launch-all", 300, 86400)
+    except auth.AuthError:
+        raise HTTPException(429, "Lots of requests were sent from here recently. Try again in a while, or write to us on WhatsApp.")
+    try:
+        return leads.submit(body if isinstance(body, dict) else {})
+    except leads.Refused as e:
+        raise HTTPException(400, str(e))
+
+
+@app.get("/api/admin/earn/requests")
+def admin_campaign_requests(request: Request, status: str = ""):
+    _admin(request)
+    from . import leads
+    return leads.listing(status)
+
+
+@app.post("/api/admin/earn/requests/{rid}")
+def admin_campaign_request_update(request: Request, rid: int, body: dict = Body(...)):
+    _admin(request)
+    from . import leads
+    try:
+        return leads.update(rid, body if isinstance(body, dict) else {})
+    except leads.Refused as e:
         raise HTTPException(400, str(e))
 
 
