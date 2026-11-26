@@ -129,7 +129,9 @@ def add(uid: str, kind: str, filename: str, upload: Path) -> dict:
                 raise LibraryError("That file isn't a font ClipKontrast can open.")
             dest = d / f"{iid}{ext}"
             shutil.copyfile(upload, dest)
-            item.update(file=f"font/{dest.name}", family=(fam or name)[:60], type=ext[1:])
+            from .render import ass_family
+            item.update(file=f"font/{dest.name}", family=ass_family(dest, " ".join(x for x in (fam, style) if x and x != "Regular") or name)[:60],
+                        type=ext[1:])
         elif kind == "sound":
             info = _probe(upload)
             if not info["audio"]:

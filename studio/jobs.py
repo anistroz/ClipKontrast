@@ -690,8 +690,16 @@ def _render_one(job, clip, words):
                 [{"s": round(w["s"] + off, 3), "e": round(w["e"] + off, 3), "w": w["w"]} for w in near]), encoding="utf-8")
         except (OSError, KeyError, TypeError):
             pass
+        told = {"at": 0.0}
+
+        def made(frac):           # how much of the clip is made: the editor's export bar fills with it
+            clip["made"] = round(frac, 3)
+            if time.time() - told["at"] >= 1.0:
+                told["at"] = time.time()
+                save(job)
+        clip["made"] = 0.0
         out = render.render_clip(src, d / "clips", clip["id"], local, near, meta["width"] or job["width"],
-                                 meta["height"] or job["height"])
+                                 meta["height"] or job["height"], progress=made)
         fx_note = out.pop("fx_note", "")
         # The layout chosen stays the clip's choice; what was really used is kept beside it, with why if they differ.
         used = out.pop("layout", clip.get("layout"))
@@ -706,6 +714,7 @@ def _render_one(job, clip, words):
         if fx_note:
             note = (note + " " if note else "") + fx_note
         clip.update(out, layout_used=used, layout_note=note, status="done", version=clip.get("version", 0) + 1, error=None)
+        clip.pop("made", None)
         post = {k: clip.get(k) for k in ("title", "description", "hashtags", "hook", "start", "end", "score")}
         (d / "clips" / f"{clip['id']}.json").write_text(json.dumps(post, indent=1), encoding="utf-8")
         if clip["version"] == 1:
@@ -719,6 +728,7 @@ def _render_one(job, clip, words):
                     traceback.print_exc()
     except Exception as e:  # noqa: BLE001
         clip.update(status="error", error=safe.friendly(e, 400))
+        clip.pop("made", None)
         creators.log(job["creator"], f"Clip failed: {safe.friendly(e, 200)}")
     save(job)
 

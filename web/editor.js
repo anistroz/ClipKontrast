@@ -69,7 +69,10 @@
 .ed-f{display:block;margin-bottom:12px}.ed-f>span{display:flex;justify-content:space-between;font-size:12px;color:var(--dim);margin-bottom:6px}.ed-f>span b{color:#fff;font-weight:600}
 .ed-in{width:100%;height:36px;border-radius:10px;border:1px solid var(--ln2);background:var(--p2);color:#fff;padding:0 11px;outline:none}
 .ed-in:focus{border-color:var(--lime)}textarea.ed-in{height:auto;padding:9px 11px;resize:vertical;min-height:64px}
-.ed-range{width:100%;accent-color:#C6F432}
+.ed-range{width:100%;-webkit-appearance:none;appearance:none;height:6px;border-radius:9px;margin:10px 0;outline:none;cursor:pointer;background:linear-gradient(90deg,var(--lime) var(--p,50%),var(--p3) var(--p,50%))}
+.ed-range::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:var(--lime);border:3px solid var(--p1)}
+.ed-range::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:var(--lime);border:3px solid var(--p1)}
+.ed-range:hover::-webkit-slider-thumb{background:#D8FF5C}
 .ed-seg{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:4px;padding:3px;border-radius:10px;background:var(--p2);border:1px solid var(--ln)}
 .ed-seg button{border:0;background:transparent;border-radius:8px;padding:6px 4px;font-size:11.5px;font-weight:600;color:var(--dim)}
 .ed-seg button.on{background:var(--p3);color:#fff;box-shadow:inset 0 0 0 1px var(--ln2)}
@@ -142,8 +145,14 @@
 .ed-vidin{position:absolute;top:4px;bottom:4px;border-radius:7px;background-repeat:no-repeat;background-color:#000}
 .ed-cut{position:absolute;top:2px;bottom:2px;background:repeating-linear-gradient(-45deg,rgba(14,11,9,.92) 0 6px,rgba(255,90,90,.35) 6px 8px);border-radius:6px;cursor:pointer;border:1px solid rgba(255,90,90,.5)}
 .ed-cut.sel{outline:2px solid #fff}
+.ed-cut em{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-style:normal;font-size:10px;font-weight:800;color:#FFB3B3;background:rgba(14,11,9,.85);padding:1px 6px;border-radius:6px;white-space:nowrap;pointer-events:none}
+.ed-cut::before,.ed-cut::after{content:"";position:absolute;top:0;bottom:0;width:7px;cursor:ew-resize}.ed-cut::before{left:-2px}.ed-cut::after{right:-2px}
+.ed-cut:hover{border-color:#FF8A8A}
 .ed-seg2{position:absolute;top:4px;bottom:4px;border-radius:7px;cursor:pointer}.ed-seg2:hover{background:rgba(255,255,255,.06)}
 .ed-seg2.sel{box-shadow:inset 0 0 0 2px #7FD3FF;background:rgba(127,211,255,.12)}
+.ed-rng{position:absolute;top:0;bottom:0;background:rgba(127,211,255,.18);border-left:2px solid #7FD3FF;border-right:2px solid #7FD3FF;pointer-events:none;z-index:3}
+.ed-rng span{position:absolute;left:50%;top:-1px;transform:translateX(-50%);font-size:10px;font-weight:800;background:#7FD3FF;color:#08202c;padding:0 6px;border-radius:0 0 6px 6px;white-space:nowrap}
+.ed-vl,.ed-cl{cursor:text}
 .ed-split{position:absolute;top:0;bottom:0;width:2px;background:#fff;opacity:.7;pointer-events:none}
 .ed-handle{position:absolute;top:2px;bottom:2px;width:12px;background:var(--lime);border-radius:4px;cursor:ew-resize;z-index:3;display:grid;place-items:center;touch-action:none}
 .ed-handle::after{content:"";width:2px;height:16px;border-radius:2px;background:var(--ink);opacity:.6}
@@ -189,6 +198,17 @@
 .ed-exp .card{width:min(420px,92vw);background:var(--p1);border:1px solid var(--ln2);border-radius:20px;padding:26px;text-align:center}
 .ed-exp h3{margin:0 0 6px;font-size:18px}.ed-exp p{color:var(--dim);margin:0 0 16px}
 .ed-bar{height:6px;border-radius:9px;background:var(--p3);overflow:hidden;margin:14px 0}.ed-bar i{display:block;height:100%;width:40%;background:var(--lime);border-radius:9px;animation:edbar 1.4s ease-in-out infinite}
+.ed-pct{font-size:44px;font-weight:800;letter-spacing:-.04em;color:var(--lime);line-height:1;margin:2px 0 4px;font-variant-numeric:tabular-nums}
+.ed-pct small{font-size:20px;margin-left:2px}
+.ed-meter{position:relative;height:14px;border-radius:999px;background:var(--p3);overflow:hidden;margin:16px 0 8px}
+.ed-meter i{position:absolute;left:0;top:0;bottom:0;width:0;border-radius:999px;background:linear-gradient(90deg,#9BD10F,var(--lime));transition:width .5s cubic-bezier(.3,.7,.2,1)}
+.ed-meter i::after{content:"";position:absolute;inset:0;background:repeating-linear-gradient(-45deg,rgba(255,255,255,.18) 0 10px,transparent 10px 20px);background-size:28px 28px;animation:edstripe .9s linear infinite}
+.ed-meter.wait i{width:100%!important;background:var(--p2)}.ed-meter.wait i::after{background:repeating-linear-gradient(-45deg,rgba(255,255,255,.07) 0 10px,transparent 10px 20px)}
+@keyframes edstripe{to{background-position:28px 0}}
+.ed-steps{display:flex;justify-content:space-between;gap:6px;margin:0 0 16px;font-size:11.5px;color:var(--faint)}
+.ed-steps span{display:flex;align-items:center;gap:5px}.ed-steps span::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--p3)}
+.ed-steps span.on{color:var(--t)}.ed-steps span.on::before{background:var(--lime)}.ed-steps span.done{color:var(--dim)}.ed-steps span.done::before{background:var(--lime);opacity:.5}
+.ed-eta{font-size:12px;color:var(--dim);display:flex;justify-content:space-between;margin-bottom:6px}
 @keyframes edbar{0%{transform:translateX(-100%)}100%{transform:translateX(260%)}}
 .ed-exp .row{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
 @media (max-width:1280px){.ed-mid{grid-template-columns:64px 268px minmax(0,1fr) 250px}}
@@ -243,7 +263,7 @@
       watermark: clip.watermark || "", splits: [], split: clip.split || "balanced",
       edit: {cuts: deep(ed.cuts || []), fx: deep(ed.fx || []), sfx: deep(ed.sfx || []), punch: deep(ed.punch || []), look: ed.look || "natural",
              hook_fx: ed.hook_fx || "box", hook_y: ed.hook_y || null, cap_y: ed.cap_y || null, hook_dur: ed.hook_dur || 0,
-             media: deep(ed.media || []), hook_font: ed.hook_font || "", cap_font: ed.cap_font || ""}};
+             media: deep(ed.media || []), hook_font: ed.hook_font || "", cap_font: ed.cap_font || "", voice: ed.voice == null ? 1 : ed.voice}};
   }
   async function open(jid, cid) {
     const job = jobOf(jid), clip = job && job.clips.find(c => c.id === cid);
@@ -319,6 +339,7 @@
     E.lastLabel = label || "";
     refresh();
   }
+  function undoTo() { E.doc = JSON.parse(E.hist[E.hi]); refresh(); }     // back to the last saved step, without a new one
   function undo() { if (E.hi > 0) { E.hi--; E.doc = JSON.parse(E.hist[E.hi]); E.sel = null; refresh(); } }
   function redo() { if (E.hi < E.hist.length - 1) { E.hi++; E.doc = JSON.parse(E.hist[E.hi]); E.sel = null; refresh(); } }
 
@@ -377,13 +398,18 @@
     E.root.addEventListener("drop", e => { if (!e.dataTransfer || !e.dataTransfer.files.length) return; e.preventDefault(); E.tool = "library"; drawPanel(); upload([...e.dataTransfer.files]); });
     E.cv = E.root.querySelector("#edCanvas"); E.ctx = E.cv.getContext("2d");
     E.lane = E.root.querySelector("#edLane"); E.inner = E.root.querySelector("#edInner");
+    E.lane.addEventListener("wheel", onWheel, {passive: false});
+    // sliders show how far along they are (the lime part), whenever a panel is drawn and as they move
+    const fill = r => r.style.setProperty("--p", `${(Number(r.value) - Number(r.min || 0)) / ((Number(r.max) || 1) - Number(r.min || 0)) * 100}%`);
+    new MutationObserver(() => E && E.root.querySelectorAll(".ed-range").forEach(fill)).observe(E.root, {childList: true, subtree: true});
+    E.root.addEventListener("input", e => { if (e.target.classList && e.target.classList.contains("ed-range")) fill(e.target); });
     drawPanel(); drawInsp(); drawState();
   }
 
   function startMedia() {
     const v = document.createElement("video");
     v.src = E.data.preview; v.preload = "auto"; v.playsInline = true; v.crossOrigin = "anonymous";
-    v.muted = false; E.v = v;
+    v.muted = false; E.v = v; voiceVol();
     v.addEventListener("loadeddata", () => {
       if (!E) return;
       E.root.querySelector(".ed-loading")?.remove();
@@ -692,23 +718,26 @@
     const keep = keepOf(doc);
     for (const [a, b] of keep) v += `<div class="ed-vidin" style="left:${X(a)}px;width:${X(b) - X(a)}px;${vs}background-position:${-X(a)}px 0"></div>`;
     // segments between splits / cuts, selectable
-    const bounds = [...new Set([doc.start, doc.end, ...(doc.splits || []).filter(s => s > doc.start && s < doc.end), ...cutsMerged(ed.cuts, doc.start, doc.end).flat()])].sort((a, b) => a - b);
+    // the parts between splits, selectable (a click on the track picks one only once the clip has been split)
+    const sp = (doc.splits || []).filter(s => s > doc.start && s < doc.end);
+    const bounds = sp.length ? [...new Set([doc.start, doc.end, ...sp])].sort((a, b) => a - b) : [];
     for (let i = 0; i < bounds.length - 1; i++) {
       const a = bounds[i], b = bounds[i + 1]; if (b - a < 0.05 || inCut(doc, (a + b) / 2)) continue;
       v += `<div class="ed-seg2${E.sel && E.sel.k === "seg" && Math.abs(E.sel.a - a) < 1e-3 ? " sel" : ""}" data-tseg="${a},${b}" style="left:${X(a)}px;width:${X(b) - X(a)}px"></div>`;
     }
-    cutsMerged(ed.cuts, doc.start, doc.end).forEach(([a, b], i) => v += `<div class="ed-cut${E.sel && E.sel.k === "cut" && E.sel.i === i ? " sel" : ""}" data-cut="${i}" title="Cut out. Click, then Delete to bring it back" style="left:${X(a)}px;width:${Math.max(4, X(b) - X(a))}px"></div>`);
+    cutsMerged(ed.cuts, doc.start, doc.end).forEach(([a, b], i) => v += `<div class="ed-cut${E.sel && E.sel.k === "cut" && E.sel.i === i ? " sel" : ""}" data-cut="${i}" title="Cut out (${(b - a).toFixed(1)} s). Drag an edge to change it; click, then Delete to bring it back" style="left:${X(a)}px;width:${Math.max(4, X(b) - X(a))}px">${X(b) - X(a) > 52 ? `<em>✂ ${(b - a).toFixed(1)}s</em>` : ""}</div>`);
     (doc.splits || []).forEach(s => { if (s > doc.start && s < doc.end) v += `<i class="ed-split" style="left:${X(s)}px"></i>`; });
     v += `<div class="ed-clipr" style="left:${X(doc.start)}px;width:${X(doc.end) - X(doc.start)}px"></div>`;
+    if (E.sel && E.sel.k === "range") v += `<div class="ed-rng" style="left:${X(E.sel.a)}px;width:${Math.max(2, X(E.sel.b) - X(E.sel.a))}px"><span>${(E.sel.b - E.sel.a).toFixed(1)} s</span></div>`;
     v += `<div class="ed-handle" data-h="start" title="Drag to change where the clip starts" style="left:${X(doc.start) - 6}px"></div><div class="ed-handle" data-h="end" title="Drag to change where the clip ends" style="left:${X(doc.end) - 6}px"></div>`;
     ed.fx.forEach((f, i) => v += `<div class="ed-tr${E.sel && E.sel.k === "fx" && E.sel.i === i ? " sel" : ""}" data-fx="${i}" title="${esc(d.options.transitions[f.type])}" style="left:${X(f.t)}px"></div>`);
-    html += `<div class="ed-ln" style="height:${hh[2]}px">${v}</div>`;
+    html += `<div class="ed-ln ed-vl" style="height:${hh[2]}px">${v}</div>`;
     // captions
     const cutW = w => cutsMerged(ed.cuts, doc.start, doc.end).some(([a, b]) => (w.s + w.e) / 2 >= a && (w.s + w.e) / 2 < b);
     let cw = "";
     for (const w of d.words) { const wx = X(w.s), ww = Math.max(6, X(w.e) - wx - 2);
       cw += `<span class="ed-word${cutW(w) ? " cut" : ""}${w.s < doc.start || w.s >= doc.end ? " " : ""}" data-word="${w.s}" style="left:${wx}px;width:${ww}px;${w.s < doc.start || w.s >= doc.end ? "opacity:.35;" : ""}${ww < 30 ? "font-size:9px;padding:0 2px" : ""}">${ww > 13 ? esc(w.w) : ""}</span>`; }
-    html += `<div class="ed-ln" style="height:${hh[3]}px">${doc.captions ? cw : `<span style="position:absolute;left:${X(doc.start) + 8}px;top:8px;color:var(--faint);font-size:11px">Captions are off</span>`}</div>`;
+    html += `<div class="ed-ln ed-cl" style="height:${hh[3]}px">${E.sel && E.sel.k === "range" ? `<div class="ed-rng" style="left:${X(E.sel.a)}px;width:${Math.max(2, X(E.sel.b) - X(E.sel.a))}px"></div>` : ""}${doc.captions ? cw : `<span style="position:absolute;left:${X(doc.start) + 8}px;top:8px;color:var(--faint);font-size:11px">Captions are off</span>`}</div>`;
     // text
     const hs = doc.start, he = ed.hook_dur > 0 ? fromOut(doc, Math.min(outLen(doc), ed.hook_dur)) : doc.end;
     html += `<div class="ed-ln" style="height:${hh[4]}px">${doc.hook.trim() ? `<div class="ed-txt${E.sel && E.sel.k === "hook" ? " sel" : ""}" data-hook="1" style="left:${X(hs)}px;width:${Math.max(30, X(he) - X(hs))}px">${esc(doc.hook)} · ${esc(d.options.hook_fx[ed.hook_fx])}</div>` : ""}</div>`;
@@ -828,7 +857,10 @@
     } else if (E.tool === "audio") {
       h += `<div class="ed-sec"><div class="ed-h">Sound effects <em>Made by ClipKontrast · free to use</em></div><p class="ed-help">▶ to hear it, + to add it at the playhead. Whooshes and risers start just before, so they land on the moment.</p>
         <div class="ed-chips">${Object.entries(o.sounds).map(([k, v]) => `<span class="ed-chip"><span>${SFX_ICON[k] || "♪"} ${esc(v)}</span><button class="pl" data-hear="${k}" title="Hear it">▶</button><button class="pl" data-addsfx="${k}" title="Add at the playhead">+</button></span>`).join("")}</div></div>
-        <div class="ed-sec"><div class="ed-h">Voice</div><div class="ed-row"><div><b>Cut silences</b><span>Quiet stretches are shortened</span></div><button class="ed-tg${doc.tighten ? " on" : ""}" data-tg="tighten"></button></div>
+        <div class="ed-sec"><div class="ed-h">Stream sound</div>
+          <label class="ed-f"><span>Volume <b>${Math.round((ed.voice == null ? 1 : ed.voice) * 100)}%</b></span><input class="ed-range" type="range" min="0" max="1.5" step="0.05" data-range="voice" value="${ed.voice == null ? 1 : ed.voice}"></label>
+          <p class="ed-help">Turn it down under music, or to 0% for a meme or music edit.</p>
+          <div class="ed-row"><div><b>Cut silences</b><span>Quiet stretches are shortened</span></div><button class="ed-tg${doc.tighten ? " on" : ""}" data-tg="tighten"></button></div>
         <p class="ed-help">Every clip's sound is evened out to the loudness Shorts, Reels and TikTok expect.</p></div>
         <div class="ed-sec"><div class="ed-h">Your sounds <em>${E.lib.filter(i => i.kind === "sound").length}</em></div>${libSounds() || `<p class="ed-help">Add your own sounds (memes, bass drops, your intro) in Library.</p>`}</div>`;
     } else if (E.tool === "library") {
@@ -867,7 +899,7 @@
   }
   function libSounds() {
     const ss = E.lib.filter(i => i.kind === "sound");
-    return ss.length ? `<div class="ed-chips">${ss.map(i => `<span class="ed-chip"><span>♪ ${esc(i.name)}</span><button class="pl" data-hear="lib:${i.id}" title="Hear it">▶</button><button class="pl" data-addsfx="lib:${i.id}" title="Add at the playhead">+</button>${E.tool === "library" ? `<button class="pl" data-libdel="${i.id}" title="Delete">×</button>` : ""}</span>`).join("")}</div>` : "";
+    return ss.length ? `<div class="ed-chips">${ss.map(i => `<span class="ed-chip"><span>♪ ${esc(i.name)}</span><button class="pl" data-hear="lib:${i.id}" title="Hear it">▶</button><button class="pl" data-addsfx="lib:${i.id}" title="Add at the playhead">+</button><button class="pl" data-music="${i.id}" title="Music under the whole clip">♫</button>${E.tool === "library" ? `<button class="pl" data-libdel="${i.id}" title="Delete">×</button>` : ""}</span>`).join("")}</div>` : "";
   }
   async function loadLibrary() {
     try { const r = await api("/api/library"); if (!E) return; E.lib = r.items || []; } catch { return; }
@@ -945,9 +977,17 @@
         el.innerHTML = `<div class="ed-sel"><i>✂</i><div><b>Cut out</b><span>This part is skipped in the clip</span></div></div><button class="ed-btn sm" data-e="del" style="width:100%;justify-content:center">Bring it back</button>`;
         return;
       }
+      if (s.k === "range") {
+        el.innerHTML = `<div class="ed-sel"><i>⟷</i><div><b>Picked part</b><span>${tc(Math.max(0, toOut(doc, s.a) || 0))} → ${(s.b - s.a).toFixed(1)} s long</span></div></div>
+          <button class="ed-btn sm" data-e="del" style="width:100%;justify-content:center">${eic("trash")}Cut this part out <span class="ed-kbd">Del</span></button>
+          <div style="display:flex;gap:6px;margin-top:6px"><button class="ed-btn sm" data-e="rngkeep" style="flex:1;justify-content:center" title="The clip becomes just this part">Keep only this</button>
+            <button class="ed-btn sm" data-e="rngsplit" style="flex:1;justify-content:center" title="Split at both ends">Split ends</button></div>
+          <p class="ed-help" style="margin-top:10px">Drag on the video or captions track to pick a part. Its edges snap to words. <span class="ed-kbd">Esc</span> lets go of it.</p>`;
+        return;
+      }
       if (s.k === "seg") {
         el.innerHTML = `<div class="ed-sel"><i>▭</i><div><b>Part of the clip</b><span>${(s.b - s.a).toFixed(1)} s</span></div></div><button class="ed-btn sm" data-e="del" style="width:100%;justify-content:center">${eic("trash")}Cut this part out</button>
-          <p class="ed-help" style="margin-top:10px">Split with <span class="ed-kbd">S</span> to make parts, then select one and press <span class="ed-kbd">Del</span>.</p>`;
+          <p class="ed-help" style="margin-top:10px">Or drag on the video track to pick exactly the part to cut, then press <span class="ed-kbd">Del</span>.</p>`;
         return;
       }
       if (s.k === "hook") { E.tool = "text"; drawPanel(); }
@@ -957,7 +997,7 @@
     el.innerHTML = `${c && c.score ? `<div style="margin-bottom:12px"><span class="ed-score">${eic("bolt")}Score ${c.score}</span></div>` : ""}
       <div class="ed-stat"><div><b>${tc(len)}</b><span>Length</span></div><div><b>${ed.fx.length}</b><span>Transitions</span></div><div><b>${ed.sfx.length}</b><span>Sounds</span></div><div><b>${cuts}</b><span>Cuts</span></div></div>
       <div class="ed-h">Shortcuts</div>
-      <div class="ed-keys">${[["Space", "Play / pause"], ["S", "Split at the playhead"], ["Del", "Delete what's selected"], ["T", "Transition here"], ["P", "Punch-in here"],
+      <div class="ed-keys">${[["Space", "Play / pause"], ["Drag", "Pick a part on the track"], ["S", "Split at the playhead"], ["Del", "Delete what's selected"], ["J K L", "Back / pause / play"], ["Ctrl Scroll", "Zoom the timeline"], ["T", "Transition here"], ["P", "Punch-in here"],
         ["I O", "Start / end the clip here"], ["← →", "Step a frame (Shift: 1 s)"], ["Ctrl Z", "Undo"], ["Ctrl Shift Z", "Redo"], ["+ −", "Zoom the timeline"], ["Esc", "Back to the clips"]]
         .map(([k, l]) => `<span>${k.split(" ").map(x => `<span class="ed-kbd">${x}</span>`).join("")}</span><span>${l}</span>`).join("")}</div>
       ${c && c.layout_note ? `<p class="ed-help" style="margin-top:14px">${esc(c.layout_note)}</p>` : ""}`;
@@ -1002,7 +1042,11 @@
     else if (s.k === "punch") ed.punch.splice(s.i, 1);
     else if (s.k === "media") ed.media.splice(s.i, 1);
     else if (s.k === "cut") { const c = cutsMerged(ed.cuts, doc.start, doc.end); c.splice(s.i, 1); ed.cuts = c; }
-    else if (s.k === "seg") { if (!addCut(s.a, s.b)) return; }
+    else if (s.k === "seg" || s.k === "range") {
+      const a = Math.max(doc.start, s.a), b = Math.min(doc.end, s.b);
+      if (b - a < 0.05 || !addCut(a, b)) return;
+      toast(`${(b - a).toFixed(1)} s cut out. Ctrl+Z brings it back.`, "ok");
+    }
     else if (s.k === "hook") { doc.hook = ""; }
     E.sel = null; commit("Delete");
   }
@@ -1069,7 +1113,7 @@
       layout: doc.layout, captions: doc.captions, tighten: doc.tighten, zoom: doc.zoom, watermark: doc.watermark, split: doc.split,
       edit: {cuts: cutsMerged(ed.cuts, doc.start, doc.end), fx: ed.fx.filter(f => f.t >= doc.start && f.t <= doc.end), sfx: ed.sfx.filter(s => s.t >= doc.start - 2 && s.t <= doc.end),
              punch: ed.punch.filter(p => p.t >= doc.start && p.t <= doc.end), look: ed.look, hook_fx: ed.hook_fx, hook_y: ed.hook_y, cap_y: ed.cap_y, hook_dur: ed.hook_dur,
-             media: ed.media.filter(m => m.t >= doc.start && m.t <= doc.end && libOk(m.id)), hook_font: libOk(ed.hook_font) ? ed.hook_font : "", cap_font: libOk(ed.cap_font) ? ed.cap_font : ""}};
+             media: ed.media.filter(m => m.t >= doc.start && m.t <= doc.end && libOk(m.id)), hook_font: libOk(ed.hook_font) ? ed.hook_font : "", cap_font: libOk(ed.cap_font) ? ed.cap_font : "", voice: ed.voice == null ? 1 : ed.voice}};
   }
   /* Hype Edit on a clip without opening it: read its hype, add the edit, make it again. Used by "Hype Edit all"
      on Home and in the Editor page. Says what happened: "done", "same" (already hype-edited) or throws. */
@@ -1088,6 +1132,23 @@
   }
 
   // ---------------------------------------------------------------- export
+  function showMade(c) {          // the export bar: how much of the clip is made, and about how long is left
+    if (!E) return;
+    const f = c.status === "rendering" ? Math.max(0, Math.min(0.99, c.made || 0)) : 0, pct = Math.round(f * 100);
+    const st = E.root.querySelector("#edState span"); if (st) st.textContent = c.status === "rendering" ? `Exporting ${pct}%` : "Waiting to export…";
+    const ov = E.ov; if (!ov) return;
+    const m = ov.querySelector("#edMeter"), p = ov.querySelector("#edPct"), l = ov.querySelector("#edEtaL"), r = ov.querySelector("#edEtaR");
+    if (!m) return;
+    m.classList.toggle("wait", c.status !== "rendering");
+    m.querySelector("i").style.width = `${Math.max(2, pct)}%`;
+    p.innerHTML = `${pct}<small>%</small>`;
+    if (c.status === "rendering" && f > 0.02 && !E.expStart) E.expStart = Date.now() - 1;
+    const took = E.expStart ? (Date.now() - E.expStart) / 1000 : 0, left = f > 0.04 && took > 2 ? took / f * (1 - f) : 0;
+    l.textContent = c.status !== "rendering" ? "Waiting its turn…" : f < 0.02 ? "Starting…" : pct < 95 ? "Making your clip…" : "Almost done…";
+    r.textContent = left ? `about ${left < 60 ? Math.max(1, Math.round(left)) + " s" : Math.round(left / 60) + " min"} left` : "";
+    const step = c.status !== "rendering" ? 0 : f < 0.35 ? 1 : 2;
+    ov.querySelectorAll("#edSteps span").forEach((s, i) => { s.className = i < step ? "done" : i === step ? "on" : ""; });
+  }
   async function exportClip() {
     if (E.exporting) return;
     const doc = E.doc, body = bodyOf(doc, id => !!libItem(id));
@@ -1095,7 +1156,12 @@
     if (E.playing) play();
     E.exporting = true; drawState();
     const ov = document.createElement("div"); ov.className = "ed-exp"; E.root.append(ov); E.ov = ov;
-    ov.innerHTML = `<div class="card"><div class="ed-spin"></div><h3>Exporting your clip</h3><p>Making it in 1080×1920 with every effect. You can keep editing another clip; it carries on.</p><div class="ed-bar"><i></i></div><div class="row"><button class="ed-btn sm" data-e="hideexp">Keep editing</button></div></div>`;
+    ov.innerHTML = `<div class="card"><h3>Exporting your clip</h3><p>1080×1920, with every cut, effect, sound and caption. You can keep editing; it carries on.</p>
+      <div class="ed-pct" id="edPct">0<small>%</small></div><div class="ed-meter wait" id="edMeter"><i></i></div>
+      <div class="ed-eta"><span id="edEtaL">Waiting its turn…</span><span id="edEtaR"></span></div>
+      <div class="ed-steps" id="edSteps"><span class="on">Queued</span><span>Cutting</span><span>Effects &amp; captions</span><span>Done</span></div>
+      <div class="row"><button class="ed-btn sm" data-e="hideexp">Keep editing</button></div></div>`;
+    E.expAt = Date.now(); E.expStart = 0;
     try {
       await send(`/api/jobs/${E.jid}/clips/${E.cid}/render`, body);
     } catch (e) {
@@ -1110,7 +1176,7 @@
       if (!E || E.jid !== jid) return;
       try { await tick(); } catch {}
       const c = (jobOf(jid) || {clips: []}).clips.find(x => x.id === cid); if (!c) return;
-      if (c.status === "queued" || c.status === "rendering") { seenBusy = true; return; }
+      if (c.status === "queued" || c.status === "rendering") { seenBusy = true; showMade(c); return; }
       if (!seenBusy && c.status !== "error") return;
       clearInterval(E.poll); E.exporting = false; drawState();
       if (c.status === "error") { E.ov && (E.ov.innerHTML = `<div class="card"><h3>That didn't work</h3><p>${esc(c.error || "The clip couldn't be made.")}</p><div class="row"><button class="ed-btn sm" data-e="hideexp">Back to the editor</button></div></div>`); return; }
@@ -1124,7 +1190,7 @@
 
   // ---------------------------------------------------------------- input
   function onClick(e) {
-    const b = e.target.closest("[data-e],[data-tool],[data-addtr],[data-settr],[data-addsfx],[data-setsfx],[data-hear],[data-look],[data-hookfx],[data-hookdur],[data-style],[data-layout],[data-tg],[data-go],[data-word],[data-fxsound],[data-split],[data-font],[data-libadd],[data-libdel],[data-medfit]");
+    const b = e.target.closest("[data-music],[data-e],[data-tool],[data-addtr],[data-settr],[data-addsfx],[data-setsfx],[data-hear],[data-look],[data-hookfx],[data-hookdur],[data-style],[data-layout],[data-tg],[data-go],[data-word],[data-fxsound],[data-split],[data-font],[data-libadd],[data-libdel],[data-medfit]");
     if (!b || !E) return;
     const d = b.dataset, doc = E.doc, ed = doc.edit;
     if (d.word !== undefined && b.closest("#edTrans")) {
@@ -1139,6 +1205,13 @@
     if (d.addtr) return addTransition(d.addtr);
     if (d.settr && E.sel && E.sel.k === "fx") { ed.fx[E.sel.i].type = d.settr; return commit("Transition"); }
     if (d.addsfx) return addSfx(d.addsfx);
+    if (d.music) {            // a library sound as music: from the clip's start, under the voice
+      const it = libItem(d.music); if (!it) return;
+      ed.sfx.push({t: r3(doc.start), kind: "lib:" + d.music, vol: 0.3}); ed.sfx.sort((p, q) => p.t - q.t);
+      if ((ed.voice == null ? 1 : ed.voice) > 0.8) ed.voice = 0.8;
+      E.sel = {k: "sfx", i: ed.sfx.findIndex(x => x.kind === "lib:" + d.music && x.t === r3(doc.start))};
+      toast(`${it.name} plays under the whole clip at 30%. Change its volume on the right.`, "ok"); return commit("Music");
+    }
     if (d.setsfx && E.sel && E.sel.k === "sfx") { ed.sfx[E.sel.i].kind = d.setsfx; hear(d.setsfx); return commit("Sound"); }
     if (d.hear) return hear(d.hear);
     if (d.look) { ed.look = d.look; return commit("Look"); }
@@ -1182,6 +1255,14 @@
     if (a === "resetpos") { ed.hook_y = null; ed.cap_y = null; return commit("Positions"); }
     if (a === "camfix") { D.jid = E.jid; D.cid = E.cid; openCamFix(); const f = document.getElementById("formdlg"); f && f.addEventListener("close", () => setTimeout(reloadData, 400), {once: true}); return; }
     if (a === "hype") return hypeEdit();
+    if (a === "rngkeep" && E.sel && E.sel.k === "range") {
+      const {a: x, b: y} = E.sel; if (y - x < 3) return toast("A clip needs to be at least 3 seconds long.", "bad");
+      doc.start = r3(x); doc.end = r3(y); E.sel = null; seek(doc.start); return commit("Keep only this");
+    }
+    if (a === "rngsplit" && E.sel && E.sel.k === "range") {
+      doc.splits = [...new Set([...(doc.splits || []), ...[E.sel.a, E.sel.b].filter(t => t > doc.start + 0.1 && t < doc.end - 0.1)])].sort((p, q) => p - q);
+      E.sel = {k: "seg", a: E.sel.a, b: E.sel.b}; return commit("Split");
+    }
     if (a === "export") return exportClip();
     if (a === "upload") { const inp = document.createElement("input"); inp.type = "file"; inp.multiple = true; inp.accept = ".ttf,.otf,.mp3,.wav,.m4a,.aac,.ogg,.opus,.flac,.png,.jpg,.jpeg,.webp,.gif,.mp4,.mov,.webm,.mkv,.m4v"; inp.onchange = () => inp.files.length && upload([...inp.files]); inp.click(); return; }
     if (a === "hideexp") { E.ov && E.ov.remove(); E.ov = null; return; }
@@ -1202,6 +1283,7 @@
   function onInput(e) {
     const t = e.target, doc = E.doc, ed = doc.edit, s = E.sel;
     if (t.dataset.txt) { doc[t.dataset.txt] = t.value; drawFrame(); clearTimeout(inputTimer); inputTimer = setTimeout(() => { commit("Text"); }, 600); return; }
+    if (t.dataset.range === "voice") { ed.voice = Number(t.value); const lb = t.parentElement.querySelector("b"); if (lb) lb.textContent = Math.round(ed.voice * 100) + "%"; voiceVol(); return; }
     if (t.dataset.range) { ed[t.dataset.range] = Number(t.value); const lb = t.parentElement.querySelector("b"); if (lb) lb.textContent = t.value; drawFrame(); return; }
     if (t.dataset.fxd !== undefined && s && s.k === "fx") { ed.fx[s.i].d = Number(t.value); t.parentElement.querySelector("b").textContent = Number(t.value).toFixed(2) + " s"; drawFrame(); return; }
     if (t.dataset.sfxvol !== undefined && s && s.k === "sfx") { ed.sfx[s.i].vol = Number(t.value); t.parentElement.querySelector("b").textContent = Math.round(t.value * 100) + "%"; return; }
@@ -1270,10 +1352,45 @@
       addEventListener("pointermove", mv); addEventListener("pointerup", up); return;
     }
     const cut = t.closest("[data-cut]"), seg = t.closest("[data-tseg]"), hook = t.closest("[data-hook]");
-    if (cut) { select({k: "cut", i: Number(cut.dataset.cut)}); return; }
+    if (cut) {
+      const i = Number(cut.dataset.cut), r = cut.getBoundingClientRect(), edge = e.clientX - r.left < 8 ? 0 : r.right - e.clientX < 8 ? 1 : -1;
+      if (edge < 0) { select({k: "cut", i}); return; }
+      // an edge of a cut, dragged: the cut gets longer or shorter (the rest of the clip closes up, like a ripple trim)
+      e.preventDefault(); const cuts = cutsMerged(ed.cuts, doc.start, doc.end); let moved = false;
+      const mv = ev => { moved = true; const tt = laneX(ev), c = cuts[i];
+        if (edge === 0) c[0] = r3(clamp(tt, i ? cuts[i - 1][1] + 0.05 : doc.start, c[1] - 0.05)); else c[1] = r3(clamp(tt, c[0] + 0.05, i < cuts.length - 1 ? cuts[i + 1][0] - 0.05 : doc.end));
+        ed.cuts = cuts.map(x => [...x]); seek(c[edge]); drawTimeline(); };
+      const up = () => { removeEventListener("pointermove", mv); removeEventListener("pointerup", up);
+        if (!moved) return select({k: "cut", i});
+        if ((doc.end - doc.start) - cutsMerged(ed.cuts, doc.start, doc.end).reduce((n, [x, y]) => n + y - x, 0) < 1.5) { toast("Keep at least a second and a half of the clip.", "bad"); undoTo(); return; }
+        commit("Trim cut"); };
+      addEventListener("pointermove", mv); addEventListener("pointerup", up); return;
+    }
     if (hook) { E.sel = {k: "hook"}; E.tool = "text"; drawPanel(); drawTimeline(); return; }
+    // on the video or captions track: drag to pick exactly the part to cut (edges snap to words, splits and cuts);
+    // a plain click moves the playhead, and picks the part between splits once the clip is split
+    const lane = t.closest(".ed-vl,.ed-cl");
+    if (lane) {
+      e.preventDefault(); E.tsel = [];
+      const wasPlaying = E.playing; if (wasPlaying) play();
+      const snaps = [doc.start, doc.end, ...(doc.splits || []), ...cutsMerged(ed.cuts, doc.start, doc.end).flat(), ...E.data.words.flatMap(w => [w.s, w.e])];
+      const snap = tt => { let best = tt, bd = 7 / E.pps; for (const c of snaps) { const dd = Math.abs(c - tt); if (dd < bd) { bd = dd; best = c; } } return clamp(best, doc.start, doc.end); };
+      const t0 = snap(laneX(e)); let moved = false;
+      seek(laneX(e));
+      const mv = ev => {
+        if (!moved && Math.abs(ev.clientX - e.clientX) < 5) return;
+        moved = true; const t1 = snap(laneX(ev));
+        E.sel = {k: "range", a: r3(Math.min(t0, t1)), b: r3(Math.max(t0, t1))}; seek(t1); drawTimeline();
+      };
+      const up = () => { removeEventListener("pointermove", mv); removeEventListener("pointerup", up);
+        if (moved) { if (E.sel && E.sel.k === "range" && E.sel.b - E.sel.a < 0.1) E.sel = null; }
+        else if (seg) { const [a, b] = seg.dataset.tseg.split(",").map(Number); E.sel = {k: "seg", a, b}; }
+        else E.sel = null;
+        drawInsp(); drawTimeline(); if (wasPlaying) play(); };
+      addEventListener("pointermove", mv); addEventListener("pointerup", up); return;
+    }
     // the playhead: click or drag anywhere else on the timeline
-    e.preventDefault();
+    e.preventDefault(); E.tsel = [];
     if (seg) { const [a, b] = seg.dataset.tseg.split(",").map(Number); E.sel = {k: "seg", a, b}; drawInsp(); }
     else if (E.sel) { E.sel = null; drawInsp(); }
     const wasPlaying = E.playing; if (wasPlaying) play();
@@ -1287,7 +1404,7 @@
     const tag = (e.target.tagName || "").toLowerCase(), typing = tag === "input" || tag === "textarea" || tag === "select";
     if (document.querySelector("dialog[open]")) return;        // the facecam box, a question: their keys
     const k = e.key, mod = e.ctrlKey || e.metaKey;
-    if (k === "Escape") { if (E.ov) { E.ov.remove(); E.ov = null; } else if (typing) e.target.blur(); else close(); e.preventDefault(); return; }
+    if (k === "Escape") { if (E.ov) { E.ov.remove(); E.ov = null; } else if (typing) e.target.blur(); else if (E.sel && E.sel.k === "range") { E.sel = null; drawInsp(); drawTimeline(); } else close(); e.preventDefault(); return; }
     if (typing) return;
     if (mod && (k === "z" || k === "Z")) { e.preventDefault(); return e.shiftKey ? redo() : undo(); }
     if (mod && (k === "y" || k === "Y")) { e.preventDefault(); return redo(); }
@@ -1302,10 +1419,25 @@
     if (k === "p" || k === "P") { e.preventDefault(); return addPunch(); }
     if (k === "i" || k === "I") { e.preventDefault(); return onClick({target: E.root.querySelector('[data-e="in"]'), shiftKey: false}); }
     if (k === "o" || k === "O") { e.preventDefault(); return onClick({target: E.root.querySelector('[data-e="out"]'), shiftKey: false}); }
+    if (k === "j" || k === "J") { e.preventDefault(); if (E.playing) play(); return seek(now() - (e.shiftKey ? 5 : 1)); }
+    if (k === "k" || k === "K") { e.preventDefault(); if (E.playing) play(); return; }
+    if (k === "l" || k === "L") { e.preventDefault(); if (!E.playing) play(); return; }
+    if (k === "Home") { e.preventDefault(); return seek(E.doc.start); }
+    if (k === "End") { e.preventDefault(); return seek(E.doc.end - 0.05); }
     if (k === "+" || k === "=") { E.pps = clamp(E.pps * 1.4, 4, 500); return drawTimeline(); }
     if (k === "-" || k === "_") { E.pps = clamp(E.pps / 1.4, 4, 500); return drawTimeline(); }
   }
   function onResize() { if (!E) return; drawTimeline(); drawFrame(); }
+  function voiceVol() { if (E && E.v) E.v.volume = clamp(E.doc.edit.voice == null ? 1 : E.doc.edit.voice, 0, 1); }     // the stream's own sound, as it will be
+  function onWheel(e) {          // Ctrl + scroll zooms the timeline around the pointer; scrolling moves along it
+    if (!E || !E.data) return;
+    if (e.ctrlKey || e.metaKey) {
+      e.preventDefault();
+      const r = E.lane.getBoundingClientRect(), at = E.data.p0 + (E.lane.scrollLeft + e.clientX - r.left) / E.pps;
+      E.pps = clamp(E.pps * (e.deltaY < 0 ? 1.18 : 1 / 1.18), 4, 500); drawTimeline();
+      E.lane.scrollLeft = X(at) - (e.clientX - r.left);
+    } else if (!e.shiftKey && Math.abs(e.deltaY) > Math.abs(e.deltaX)) { e.preventDefault(); E.lane.scrollLeft += e.deltaY; }
+  }
 
   window.CKEditor = {open, close, isOpen: () => !!E, hypeAuto,
     // for tests: the edit as it stands

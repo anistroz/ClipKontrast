@@ -106,9 +106,9 @@ seen_caps = []
 real_render = jobs.render.render_clip
 
 
-def spy_render(src_, out_dir, name, clip, words, w_, h_):
+def spy_render(src_, out_dir, name, clip, words, w_, h_, **kw):
     seen_caps.append([x["w"] for x in words])
-    return real_render(src_, out_dir, name, clip, words, w_, h_)
+    return real_render(src_, out_dir, name, clip, words, w_, h_, **kw)
 
 
 jobs.render.render_clip = spy_render

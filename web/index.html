@@ -931,7 +931,8 @@ dialog::backdrop{background:rgba(14,12,11,.42);animation:fadein .16s ease}
 .dlg{padding:24px;width:450px;max-width:100%;display:flex;flex-direction:column;gap:14px}
 .dlg h2{font-size:18px;font-weight:600;color:var(--brand-ink)}
 .dlg-foot{display:flex;justify-content:flex-end;gap:8px;margin-top:4px}
-.editor{display:grid;grid-template-columns:minmax(240px,340px) minmax(300px,450px);max-height:calc(100vh - 48px)}
+.editor{display:grid;grid-template-columns:minmax(240px,340px) minmax(300px,450px);max-height:calc(100vh - 48px);height:min(900px,calc(100vh - 48px));grid-template-rows:minmax(0,1fr)}
+.editor .panel{min-height:0}
 .editor .stage{background:#17110E;display:grid;place-items:center;position:relative;min-height:320px}
 .editor video,.editor .stage img{width:100%;max-height:calc(100vh - 48px);aspect-ratio:9/16;object-fit:contain;display:block}
 .editor .panel{padding:22px;overflow:auto;display:flex;flex-direction:column;gap:14px}
@@ -1217,9 +1218,14 @@ dialog[open]{animation:fadein .16s ease}
 .rc-th .sc.s-hi{background:var(--brand);color:var(--on-brand)}.rc-th .sc.s-mid{background:#3A4A12;color:#E9FBB4}
 .rc-th .edt{position:absolute;right:8px;top:8px;font-size:10px;font-weight:800;letter-spacing:.04em;padding:2px 7px;border-radius:999px;background:#FF7AD9;color:#1a0820}
 .rc-th .len{position:absolute;right:8px;bottom:50px;font-size:11px;font-weight:600;padding:1px 6px;border-radius:6px;background:rgba(0,0,0,.6);color:#fff}
-.rc-th .go{position:absolute;left:8px;right:8px;bottom:8px;height:34px;border-radius:10px;background:var(--brand);color:var(--on-brand);display:flex;align-items:center;justify-content:center;gap:6px;font-weight:800;font-size:12.5px;transition:background-color .15s ease}
-.rc-th .go svg{width:15px;height:15px}
-.rc-th:hover .go{background:var(--brand-press)}
+.rc-wrap{position:relative}
+.rc .go{position:absolute;left:8px;right:8px;bottom:8px;height:34px;border:0;border-radius:10px;background:var(--brand);color:var(--on-brand);display:flex;align-items:center;justify-content:center;gap:6px;font:inherit;font-weight:800;font-size:12.5px;cursor:pointer;transition:background-color .15s ease}
+.rc .go svg{width:15px;height:15px}
+.rc .go:hover{background:var(--brand-press)}
+.dlg-edit{display:flex;align-items:center;gap:12px;width:100%;margin:12px 0 4px;padding:12px 14px;border-radius:14px;border:1px solid var(--brand-line);background:var(--brand-soft);color:var(--text);font:inherit;text-align:left;cursor:pointer;transition:background-color .15s ease,border-color .15s ease}
+.dlg-edit:hover{background:rgba(198,244,50,.18);border-color:var(--brand)}
+.dlg-edit>svg{color:var(--brand);width:20px;height:20px}
+.dlg-edit span{flex:1;min-width:0}.dlg-edit b{display:block;font-size:14px}.dlg-edit small{display:block;font-size:12px;color:var(--dim)}
 .rc-th .mk2{position:absolute;inset:0;display:grid;place-items:center;text-align:center;padding:12px;font-size:12px;color:var(--dim);background:var(--muted)}
 .rc-th .mk2.bad{color:#FF8A8A;background:var(--bad-soft)}
 .rc-bd{padding:9px 10px 10px;min-width:0}
@@ -1846,7 +1852,12 @@ function updateHow() {
 }
 /* "What's new": what the latest versions brought, for the people clipping (nothing about the website or the build).
    Change NEWS.id when the list changes: the line at the top shows again for everyone, until they close it. */
-const NEWS = {id: "2026-11-28", items: [
+const NEWS = {id: "2026-11-29", items: [
+  {e: "✂️", t: "Cut exactly what you pick", d: "In the editor, drag on the video or captions track to pick a part (its edges snap to words), then press Del: only that part is cut. Drag the edge of a cut to make it longer or shorter. A plain click just moves the playhead.", new: true},
+  {e: "📊", t: "A real export bar", d: "Export now shows how much of your clip is made, in percent, with about how long is left.", new: true},
+  {e: "🎞️", t: "Your clip's window is back", d: "Clicking a clip opens its window again: watch it, change the title and description, post it. Open in the editor is right at the top, and every Edit button still opens the editor.", new: true},
+  {e: "🎵", t: "Music and the stream's volume", d: "In the editor's Audio: turn the stream's own sound down (or off for a meme edit), and put any sound from your library under the whole clip as music with ♫.", new: true},
+  {e: "🔤", t: "Your own fonts, right in the export", d: "A bold or black font from your library now comes out in the exported clip exactly as in the editor, not in a plain font spilling out of its box.", new: true},
   {e: "🖤", t: "A fresh new look", d: "ClipKontrast is dark now, like the editor. Home is simpler: paste a link, pick captions and a layout in one tap each, press Make clips. Everything else is under More options.", new: true},
   {e: "✂️", t: "The Editor page", d: "Every clip in one place, with an Edit button on each. Filter by Not edited, Edited or Being made, or search. Your newest clips are also on Home, under Ready to edit.", new: true, act: "go", v: "studio", btn: "Open it"},
   {e: "⚡", t: "Hype Edit all", d: "One click edits every new clip: punch-ins on the loudest moments, a flash and a riser on the peak, whooshes on the cuts and the filler words cut. Each clip is made again with it.", new: true, act: "go", v: "studio", btn: "Try it"},
@@ -2955,7 +2966,7 @@ function clipHtml(j, c) {
         <button class="btn sm icon ghost" data-act="tocampaign" ${a} title="Send to a paid campaign" aria-label="Send to a paid campaign">${ic("money")}</button>
         ${busyClip ? "" : `<button class="btn sm icon ghost" data-act="delclip" ${a} title="Delete this clip" aria-label="Delete this clip">${ic("trash")}</button>`}
         <span class="grow"></span>
-        ${c.status === "done" || c.status === "error" ? `<button class="btn sm" data-act="openclip" ${a} title="Open in the editor: cut, transitions, sounds, text, then post">${ic("scissors")}Edit</button>` : ""}
+        ${c.status === "done" || c.status === "error" ? `<button class="btn sm" data-act="editclip" ${a} title="Open in the editor: cut, transitions, sounds, text, then post">${ic("scissors")}Edit</button>` : ""}
       </div>
     </div></article>`;
 }
@@ -3430,9 +3441,10 @@ function readyCard(j, c) {
   const busy = c.status === "queued" || c.status === "rendering";
   const pic = c.status === "done" ? `<img src="/media/${esc(j.id)}/${esc(c.cover)}?v=${c.version || 0}" alt="" loading="lazy">`
     : `<span class="mk2${c.status === "error" ? " bad" : ""}">${c.status === "error" ? "Couldn't make this clip. Open it to try again." : c.status === "rendering" ? "Making this clip…" : "Waiting its turn…"}</span>`;
-  return `<article class="rc"><button class="rc-th" data-act="openclip" ${a} aria-label="Edit: ${esc(c.hook || c.title || "clip")}"${busy ? " disabled" : ""}>${pic}
+  return `<article class="rc"><div class="rc-wrap"><button class="rc-th" data-act="openclip" ${a} aria-label="Open: ${esc(c.hook || c.title || "clip")}"${busy ? " disabled" : ""}>${pic}
       ${c.score ? `<span class="sc ${scoreCls(c.score)}" title="AI score">${c.score}</span>` : ""}${c.edit ? `<span class="edt">EDITED</span>` : ""}
-      ${c.status === "done" ? `<span class="len">${fmt(c.end - c.start)}</span><span class="go">${ic("scissors")}Edit</span>` : ""}</button>
+      ${c.status === "done" ? `<span class="len">${fmt(c.end - c.start)}</span>` : ""}</button>
+      ${c.status === "done" ? `<button class="go" data-act="editclip" ${a} title="Open in the editor">${ic("scissors")}Edit</button>` : ""}</div>
     <div class="rc-bd"><b>${esc(c.hook || c.title || "Untitled clip")}</b><span>${fmt(c.end - c.start)}${who ? ` · ${esc(who)}` : ""}</span></div></article>`;
 }
 function drawReady() {
@@ -3737,11 +3749,17 @@ async function drawSettings() {
 async function saveSettings() { const d = {}; $$("#sform [data-s]").forEach(i => d[i.dataset.s] = i.value); await send("/api/settings", d, "PUT"); }
 
 /* ============================================================ clip editor */
-function openClip(jid, cid) {
-  // a clip that's made (or that failed) opens in the editor; one still being made shows its progress here
+/* A clip opens in its window: watch it, its title and description, quick changes, post it. The full editor is one
+   button away (Edit), for those who want to cut it, add transitions, sounds and their own memes. */
+function editClip(jid, cid) {
   const c = jobOf(jid)?.clips.find(x => x.id === cid);
-  if (window.CKEditor && c && (c.status === "done" || c.status === "error")) return CKEditor.open(jid, cid);
+  if (!window.CKEditor || !c || !(c.status === "done" || c.status === "error")) return openClip(jid, cid);
+  if ($("#clipdlg").open) $("#clipdlg").close();
+  CKEditor.open(jid, cid);
+}
+function openClip(jid, cid) {
   D.jid = jid; D.cid = cid; D.sig = ""; drawClipDlg(true); $("#clipdlg").showModal();
+  requestAnimationFrame(() => { $("#clipdlg").scrollTop = 0; const pn = $("#clipdlg .panel"); if (pn) pn.scrollTop = 0; });      // opens at the top, the editor button in view
 }
 function drawClipDlg(full) {
   const j = jobOf(D.jid), c = j?.clips.find(x => x.id === D.cid), dlg = $("#clipdlg");
@@ -3755,6 +3773,7 @@ function drawClipDlg(full) {
       <div class="panel">
         <div class="job-head" style="margin:0"><div><span class="badge ${scoreCls(c.score)}" style="position:static">${c.judges ? "Words " + c.judges.words + (c.judges.reaction ? " · Reaction " + c.judges.reaction : "") : c.score ? "Score " + c.score : "Clipped by hand"}</span>
           <p class="sub" style="margin-top:8px">${esc(c.reason || "")}</p></div><button class="btn icon ghost" data-act="closedlg" aria-label="Close">${ic("x")}</button></div>
+        ${c.status === "done" || c.status === "error" ? `<button class="dlg-edit" data-act="editclip" data-j="${esc(j.id)}" data-c="${esc(c.id)}">${ic("scissors")}<span><b>Open in the editor${c.edit ? " · edited" : ""}</b><small>Cut it, add transitions, sounds, text effects and your own memes</small></span>${ic("arrowr")}</button>` : ""}
         <h3>On the video</h3>
         <label class="f">Big text<input data-f="hook" value="${esc(c.hook)}"></label>
         <label class="sw"><input type="checkbox" data-f="captions" data-caption-toggle ${c.captions === false ? "" : "checked"}>Generate captions</label>
@@ -3965,6 +3984,7 @@ document.addEventListener("click", async e => {
     if (a === "addmore") { const u = $("#url"); return u && !u.value ? (u.focus(), toast("Paste another link, or drop a file anywhere on the box.")) : $("#file").click(); }
     if (a === "closedlg") return $("#clipdlg").close();
     if (a === "openclip") return openClip(d.j, d.c);
+    if (a === "editclip") return editClip(d.j, d.c);
     if (a === "newcreator") {
       const dlg = $("#formdlg");
       dlg.innerHTML = `<form method="dialog" class="dlg"><h2>New creator</h2><p class="help">Each creator gets their own workspace, folder, settings and accounts.</p>

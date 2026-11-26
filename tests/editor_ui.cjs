@@ -14,7 +14,7 @@ const check = (n, ok, got) => { console.log((ok ? "PASS " : "FAIL ") + n + (ok ?
   await p.evaluate(() => fetch("/api/settings", {method: "PUT", headers: {"Content-Type": "application/json"}, body: JSON.stringify({tour_done: true})}));
   await p.reload({ waitUntil: "networkidle" }); await p.waitForTimeout(800);
   const ids = await p.evaluate(() => [S.jobs[0].id, S.jobs[0].clips[0].id]);
-  await p.evaluate(([j, c]) => openClip(j, c), ids);
+  await p.evaluate(([j, c]) => editClip(j, c), ids);
   await p.waitForFunction(() => window.CKEditor && CKEditor.state() && CKEditor.state().ready, null, { timeout: 90000 });
   await p.waitForTimeout(600);
   const st = () => p.evaluate(() => CKEditor.state());
@@ -43,6 +43,25 @@ const check = (n, ok, got) => { console.log((ok ? "PASS " : "FAIL ") + n + (ok ?
   await p.keyboard.press("Control+Shift+z");
   check("Ctrl+Shift+Z cuts it again", JSON.stringify((await st()).doc.edit.cuts) === cutNow);
   await p.keyboard.press("Control+z");
+  // drag on the video track: exactly that part is picked, and Delete cuts only it (not the whole stretch around it)
+  {
+    const cr = await (await p.$("#ed .ed-vl .ed-clipr")).boundingBox(), d0 = await st();
+    const xAt = t => cr.x + (t - d0.doc.start) / (d0.doc.end - d0.doc.start) * cr.width, y = cr.y + cr.height / 2;
+    const cutLen = c => c.reduce((n, [a, b]) => n + b - a, 0), before = cutLen(d0.doc.edit.cuts);
+    await p.mouse.move(xAt(d0.doc.start + 2), y); await p.mouse.down(); await p.mouse.move(xAt(d0.doc.start + 4), y, { steps: 8 }); await p.mouse.up();
+    let r = await st();
+    check("dragging on the video track picks just that part", r.sel && r.sel.k === "range" && Math.abs(r.sel.a - (d0.doc.start + 2)) < 0.4 && Math.abs(r.sel.b - (d0.doc.start + 4)) < 0.4, r.sel);
+    await p.keyboard.press("Delete");
+    r = await st();
+    const added = cutLen(r.doc.edit.cuts) - before;
+    check("...and Delete cuts only that part out", added > 1.4 && added < 2.6, {added, cuts: r.doc.edit.cuts});
+    await p.keyboard.press("Control+z");
+    await p.mouse.click(xAt(d0.doc.start + 6), y);
+    r = await st();
+    await p.keyboard.press("Delete");
+    check("a plain click on the track only moves the playhead: Delete then cuts nothing big", cutLen((await st()).doc.edit.cuts) - before < 0.01 || (r.sel && r.sel.k === "seg"), {sel: r.sel, cuts: (await st()).doc.edit.cuts});
+    if (r.sel && r.sel.k === "seg") await p.keyboard.press("Control+z");
+  }
   // the transcript: pick words and delete them
   await p.click('[data-tool="edit"]');
   await p.click("#edTrans span[data-word] >> nth=6");
@@ -118,10 +137,12 @@ const check = (n, ok, got) => { console.log((ok ? "PASS " : "FAIL ") + n + (ok ?
   const before = await p.evaluate(([j, c]) => S.jobs.find(x => x.id === j).clips.find(x => x.id === c).version, ids);
   await p.click("#edExport");
   await p.waitForSelector(".ed-exp", { timeout: 5000 });
-  await p.waitForFunction(() => document.querySelector(".ed-exp") && /ready|didn't work/.test(document.querySelector(".ed-exp").textContent), null, { timeout: 240000 });
+  const filled = await p.waitForFunction(() => { const e = document.querySelector("#edPct"); return (e && parseInt(e.textContent) > 0) || /Your clip is ready/.test(document.querySelector(".ed-exp")?.textContent || ""); }, null, { timeout: 240000 }).then(() => p.evaluate(() => document.querySelector("#edPct")?.textContent || "done")).catch(() => "");
+  check("the export bar fills with how much of the clip is made", !!filled, filled);
+  await p.waitForFunction(() => document.querySelector(".ed-exp") && /Your clip is ready|didn't work/.test(document.querySelector(".ed-exp").textContent), null, { timeout: 240000 });
   const msg = await p.$eval(".ed-exp", e => e.textContent);
   const clip = await p.evaluate(([j, c]) => S.jobs.find(x => x.id === j).clips.find(x => x.id === c), ids);
-  check("Export makes the clip with the edit: a new version comes back", /ready/.test(msg) && clip.version === before + 1 && clip.status === "done", { msg, v: clip.version, before, st: clip.status, err: clip.error });
+  check("Export makes the clip with the edit: a new version comes back", /Your clip is ready/.test(msg) && clip.version === before + 1 && clip.status === "done", { msg, v: clip.version, before, st: clip.status, err: clip.error });
   check("...the edit is saved with the clip", !!(clip.edit && clip.edit.fx && clip.edit.fx.length && clip.edit.look), clip.edit);
   if (process.argv[4]) check("...with its library picture, font and sound", !!(clip.edit.media && clip.edit.media.length && clip.edit.hook_font && clip.edit.sfx.some(x => x.kind.startsWith("lib:"))), clip.edit);
   check("...and nothing failed quietly (no 'effects couldn't be added')", !/couldn't be added/.test(clip.layout_note || ""), clip.layout_note);
@@ -130,7 +151,7 @@ const check = (n, ok, got) => { console.log((ok ? "PASS " : "FAIL ") + n + (ok ?
   await p.keyboard.press("Escape");
   check("Esc goes back to the clips", !(await p.$("#ed")));
   // reopening keeps the saved edit
-  await p.evaluate(([j, c]) => openClip(j, c), ids);
+  await p.evaluate(([j, c]) => editClip(j, c), ids);
   await p.waitForFunction(() => CKEditor.state() && CKEditor.state().ready, null, { timeout: 60000 });
   s = await st();
   check("opening the clip again brings its saved edit back", s.doc.edit.look === clip.edit.look && s.doc.edit.fx.length === clip.edit.fx.length);

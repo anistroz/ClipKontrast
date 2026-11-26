@@ -55,6 +55,39 @@ MARK = {"font": "Poppins ExtraBold", "size": 46}      # the clipper's own @handl
 CAP_MAX_W = 960   # captions never run wider than this, whatever is said
 
 
+def font_names(path) -> dict:
+    """A font file's own names, by name id (1 family, 2 style, 4 full name, 16 typographic family), as Windows reads
+    them (English), else as a Mac does. {} when the file can't be read."""
+    import struct
+    try:
+        d = Path(path).read_bytes()
+        tables = {}
+        for i in range(struct.unpack(">H", d[4:6])[0]):
+            tag, _, off, _ = struct.unpack(">4sIII", d[12 + 16 * i: 28 + 16 * i])
+            tables[tag] = off
+        off = tables[b"name"]
+        _, count, so = struct.unpack(">HHH", d[off: off + 6])
+        win, mac = {}, {}
+        for i in range(count):
+            pid, _eid, lid, nid, ln, o = struct.unpack(">HHHHHH", d[off + 6 + 12 * i: off + 18 + 12 * i])
+            raw = d[off + so + o: off + so + o + ln]
+            if pid == 3 and lid == 0x409:
+                win[nid] = raw.decode("utf-16-be", "replace").strip()
+            elif pid == 1 and lid == 0:
+                mac.setdefault(nid, raw.decode("mac_roman", "replace").strip())
+        return {**mac, **win}
+    except Exception:  # noqa: BLE001 - not a font we can read
+        return {}
+
+
+def ass_family(path, fallback="") -> str:
+    """The name to ask the caption renderer for, so it finds exactly this file. The full name ("Montserrat Black")
+    is what it matches on every system; the short family ("Montserrat") isn't found on Windows for a bold or black
+    font, and the text then comes out in a plain fallback font that spills out of its box."""
+    n = font_names(path)
+    return (n.get(4) or n.get(1) or fallback or "").strip()[:60]
+
+
 class _Font:
     """Measures text exactly as the renderer will draw it, so every word can be placed by hand: the highlighted
     word can grow without pushing its neighbours, and the heading box fits its text."""
@@ -582,18 +615,23 @@ class _Done:
         self.returncode, self.stderr = code, err
 
 
-def _encode(cmd, cwd, stall=RENDER_STALL, cap=RENDER_SECONDS):
+def _encode(cmd, cwd, stall=RENDER_STALL, cap=RENDER_SECONDS, progress=None):
     """Run ffmpeg, reading its progress: stopped only when it stops moving for `stall` seconds (or after `cap`), not
     after a fixed time, so a slow computer finishes its clips and a frozen encoder doesn't hold one for ever."""
     import threading as _th
     p = subprocess.Popen(cmd[:1] + ["-progress", "pipe:1", "-nostats"] + cmd[1:], cwd=cwd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                          stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace", creationflags=NO_WINDOW)
-    seen = {"at": time.time()}
+    seen = {"at": time.time(), "t": 0.0}
     err = []
 
     def read_out():
-        for _line in p.stdout:
+        for line in p.stdout:
             seen["at"] = time.time()          # every progress line is ffmpeg still moving
+            if line.startswith(("out_time_us=", "out_time_ms=")):     # both are in millionths of a second
+                try:
+                    seen["t"] = max(seen["t"], int(line.split("=", 1)[1]) / 1e6)
+                except ValueError:
+                    pass
     def read_err():
         for line in p.stderr:
             err.append(line)
@@ -601,8 +639,14 @@ def _encode(cmd, cwd, stall=RENDER_STALL, cap=RENDER_SECONDS):
     ts = [_th.Thread(target=read_out, daemon=True), _th.Thread(target=read_err, daemon=True)]
     for t in ts:
         t.start()
-    began = time.time()
+    began, told = time.time(), -1.0
     while p.poll() is None:
+        if progress and seen["t"] != told:     # how far it is, told here (not from the reading thread)
+            told = seen["t"]
+            try:
+                progress(told)
+            except Exception:  # noqa: BLE001 - showing progress never stops a clip
+                pass
         now = time.time()
         if now - seen["at"] > stall or now - began > cap:
             p.kill()
@@ -614,7 +658,7 @@ def _encode(cmd, cwd, stall=RENDER_STALL, cap=RENDER_SECONDS):
     return _Done(p.returncode, "".join(err))
 
 
-def render_clip(src: Path, out_dir: Path, name: str, clip: dict, words: list, src_w: int, src_h: int) -> dict:
+def render_clip(src: Path, out_dir: Path, name: str, clip: dict, words: list, src_w: int, src_h: int, progress=None) -> dict:
     """Writes <name>.mp4, <name>.jpg and <name>.ass into out_dir. Returns file names."""
     out_dir.mkdir(parents=True, exist_ok=True)
     start, end = clip["start"], clip["end"]
@@ -638,13 +682,16 @@ def render_clip(src: Path, out_dir: Path, name: str, clip: dict, words: list, sr
     fonts, hook_font, cap_font = [], None, None
     for key in ("hook_font", "cap_font"):
         it = lib.get(ed.get(key) or "")
-        if it and it.get("kind") == "font" and it.get("family"):
-            CUSTOM_FONTS[it["family"]] = it["path"]
+        if it and it.get("kind") == "font" and it.get("path"):
+            fam = ass_family(it["path"], it.get("family", ""))      # read from the file: right for fonts added before too
+            if not fam:
+                continue
+            CUSTOM_FONTS[fam] = it["path"]
             fonts.append(it["path"])
             if key == "hook_font":
-                hook_font = it["family"]
+                hook_font = fam
             else:
-                cap_font = it["family"]
+                cap_font = fam
     keep = tighten_plan(src, start, end, words) if clip.get("tighten") else []
     if ed.get("cuts"):                              # the parts cut out in the editor, together with the silences cut
         keep = editmod.intersect(keep, editmod.keep_from_cuts(ed["cuts"], start, end)) or [(0.0, round(end - start, 3))]
@@ -686,7 +733,7 @@ def render_clip(src: Path, out_dir: Path, name: str, clip: dict, words: list, sr
         if post or sfx or over:
             try:
                 out = _render_in(work, src, out_dir, name, start, end, layout, fg_h, ass, face=face, z=z, keep=keep,
-                                 game=game, top_h=top_h, tag=tag, post=post, sfx=sfx, over=over, fonts=fonts)
+                                 game=game, top_h=top_h, tag=tag, post=post, sfx=sfx, over=over, fonts=fonts, progress=progress, voice=ed.get("voice"))
             except RuntimeError as e:
                 # effects this ffmpeg can't make: the clip is still made, with the edit's cuts and text, without them
                 print(f"  Effects not added to {name}: {str(e)[-300:]}", flush=True)
@@ -694,17 +741,21 @@ def render_clip(src: Path, out_dir: Path, name: str, clip: dict, words: list, sr
         try:
             if out is None:
                 out = _render_in(work, src, out_dir, name, start, end, layout, fg_h, ass, face=face, z=z, keep=keep,
-                                 game=game, top_h=top_h, tag=tag, fonts=fonts)
+                                 game=game, top_h=top_h, tag=tag, fonts=fonts, progress=progress, voice=ed.get("voice"))
                 if post or sfx or over:
                     out["fx_note"] = "The effects couldn't be added on this computer, so the clip was made without them."
-        except RuntimeError:
+        except RuntimeError as e:
             if not z and not keep:
                 raise
+            print(f"  Cuts and zoom not made in {name}: {str(e)[-300:]}", flush=True)
             # a zoom or cuts this ffmpeg can't make: the clip is made without them, never not at all
             ass = build_ass(words if clip.get("captions", True) else [], start, end, clip.get("hook", ""), clip.get("style", "bounce"),
                             clip.get("highlight_words", []), hook_y, cap_y, watermark=clip.get("watermark", ""), hook_fx=hook_fx, hook_dur=hook_dur,
                             hook_font=hook_font, cap_font=cap_font)
-            out = _render_in(work, src, out_dir, name, start, end, layout, fg_h, ass, face=face, game=game, top_h=top_h, tag=tag, fonts=fonts)
+            out = _render_in(work, src, out_dir, name, start, end, layout, fg_h, ass, face=face, game=game, top_h=top_h, tag=tag, fonts=fonts, progress=progress, voice=ed.get("voice"))
+            if ed.get("cuts") or post or sfx or over:      # say so: the edit didn't make it into the clip
+                out["fx_note"] = ("Your cuts and effects couldn't be made on this computer, so the clip was made without them. "
+                                  "Use Report a problem so we can fix it.")
             keep = []
         out["tightened"] = round((end - start) - sum(b - a for a, b in keep), 1) if keep else 0
         return out
@@ -713,7 +764,7 @@ def render_clip(src: Path, out_dir: Path, name: str, clip: dict, words: list, sr
 
 
 def _render_in(work: Path, src: Path, out_dir: Path, name: str, start, end, layout, fg_h, ass: str, face=None, z="", keep=None,
-               game=None, top_h=SPLIT_TOP, tag=None, post="", sfx=None, over=None, fonts=None) -> dict:
+               game=None, top_h=SPLIT_TOP, tag=None, post="", sfx=None, over=None, fonts=None, progress=None, voice=None) -> dict:
     (work / f"{name}.ass").write_text(ass, encoding="utf-8")
     (work / "f").mkdir(exist_ok=True)
     for f in config.FONTS_DIR.glob("*.ttf"):
@@ -754,11 +805,12 @@ def _render_in(work: Path, src: Path, out_dir: Path, name: str, start, end, layo
     if keep:            # silences and filler words cut out first; the sound evened out in the same graph
         fc = _tighten_filter(keep, fc)
     heard = [(i, o) for i, o in enumerate(over or []) if o.get("audio")]
+    vol = f",volume={voice:.2f}" if voice is not None and abs(voice - 1) > 0.001 else ""     # the stream's own sound, as set in the editor
     if sfx or heard:    # sound effects, and the sound of videos laid over the clip, each at its moment, over the voice
         first = 1 + len(over or []) + (1 if tag else 0)
         for f, _at, _vol in sfx or []:
             extra += ["-i", str(f)]
-        mix = [f"{'[ca]' if keep else '[0:a:0]'}loudnorm=I=-14:TP=-1.5:LRA=11[an]"]
+        mix = [f"{'[ca]' if keep else '[0:a:0]'}loudnorm=I=-14:TP=-1.5:LRA=11{vol}[an]"]
         for i, (_f, at, vol) in enumerate(sfx or []):
             ms = int(at * 1000)
             mix.append(f"[{first + i}:a]aresample=48000,adelay={ms}|{ms},volume={vol:.2f}[x{i}]")
@@ -771,10 +823,10 @@ def _render_in(work: Path, src: Path, out_dir: Path, name: str, start, end, layo
         fc += ";" + ";".join(mix)
         sound = ["-map", "[a]"]
     elif keep:
-        fc += ";[ca]loudnorm=I=-14:TP=-1.5:LRA=11[a]"
+        fc += f";[ca]loudnorm=I=-14:TP=-1.5:LRA=11{vol}[a]"
         sound = ["-map", "[a]"]
     else:
-        sound = ["-map", "0:a:0", "-af", "loudnorm=I=-14:TP=-1.5:LRA=11"]
+        sound = ["-map", "0:a:0", "-af", f"loudnorm=I=-14:TP=-1.5:LRA=11{vol}"]
     base = ["ffmpeg", "-y", "-v", "error", "-ss", f"{start:.2f}", "-t", f"{end - start:.2f}", "-i", str(src), *extra,
             "-filter_complex", fc, "-map", "[v]", *sound,
             "-c:a", "aac", "-b:a", "160k", "-ar", "48000", "-movflags", "+faststart", "-pix_fmt"]
@@ -785,7 +837,9 @@ def _render_in(work: Path, src: Path, out_dir: Path, name: str, start, end, layo
     for label, enc in encoders:
         try:
             # a graphics-card encoder that hangs at the start is given up on sooner (and the processor used)
-            p = _encode(base + enc + [f"{name}.mp4"], work, stall=RENDER_STALL if label == "x264" else 90)
+            total = max(0.5, sum(b - a for a, b in keep) if keep else end - start)
+            p = _encode(base + enc + [f"{name}.mp4"], work, stall=RENDER_STALL if label == "x264" else 90,
+                        progress=(lambda t: progress(min(0.99, t / total))) if progress else None)
         except subprocess.TimeoutExpired:
             if label == "x264":
                 raise RuntimeError("Making the clip took too long and was stopped.")

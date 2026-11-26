@@ -144,7 +144,7 @@ def up(name, src_file=None, make=None):
 
 
 font = library.add(uid, "font", "MyFont.ttf", up("MyFont.ttf", src_file="studio/fonts/Bangers-Regular.ttf"))
-check("a font is added, with its family name read from it", (font["kind"], font["family"]), ("font", "Bangers"))
+check("a font is added, with its full name read from it (what the caption renderer finds it by)", (font["kind"], font["family"]), ("font", "Bangers Regular"))
 snd = library.add(uid, "sound", "bruh.mp3", up("bruh.wav", make=lambda f: subprocess.run(
     ["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "sine=f=500:d=1.2", str(f)], check=True)))
 check("a sound is added, made into AAC, with its length", (snd["kind"], round(snd["dur"], 1)), ("sound", 1.2))
@@ -176,7 +176,20 @@ clip = {"start": 10, "end": 30, "layout": "blur", "hook": "MY OWN FONT", "style"
 got = render.render_clip(src, out_dir, "lib", clip, words, 1280, 720)
 ass = (out_dir / "lib.ass").read_text(encoding="utf-8")
 check("a clip is made with the person's font (heading and captions), sound, picture and video", got.get("file") == "lib.mp4" and not got.get("fx_note"))
-check("...the heading and the captions are drawn in their font", "Style: Hook,Bangers" in ass and "Style: Cap,Bangers" in ass)
+check("...the heading and the captions are drawn in their font", "Style: Hook,Bangers Regular" in ass and "Style: Cap,Bangers Regular" in ass)
+# a bold or black font from a family ("Poppins ExtraBold" in "Poppins"): asked for by its full name, which every
+# system finds, not by the family alone, which Windows doesn't (the heading then came out in a plain fallback font)
+bold = library.add(uid, "font", "Poppins-ExtraBold.ttf", up("Poppins-ExtraBold.ttf", src_file="studio/fonts/Poppins-ExtraBold.ttf"))
+check("a bold font from a family is kept under its full name", bold["family"], "Poppins ExtraBold")
+idx = library._index(uid)
+for it in idx:
+    if it["id"] == bold["id"]:
+        it["family"] = "Poppins"          # as fonts added before this fix were kept
+library._save(uid, idx)
+ed2 = edit.clean({"hook_font": bold["id"]}, 10, 30)
+clip2 = {"start": 10, "end": 20, "layout": "blur", "hook": "BOLD FONT", "style": "hype", "edit": ed2, "captions": True, "lib": library.resolve(uid, ed2)}
+render.render_clip(src, out_dir, "lib2", clip2, words, 1280, 720)
+check("...and one added before is drawn by its full name too", "Style: Hook,Poppins ExtraBold," in (out_dir / "lib2.ass").read_text(encoding="utf-8"))
 def colour_at(t, x, y):
     p = subprocess.run(["ffmpeg", "-v", "error", "-ss", f"{t}", "-i", str(out_dir / "lib.mp4"), "-frames:v", "1", "-vf", f"crop=2:2:{x}:{y},scale=1:1",
                         "-f", "rawvideo", "-pix_fmt", "rgb24", "-"], capture_output=True)
@@ -187,5 +200,16 @@ r2 = colour_at(5.0, 540, int(0.3 * 1920))
 check("...and is gone after its two seconds", r2, lambda c: not (c[0] > 180 and c[1] < 80))
 library.delete(uid, img["id"])
 check("deleting a picture from the library takes its file away", library.get(uid, img["id"]) is None and library.resolve(uid, ed).get(img["id"]) is None)
+# ---- the stream's own sound: turned down (or off) in the editor
+check("the stream's volume is kept, from 0 to 1.5 (full volume isn't stored)", (edit.clean({"voice": 0.25}, 0, 10).get("voice"), edit.clean({"voice": 1}, 0, 10).get("voice"), edit.clean({"voice": 9}, 0, 10).get("voice")), (0.25, None, 1.5))
+def loudness(f):
+    p = subprocess.run(["ffmpeg", "-i", str(f), "-af", "volumedetect", "-f", "null", "-"], capture_output=True, text=True)
+    import re as _re
+    m = _re.search(r"mean_volume: (-?[\d.]+) dB", p.stderr)
+    return float(m.group(1)) if m else 0.0
+full = render.render_clip(src, out_dir, "vfull", {"start": 10, "end": 18, "layout": "blur", "hook": "", "captions": False, "edit": edit.clean({"look": "warm"}, 10, 18)}, [], 1280, 720)
+low = render.render_clip(src, out_dir, "vlow", {"start": 10, "end": 18, "layout": "blur", "hook": "", "captions": False, "edit": edit.clean({"look": "warm", "voice": 0.2}, 10, 18)}, [], 1280, 720)
+a_, b_ = loudness(out_dir / "vfull.mp4"), loudness(out_dir / "vlow.mp4")
+check("...and the clip's sound is that much quieter", (a_, b_), lambda x: x[0] - x[1] > 10)
 print(f"  {len(fails)} failed" if fails else "  ALL PASSED")
 sys.exit(1 if fails else 0)

@@ -157,6 +157,10 @@ def clean(v, start: float, end: float, lo: float | None = None, hi: float | None
     for k, (a, b) in {"hook_y": (120, 1750), "cap_y": (300, 1750)}.items():
         if v.get(k) not in (None, ""):
             out[k] = int(_num(v[k], a, b, "A place on the screen"))
+    if v.get("voice") not in (None, ""):          # the stream's own sound: 0 (off) to 1.5 (louder)
+        vo = round(_num(v["voice"], 0, 1.5, "The stream's volume"), 2)
+        if vo != 1:
+            out["voice"] = vo
     if v.get("hook_dur") not in (None, "", 0):
         out["hook_dur"] = _num(v["hook_dur"], 0.5, 180, "How long the big text stays")
     for k in ("hook_font", "cap_font"):            # a font from the person's library, by its id

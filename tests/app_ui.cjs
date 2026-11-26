@@ -75,6 +75,13 @@ const check = (n, ok, got) => { console.log((ok ? "PASS " : "FAIL ") + n + (ok ?
   await p.click('[data-act="stf"][data-v="all"]');
   await p.screenshot({ path: OUT + "app-editor-page.png" });
   await p.click("#stGrid .rc-th");
+  await p.waitForSelector("#clipdlg[open] .dlg-edit", { timeout: 10000 });
+  check("clicking a clip opens its window (watch it, title, description), with Open in the editor", !(await p.$("#ed")) && !!(await p.$("#clipdlg[open] video")));
+  await p.click("#clipdlg .dlg-edit");
+  await p.waitForFunction(() => window.CKEditor && CKEditor.state() && CKEditor.state().ready, null, { timeout: 90000 });
+  check("...which opens the full editor", !!(await p.$("#ed")) && !(await p.$("#clipdlg[open]")));
+  await p.keyboard.press("Escape"); await p.waitForTimeout(300);
+  await p.click("#stGrid .rc .go");
   await p.waitForFunction(() => window.CKEditor && CKEditor.state() && CKEditor.state().ready, null, { timeout: 90000 });
   check("Edit on a clip opens it in the editor", !!(await p.$("#ed")));
   await p.keyboard.press("Escape"); await p.waitForTimeout(300);
