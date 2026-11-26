@@ -22,7 +22,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Redirect
 
 from . import admin as admins
 from . import account, load
-from . import (accounts, ai, alerts, auth, brain, config, creators, ctx, db, earn, jobs, library, live, media, posting,
+from . import (accounts, ai, alerts, auth, brain, config, creators, ctx, db, earn, jobs, levels, library, live, media, posting,
                profiles, render, safe, transcribe, usage, whisper)
 
 from . import tools as _tools  # noqa: E402
@@ -2267,7 +2267,7 @@ def _earn(fn, *a, **k):
     """Runs an Earn action; problems the person can fix come back as a plain message."""
     try:
         out = fn(*a, **k)
-    except earn.EarnError as e:
+    except (earn.EarnError, levels.LevelError) as e:
         raise HTTPException(400, str(e))
     if fn in (earn.save_campaign, earn.delete_campaign, earn.set_order, earn.save_cover):
         _APP_FEED.clear()                    # what the app shows follows the admin's change at once
@@ -2641,6 +2641,38 @@ def earn_me(request: Request):
     return earn.mine(_me(request).id)
 
 
+@app.get("/api/earn/level")
+def earn_level(request: Request):
+    """The clipper's level, what the next one takes, their badges and their premium application."""
+    return levels.info(_me(request).id)
+
+
+@app.post("/api/earn/apply")
+def earn_apply(request: Request, body: dict = Body(...)):
+    _need_verified()
+    try:
+        auth.throttle("earn-apply:" + _me(request).id, 10, 3600)
+    except auth.AuthError:
+        raise HTTPException(429, "Too many tries. Wait a bit, then send it again.")
+    return _earn(levels.apply, _me(request).id, body)
+
+
+_WEEK: dict = {}
+
+
+@app.get("/api/earn/public/week")
+def earn_week(request: Request):
+    """This week's top clippers, with their levels and badges. The same for everyone (kept a minute); who's who is
+    never sent, only a mark on the visitor's own row."""
+    hit = _WEEK.get("v")
+    if not hit or time.time() - hit[0] > 60:
+        hit = (time.time(), levels.weekly_board())
+        _WEEK["v"] = hit
+    uid = _uid_or_none(request)
+    return {"since": hit[1]["since"], "ends": hit[1]["ends"],
+            "rows": [{**{k: v for k, v in r.items() if k != "uid"}, "me": bool(uid) and r["uid"] == uid} for r in hit[1]["rows"]]}
+
+
 @app.put("/api/earn/profile")
 def earn_profile(request: Request, body: dict = Body(...)):
     return _earn(earn.save_profile, _me(request).id, body)
@@ -2680,6 +2712,20 @@ def earn_proof_file(request: Request, sid: int):
     u = _me(request)
     p = _earn(earn.proof_path, sid, u.id, bool(u.is_admin))
     return FileResponse(p, media_type="image/jpeg", headers={"Cache-Control": "private, max-age=300"})
+
+
+@app.get("/api/admin/earn/levels")
+def earn_admin_levels(request: Request, status: str = "pending"):
+    _admin(request)
+    return levels.applications(status)
+
+
+@app.post("/api/admin/earn/levels/{uid}")
+def earn_admin_level(request: Request, uid: str, body: dict = Body(...)):
+    a = _admin(request)
+    out = _earn(levels.decide, uid[:40], str(body.get("action", "")), str(body.get("level", "silver")), str(body.get("note", "")), a.id)
+    _WEEK.clear()
+    return out
 
 
 @app.get("/api/admin/earn/summary")

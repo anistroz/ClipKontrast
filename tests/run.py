@@ -54,6 +54,8 @@ def main() -> int:
                 ("mail through Brevo's web API", ["tests/test_mail_api.py"]),
                 ("Earn: handles with dots, and campaign states", ["tests/test_earn_states.py"]),
                 ("Earn: public view numbers count only clips that can be trusted", ["tests/test_public_views.py"]),
+                ("Earn: levels, premium campaigns, badges and the weekly leaderboard", ["tests/test_levels.py"]),
+                ("Earn: applying, approval and levels in a browser", ["tests/test_levels_ui.py", str(ROOT)]),
                 ("The clip editor: edits, transitions, sounds, looks, text effects, preview", ["tests/test_editor.py"]),
                 ("The clip editor in a browser: edit every way, export", ["tests/test_editor_ui.py", str(ROOT)]),
                 ("The app in a browser: Home, the Editor page, the Library, Hype Edit all", ["tests/test_app_ui.py", str(ROOT)]),

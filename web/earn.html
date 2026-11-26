@@ -577,6 +577,43 @@ a.nf-step:hover{border-color:rgba(198,244,50,.4)}
 .nf-bot{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-top:44px;padding:20px 0;border-top:1px solid rgba(255,255,255,.08);color:#7D6F66;font-size:13px}
 .nf-word{font-weight:800;letter-spacing:-.06em;line-height:.78;font-size:clamp(56px,13.6vw,190px);text-align:center;margin:30px 0 -10px;background:linear-gradient(180deg,rgba(198,244,50,.28),rgba(198,244,50,0) 85%);-webkit-background-clip:text;background-clip:text;color:transparent;user-select:none;white-space:nowrap}
 @media (max-width:900px){.nf{padding-top:72px}.nf-flow{grid-template-columns:1fr 1fr}.nf-ar{display:none}.nf-two{grid-template-columns:1fr}.nf-links{grid-template-columns:1fr 1fr}.nf-links>div:first-child{grid-column:1/-1}}
+
+/* ---------- levels, badges and premium campaigns */
+.lvbox{display:grid;grid-template-columns:auto minmax(0,1.3fr) minmax(0,1fr);gap:22px;align-items:center;margin-top:24px;padding:18px 22px;border:1px solid var(--line);border-radius:var(--r-lg);background:#fff}
+.lvme{display:flex;gap:14px;align-items:center}
+.shield{width:58px;height:66px;border-radius:15px 15px 28px 28px;display:grid;place-items:center;font-size:28px;flex:none;background:linear-gradient(160deg,#EEF8DA,#C9E99A)}
+.shield.silver{background:linear-gradient(160deg,#F1F3F6,#B7C0CB)}.shield.gold{background:linear-gradient(160deg,#FFEDB5,#E2AC35)}.shield.elite{background:linear-gradient(160deg,#3A2E28,#1E1612)}
+.shield.big{width:76px;height:86px;font-size:36px;border-radius:18px 18px 34px 34px}
+.lvme b{display:block;font-size:22px;letter-spacing:-.02em;color:var(--ink);line-height:1.15}.lvme small{display:block;font-size:13px;color:var(--dim)}
+.lvrate{display:inline-block;margin-top:5px;font-size:12px;font-weight:800;background:var(--soft);color:var(--deep);border:1px solid var(--line-b);padding:2px 9px;border-radius:999px}
+.lvnext{min-width:0}.lvnext .h{display:flex;justify-content:space-between;gap:10px;font-size:13.5px;margin-bottom:8px;color:var(--dim)}.lvnext .h b{color:var(--ink)}
+.lvstep{font-size:12.5px;color:var(--dim);margin-top:8px}.lvstep span{display:flex;justify-content:space-between;gap:10px;margin-bottom:5px}.lvstep span b{color:var(--ink);white-space:nowrap}
+.lvbar{height:9px;border-radius:999px;background:var(--muted);overflow:hidden}.lvbar i{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,#9BD10F,var(--brand));transition:width .8s var(--ease)}
+.lvbadges{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end;align-items:center}
+.lvbadges i{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font-style:normal;font-size:17px;background:var(--soft)}.lvbadges i.off{background:var(--muted);filter:grayscale(1);opacity:.4}
+.lvbadges .btn{margin-left:6px}
+.bgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.bdg{border:1px solid var(--line);border-radius:14px;padding:14px 8px;text-align:center;background:#fff}
+.bdg i{display:grid;place-items:center;width:46px;height:46px;margin:0 auto 6px;border-radius:50%;font-style:normal;font-size:23px;background:var(--soft)}
+.bdg b{display:block;font-size:13px;color:var(--ink)}.bdg span{display:block;font-size:11.5px;color:var(--dim)}
+.bdg.off{opacity:.5}.bdg.off i{background:var(--muted);filter:grayscale(1)}.bdg.new{border-color:var(--brand);background:var(--soft)}
+.bdg.new b::after{content:"NEW";margin-left:5px;font-size:9px;font-weight:800;background:var(--brand);color:var(--ink);padding:1px 5px;border-radius:5px;vertical-align:2px}
+.ladder{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:6px 0 4px}
+.rung{border:1px solid var(--line);border-radius:14px;padding:12px;background:#fff}.rung.on{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
+.rung i{font-style:normal;font-size:20px}.rung b{display:block;font-size:14px;color:var(--ink);margin-top:2px}.rung em{display:block;font-style:normal;font-weight:800;color:var(--deep);font-size:15px}
+.rung span{display:block;font-size:12px;color:var(--dim);margin-top:2px}
+.appst{display:flex;gap:6px;margin:4px 0 16px}.appst div{flex:1;font-size:12px;color:var(--faint);border-top:3px solid var(--line);padding-top:7px}.appst div.on{color:var(--ink);border-color:var(--brand);font-weight:600}
+.camp .prem{position:absolute;left:12px;bottom:12px;z-index:2;display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;background:var(--frame);color:var(--brand);padding:4px 10px;border-radius:999px}
+.tiers{display:flex;gap:6px;flex-wrap:wrap;margin-top:2px}.tiers span{font-size:12px;font-weight:700;background:var(--muted);border-radius:999px;padding:3px 9px;color:var(--text)}
+.tiers span.me{background:var(--brand);color:var(--ink)}
+.lbtabs{display:inline-flex;gap:2px;padding:3px;background:var(--muted);border-radius:12px;margin-bottom:14px}
+.lbtabs button{border:0;background:transparent;font:inherit;font-size:13.5px;font-weight:600;color:var(--dim);padding:7px 14px;border-radius:9px;cursor:pointer}
+.lbtabs button.on{background:#fff;color:var(--ink)}
+.lb-row .lvc{font-size:11px;font-weight:800;padding:2px 8px;border-radius:999px;white-space:nowrap}
+.lvc.elite{background:var(--frame);color:var(--brand)}.lvc.gold{background:#FFF1C9;color:#7A5200}.lvc.silver{background:#EEF1F4;color:#4A5563}.lvc.starter{background:var(--soft);color:var(--deep)}
+.lb-row.me{background:var(--soft);border-radius:10px}
+.lb.week .lb-row{grid-template-columns:44px minmax(0,1fr) auto 110px 90px}
+@media (max-width:900px){.lvbox{grid-template-columns:1fr}.lvbadges{justify-content:flex-start}.bgrid,.ladder{grid-template-columns:repeat(2,1fr)}.lb.week .lb-row{grid-template-columns:36px minmax(0,1fr) auto 80px}.lb.week .hide-s{display:none}}
 </style>
 </head>
 <body>
@@ -858,8 +895,10 @@ function cover(c, big = false) {
   const art = c.cover ? `<img src="${esc(c.cover)}" alt="">`
     : (st === "soon" || st === "starts") ? `<div class="gen soon-art" style="background:${esc(c.accent)}"><svg viewBox="0 0 256 256" aria-hidden="true"><path d="M208,80H176V56a48,48,0,0,0-96,0V80H48A16,16,0,0,0,32,96V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V96A16,16,0,0,0,208,80ZM96,56a32,32,0,0,1,64,0V80H96ZM208,208H48V96H208V208Zm-68-56a12,12,0,1,1-12-12A12,12,0,0,1,140,152Z"/></svg><span class="gn">${st === "soon" ? "Revealing soon" : "Opens " + esc(date(c.starts_at))}</span></div>`
     : `<div class="gen" style="background:${esc(c.accent)}"><span class="gi">${esc(initials)}</span><span class="gn">${esc(c.creator_name || c.title)}</span></div>`;
-  return `<div class="cover">${art}<div class="tags">${tags.join("")}</div></div>`;
+  return `<div class="cover">${art}<div class="tags">${tags.join("")}</div>${c.premium ? '<span class="prem">🔒 Approved clippers only</span>' : ""}</div>`;
 }
+const myLevel = () => (S.me && S.me.level && S.me.level.level) || "starter";
+const tiersRow = c => c.premium && c.tier_rates ? `<div class="tiers">${["silver", "gold", "elite"].map(k => `<span class="${myLevel() === k ? "me" : ""}">${LV[k][0]} ${LV[k][1]} ${inr(c.tier_rates[k])}</span>`).join("")}</div>` : "";
 const plats = c => `<div class="plats">${c.platforms.map(p => `<span class="plat"><i style="background:${PLAT[p][1]}"></i>${esc(PLAT[p][0])}</span>`).join("")}</div>`;
 function stateLine(c) {
   const st = c.state || (c.open ? "open" : c.status);
@@ -978,7 +1017,8 @@ function card(c) {
     <div class="body">
       <div><div class="by">${esc(c.creator_name || "ClipKontrast campaign")}</div><h3>${esc(c.title)}</h3></div>
       ${c.tagline ? `<p class="tl">${esc(c.tagline)}</p>` : ""}
-      ${c.rate_per_1k ? `<div class="rate"><b>${inr2(c.rate_per_1k)}</b><span>per 1,000 views${c.max_per_clip ? ` · up to ${inr(c.max_per_clip)} a clip` : ""}</span></div>` : `<div class="rate"><b>Soon</b><span>rate announced when it opens</span></div>`}
+      ${c.rate_per_1k ? `<div class="rate"><b>${c.premium ? "up to " : ""}${inr2(c.rate_per_1k)}</b><span>per 1,000 views${c.max_per_clip ? ` · up to ${inr(c.max_per_clip)} a clip` : ""}</span></div>` : `<div class="rate"><b>Soon</b><span>rate announced when it opens</span></div>`}
+      ${tiersRow(c)}
       ${c.budget ? `<div class="budget"><div class="row"><span><b>${inr(c.remaining)}</b> left</span><span>of ${inr(c.budget)}</span></div><div class="meter"><i style="width:0" data-w="${100 - c.used_pct}"></i></div></div>` : ""}
       ${plats(c)}
     </div>
@@ -999,13 +1039,25 @@ function drawCamps() {
 
 // ---------------------------------------------------------------- leaderboard
 function drawLb() {
+  const wk = (S.week && S.week.rows) || [];
+  if (!S.lbTab) S.lbTab = wk.length ? "week" : "all";
+  const tabs = `<div class="lbtabs reveal"><button class="${S.lbTab === "week" ? "on" : ""}" data-act="lbtab" data-t="week">This week</button><button class="${S.lbTab === "all" ? "on" : ""}" data-act="lbtab" data-t="all">All time</button></div>`;
+  if (S.lbTab === "week") {
+    $("#lb").innerHTML = tabs + (wk.length ? `<div class="lb week reveal">
+      <div class="lb-row head"><span>#</span><span>Clipper</span><span>Level</span><span class="r">Checked views</span><span class="r hide-s">Best clip</span></div>
+      ${wk.map(r => `<div class="lb-row${r.me ? " me" : ""}"><span class="rk">${r.rank}</span><span class="nm"><i>${esc((r.name[0] || "?").toUpperCase())}</i>${esc(r.me ? r.name + " (you)" : r.name)} <span style="letter-spacing:2px">${r.badges.map(esc).join("")}</span></span>
+        <span>${lvChip(r.level)}</span><span class="r num">${short(r.views)}</span><span class="r num hide-s">${short(r.best)}</span></div>`).join("")}
+    </div><p style="font-size:13px;color:var(--dim);margin-top:10px">Clips approved since Monday. Views count once they're checked, so the board fills up during the week.</p>`
+      : `<div class="empty"><b>This week's board is empty so far</b>Clips show up here once they're approved. Starts again every Monday.</div>`);
+    watchReveal(); return;
+  }
   const lb = S.data.leaderboard;
   const earned = lb.some(r => r.earned > 0);
-  $("#lb").innerHTML = lb.length ? `<div class="lb reveal${earned ? "" : " noearn"}">
+  $("#lb").innerHTML = tabs + (lb.length ? `<div class="lb reveal${earned ? "" : " noearn"}">
     <div class="lb-row head"><span>#</span><span>Clipper</span><span class="r hide-xs">Clips</span><span class="r">Views</span>${earned ? `<span class="r hide-s">Earned</span>` : ""}</div>
     ${lb.map((r, i) => `<div class="lb-row"><span class="rk">${i + 1}</span><span class="nm"><i>${esc((r.name[0] || "?").toUpperCase())}</i>${esc(r.name)}</span>
       <span class="r num hide-xs">${num(r.clips)}</span><span class="r num">${short(r.views)}</span>${earned ? `<span class="r num hide-s">${inr(r.earned)}</span>` : ""}</div>`).join("")}
-  </div>` : `<div class="empty"><b>No one's on the board yet</b>The first clipper to send in a clip takes the top spot.</div>`;
+  </div>` : `<div class="empty"><b>No one's on the board yet</b>The first clipper to send in a clip takes the top spot.</div>`);
   watchReveal();
 }
 
@@ -1024,10 +1076,16 @@ async function openCampaign(slug) {
   else if (stc === "starts") cta = `<button class="btn" disabled>🔒 Opens ${esc(date(c.starts_at))}</button>`;
   else if (!c.open) cta = `<button class="btn" disabled>${stc === "paused" ? "Paused for now" : stc === "full" ? "Budget used up" : "Not taking clips"}</button>`;
   else if (!me) cta = `<a class="btn primary" href="${signupHref("/earn#c=" + c.slug)}">Sign up to join ${ARROW}</a><a class="btn" href="/login?next=${encodeURIComponent("/earn#c=" + c.slug)}">I have an account</a>`;
+  else if (c.premium && myLevel() === "starter") {
+    const ap = S.me?.level?.application;
+    cta = ap && ap.status === "pending" ? `<button class="btn" disabled>⏳ Your application is being reviewed</button><div style="font-size:13px;color:var(--dim);text-align:center">Most answers come within 2 days.</div>`
+      : `<button class="btn primary" data-act="apply-open">Apply to join ${ARROW}</button><div style="font-size:13px;color:var(--dim);text-align:center">Only approved clippers can join. We look at your page and your best edit.</div>`;
+  }
   else if (c.member) cta = `<button class="btn primary" data-act="submit-for" data-id="${esc(c.id)}">Send a clip ${ARROW}</button>`;
   else if (!prof?.complete) cta = `<button class="btn primary" data-act="profile-first">Set up payout profile</button>`;
   else cta = `<button class="btn primary" data-act="join" data-slug="${esc(c.slug)}">Join campaign ${ARROW}</button>`;
-  const payEx = c.rate_per_1k ? `A clip with 50,000 views earns <b>${inr2(Math.min(50 * c.rate_per_1k, c.max_per_clip || 1e12))}</b>.` : "";
+  const myRate = c.premium && c.tier_rates ? c.tier_rates[myLevel() === "starter" ? "silver" : myLevel()] : c.rate_per_1k;
+  const payEx = c.rate_per_1k ? `A clip with 50,000 views earns <b>${inr2(Math.min(Math.max(0, 50000 - (c.free_views || 0)) / 1000 * myRate, c.max_per_clip || 1e12))}</b>${c.premium ? ` at ${myLevel() === "starter" ? "Silver" : LV[myLevel()][1]}` : ""}.` : "";
   $("#sheet").innerHTML = `<div class="sheet-bg" data-act="close-bg"><div class="sheet" role="dialog" aria-label="${esc(c.title)}">
     <div class="top"><span class="mono" style="color:var(--faint)">Campaign</span><button class="btn sm" data-act="close">Close</button></div>
     ${cover(c, true)}
@@ -1046,12 +1104,16 @@ async function openCampaign(slug) {
         ${c.leaderboard.length ? `<div class="mini-lb">${c.leaderboard.map((r, i) => `<div><span>${i + 1}. ${esc(r.name)}</span><span class="num">${short(r.views)} views${r.earned > 0 ? " · " + inr(r.earned) : ""}</span></div>`).join("")}</div>` : `<div class="locked">No clips yet. Yours could be first.</div>`}
       </div>
       <aside class="aside">
-        ${c.rate_per_1k ? `<div><div class="big">${inr2(c.rate_per_1k)}</div><div style="color:var(--dim);font-size:14px">per 1,000 views</div></div>` : `<div><div class="big">Soon</div><div style="color:var(--dim);font-size:14px">The rate and budget are announced when it opens.</div></div>`}
+        ${c.premium && c.tier_rates ? `<div><div class="big">${inr2(myRate)}</div><div style="color:var(--dim);font-size:14px">per 1,000 views ${myLevel() === "starter" ? "once approved (Silver)" : `at your level, ${LV[myLevel()][1]}`}</div>
+            <div class="ladder" style="grid-template-columns:repeat(3,1fr);margin-top:12px">${["silver", "gold", "elite"].map(k => `<div class="rung${myLevel() === k ? " on" : ""}"><i>${LV[k][0]}</i><b>${LV[k][1]}</b><em>${inr(c.tier_rates[k])}</em></div>`).join("")}</div>
+            <div style="font-size:12.5px;color:var(--dim);margin-top:6px">Your level goes up by itself as your clips do well. <a href="#me" data-act="tab" data-t="level">How levels work</a></div></div>`
+          : c.rate_per_1k ? `<div><div class="big">${inr2(c.rate_per_1k)}</div><div style="color:var(--dim);font-size:14px">per 1,000 views</div></div>` : `<div><div class="big">Soon</div><div style="color:var(--dim);font-size:14px">The rate and budget are announced when it opens.</div></div>`}
         ${c.budget ? `<div class="budget"><div class="row"><span><b>${inr(c.remaining)}</b> left</span><span>${inr(c.budget)}</span></div><div class="meter"><i style="width:${Math.max(1.5, 100 - c.used_pct)}%"></i></div></div>` : ""}
         <dl>
           <dt>Platforms</dt><dd>${c.platforms.map(p => esc(PLAT[p][0].split(" ")[0])).join(", ")}</dd>
           ${c.min_views ? `<dt>Minimum views</dt><dd>${num(c.min_views)}</dd>` : ""}
           ${c.max_per_clip ? `<dt>Most per clip</dt><dd>${inr(c.max_per_clip)}</dd>` : ""}
+          ${c.free_views ? `<dt>Paid views</dt><dd>after the first ${num(c.free_views)}</dd>` : ""}
           <dt>Views counted</dt><dd>${c.hold_days} days after posting</dd>
           ${c.starts_at ? `<dt>Starts</dt><dd>${esc(date(c.starts_at))}</dd>` : ""}
           ${c.ends_at ? `<dt>Ends</dt><dd>${esc(date(c.ends_at))}</dd>` : ""}
@@ -1087,6 +1149,77 @@ function checkChips(c) {
   const one = (v, y, n, q) => v === true ? `<span class="y">✓ ${y}</span>` : v === false ? `<span class="n">✕ ${n}</span>` : q ? `<span>${q}</span>` : "";
   return `<div class="cks">${one(c.owner, "Your account", "Not your account", "Account: by hand")}${one(c.after_start, "On time", "Too early", "")}${one(c.tag, "Tag found", "Tag missing", "")}</div>`;
 }
+
+// ---------------------------------------------------------------- levels and badges
+const LV = {starter: ["🌱", "Starter"], silver: ["🥈", "Silver"], gold: ["🥇", "Gold"], elite: ["💎", "Elite"]};
+const lvChip = l => `<span class="lvc ${esc(l)}">${LV[l] ? LV[l][0] + " " + LV[l][1] : ""}</span>`;
+function stepHtml(st) {
+  const pct = Math.max(2, Math.min(100, st.have / st.need * 100));
+  const val = st.views ? `${short(st.have)} / ${short(st.need)}` : st.need === 1 ? (st.have ? "✓ Done" : "Not yet") : `${st.have} / ${st.need}`;
+  return `<div class="lvstep"><span>${esc(st.label)}<b>${val}</b></span><div class="lvbar"><i style="width:${pct}%"></i></div></div>`;
+}
+function nextHtml(L) {
+  const n = L.next;
+  if (!n) return `<div class="lvnext"><div class="h"><b>💎 You're at the top level</b></div><div style="font-size:13px;color:var(--dim)">Keep your clips real: a clip caught with bought views can move you down.</div></div>`;
+  const app = L.application;
+  if (L.level === "starter") {
+    const msg = !app || app.status === "none" ? "Apply once to clip premium campaigns" : app.status === "pending" ? "Your application is being reviewed" : "Not approved yet";
+    return `<div class="lvnext"><div class="h"><b>${LV.silver[0]} Next: Silver · ${inr(n.rate)} per 1,000 views</b></div>
+      <div style="font-size:13px;color:var(--dim)">${esc(msg)}${app && app.status === "rejected" && app.review_note ? `: ${esc(app.review_note)}` : "."}</div></div>`;
+  }
+  return `<div class="lvnext"><div class="h"><b>${LV[n.level][0]} Next: ${esc(n.name)} · ${inr(n.rate)} per 1,000 views</b>${n.resets ? `<span>resets ${esc(n.resets)}</span>` : n.slots_left != null ? `<span>${n.slots_left} place${n.slots_left === 1 ? "" : "s"} left</span>` : ""}</div>
+    ${n.steps.map(stepHtml).join("")}</div>`;
+}
+function levelBox(L) {
+  if (!L) return "";
+  const got = L.badges.filter(b => b.earned).length;
+  return `<div class="lvbox">
+    <div class="lvme"><div class="shield ${esc(L.level)}">${L.icon}</div><div><small>Your level</small><b>${esc(L.name)}</b>
+      <span class="lvrate">${L.rate ? `${inr(L.rate)} per 1,000 views on premium` : `Premium pays up to ${inr(L.rates.elite)} per 1,000 views`}</span></div></div>
+    ${nextHtml(L)}
+    <div class="lvbadges">${L.badges.map(b => `<i class="${b.earned ? "" : "off"}" title="${esc(b.name)}: ${esc(b.what)}">${b.icon}</i>`).join("")}
+      <button class="btn sm" data-act="tab" data-t="level">${L.level === "starter" && (!L.application || L.application.status !== "pending") ? "Apply" : `Badges ${got}/${L.badges.length}`}</button></div>
+  </div>`;
+}
+function applyForm(L) {
+  const a = L.application || {}, st = a.status || "none";
+  if (st === "pending") return `<div class="appst"><div class="on">1 · Applied</div><div class="on">2 · We review</div><div>3 · Approved, start clipping</div></div>
+    <div class="note info"><span>Thanks! We're looking at your page and your best edit. Most answers come within 2 days, by email and here.</span></div>
+    <details style="margin-top:12px"><summary style="cursor:pointer;font-size:14px;font-weight:600">Change your application</summary><div style="margin-top:12px">${applyFields(a)}</div></details>`;
+  const again = st === "rejected" && a.reapply_at && a.reapply_at * 1000 > Date.now();
+  return `<div class="appst"><div class="on">1 · Apply</div><div>2 · We review</div><div>3 · Approved, start clipping</div></div>
+    ${st === "rejected" ? `<div class="note warn" style="margin-bottom:14px"><span><b>Not approved yet.</b> ${esc(a.review_note || "")} ${again ? `You can apply again from ${esc(new Date(a.reapply_at * 1000).toLocaleDateString("en-IN", {day: "numeric", month: "short"}))}.` : "You can apply again now."}</span></div>` : ""}
+    ${again ? "" : applyFields(a)}`;
+}
+function applyFields(a) {
+  const L = S.me.level;
+  return `<form id="applyForm" autocomplete="off"><div class="grid2"><div>
+      <div class="field"><label>Your page *</label><input name="page_url" value="${esc(a.page_url || "")}" placeholder="instagram.com/yourpage or youtube.com/@yourchannel" required></div>
+      <div class="row2"><div class="field"><label>Followers</label><input name="followers" inputmode="numeric" value="${a.followers || ""}" placeholder="12000"></div>
+        <div class="field"><label>Average views (last 10 posts)</label><input name="avg_views" inputmode="numeric" value="${a.avg_views || ""}" placeholder="15000"></div></div>
+      <div class="field"><label>Screen recording of your last 28 days *</label><input name="recording_url" value="${esc(a.recording_url || "")}" placeholder="A Google Drive link to the video" required>
+        <div class="hint">Record your Instagram Insights or YouTube Studio: views, where they come from, and which countries. Upload it to Google Drive and set it to "Anyone with the link". Only our team sees it.</div></div>
+      <div class="field"><label>Your best edit *</label><input name="sample_url" value="${esc(a.sample_url || "")}" placeholder="A link to the clip you're proudest of" required></div>
+      <div class="row2"><div class="field"><label>What you clip</label><select name="niche">${Object.entries(L.niches).map(([k, v]) => `<option value="${k}" ${(a.niche || "gaming") === k ? "selected" : ""}>${esc(v)}</option>`).join("")}</select></div>
+        <div class="field"><label>Anything else (optional)</label><input name="note" maxlength="300" value="${esc(a.note || "")}" placeholder="e.g. I edit for 2 streamers already"></div></div>
+      <button class="btn primary" style="width:100%;height:50px">${a.status === "pending" ? "Save changes" : "Send for review"} ${ARROW}</button></div>
+    <div class="side-box"><h4>What we look at</h4><ol>
+      <li><b>Average views</b> matter more than followers: a page that gets seen is what counts.</li>
+      <li>The recording shows your views are real: mostly from the Shorts/Reels feed, from real countries.</li>
+      <li>Your best edit shows your skill: hook, captions, pacing.</li>
+      <li>Approved clippers start at <b>Silver</b> and move up by themselves as their clips do well.</li></ol></div></div></form>`;
+}
+function levelTab(L) {
+  const r = L.rates, order = ["starter", "silver", "gold", "elite"];
+  const ladder = `<div class="ladder">${order.map(k => `<div class="rung${L.level === k ? " on" : ""}"><i>${LV[k][0]}</i><b>${LV[k][1]}${L.level === k ? " · you" : ""}</b>
+      <em>${k === "starter" ? "Normal campaigns" : inr(r[k]) + " / 1K views"}</em><span>${k === "starter" ? "Everyone starts here" : k === "silver" ? "Approved after you apply" : k === "gold" ? esc(L.rules.gold) : esc(L.rules.elite) + ` (${L.rules.elite_slots} places)`}</span></div>`).join("")}</div>`;
+  return `<h4 style="margin:0 0 6px">How levels work</h4>
+    <p style="font-size:14px;color:var(--dim);margin:0 0 10px">Premium campaigns pay by level. Your level goes up by itself when your clips do well; only views we've checked count.</p>
+    ${ladder}
+    ${L.level === "starter" ? `<h4 style="margin:22px 0 8px">Apply for premium</h4>${applyForm(L)}` : ""}
+    <h4 style="margin:24px 0 10px">Badges · ${L.badges.filter(b => b.earned).length} of ${L.badges.length}</h4>
+    <div class="bgrid">${L.badges.map(b => `<div class="bdg${b.earned ? (b.new ? " new" : "") : " off"}"><i>${b.icon}</i><b>${esc(b.name)}</b><span>${esc(b.what)}</span></div>`).join("")}</div>`;
+}
 function drawDash() {
   const sec = $("#me");
   if (!S.user) { sec.hidden = true; return; }
@@ -1094,7 +1227,7 @@ function drawDash() {
   const m = S.me, t = m.totals, p = m.profile, u = S.user;
   const joinedOpen = S.data.campaigns.filter(c => c.open && m.joined.includes(c.id));
   const openNotJoined = S.data.campaigns.filter(c => c.open && !m.joined.includes(c.id));
-  const tabs = [["submit", "Send a clip", 0, "Send"], ["clips", "My clips", m.submissions.length, "Clips"], ["payouts", "Payouts", m.payouts.length, "Payouts"], ["profile", "Payout profile" + (p.complete ? "" : " ⚠"), 0, "Profile" + (p.complete ? "" : " ⚠")]];
+  const tabs = [["submit", "Send a clip", 0, "Send"], ["level", "Level & badges", 0, "Level"], ["clips", "My clips", m.submissions.length, "Clips"], ["payouts", "Payouts", m.payouts.length, "Payouts"], ["profile", "Payout profile" + (p.complete ? "" : " ⚠"), 0, "Profile" + (p.complete ? "" : " ⚠")]];
   let body = "";
   if (S.tab === "submit") {
     body = !p.complete ? `<div class="note warn"><span>Set up your payout profile first: UPI ID, WhatsApp number and at least one account handle. Clips are matched to these handles.</span><button class="btn sm dark" data-act="tab" data-t="profile">Set it up</button></div>`
@@ -1112,6 +1245,8 @@ function drawDash() {
           <li>Views are counted ${joinedOpen[0].hold_days} days after posting${p.youtube ? ", automatically for YouTube" : ""}.</li>
           <li>For Instagram and X, add a screenshot of the clip's views (Insights) in <b>My clips</b> once the waiting days are over.</li>
           <li>Once approved, the amount is owed and gets paid to <b>${esc(p.upi)}</b>.</li></ol></div></div>`;
+  } else if (S.tab === "level") {
+    body = m.level ? levelTab(m.level) : "";
   } else if (S.tab === "clips") {
     body = m.submissions.length ? `<div class="tbl-wrap"><table class="stack"><thead><tr><th>Clip</th><th>Checks</th><th style="text-align:right">Views</th><th style="text-align:right">Earnings</th><th>Status</th><th></th></tr></thead><tbody>
       ${m.submissions.map(s => `<tr>
@@ -1148,6 +1283,7 @@ function drawDash() {
       <div><div class="kicker" style="margin:0"><i></i>My earnings</div><h2 style="font-size:30px">Hey ${esc(p.display_name || u.name)}</h2></div></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">${u.is_admin ? `<a class="btn sm" href="/admin/earn">Manage campaigns</a>` : ""}${S.data.earn_only ? `<a class="btn sm" href="${esc(S.data.download_url)}" data-openapp>Make clips</a>` : `<a class="btn sm" href="/app">Make clips</a>`}<button class="btn sm" data-act="signout">Sign out</button></div></div>
     ${verifyNote}
+    ${levelBox(m.level)}
     <div class="kpis">
       <div class="kpi hi"><span>Owed to you</span><b>${inr2(t.owed)}</b><small>approved, waiting for payout</small></div>
       <div class="kpi"><span>Being counted</span><b>~${inr2(t.pending_estimate)}</b><small>estimate from current views</small></div>
@@ -1240,8 +1376,10 @@ function drawHero() {
 }
 
 // ---------------------------------------------------------------- loading
+async function loadWeek() { try { S.week = await api("/api/earn/public/week"); } catch { S.week = null; } }
 async function load() {
   S.data = await api("/api/earn/public/overview");
+  await loadWeek();
   S.user = S.data.user;
   if (S.user) { try { S.me = await api("/api/earn/me"); } catch { S.me = null; S.user = null; } }
   const dl = S.data.download_url;
@@ -1252,6 +1390,7 @@ async function load() {
 }
 async function refresh() {
   S.data = await api("/api/earn/public/overview");
+  await loadWeek();
   if (S.user) S.me = await api("/api/earn/me");
   drawCamps(); drawLb(); drawDash();
 }
@@ -1301,7 +1440,13 @@ document.addEventListener("click", async e => {
   const act = a.dataset.act;
   if (act === "close" || (act === "close-bg" && e.target === a)) return closeSheet();
   if (act === "menu") { const open = a.getAttribute("aria-expanded") !== "true"; a.setAttribute("aria-expanded", open); $("#mnav").hidden = !open; return; }
-  if (act === "tab") { S.tab = a.dataset.t; drawDash(); return; }
+  if (act === "tab") { if (a.tagName === "A") { e.preventDefault(); closeSheet(); } S.tab = a.dataset.t; drawDash(); if (a.tagName === "A") $("#me").scrollIntoView(); return; }
+  if (act === "lbtab") { S.lbTab = a.dataset.t; drawLb(); return; }
+  if (act === "apply-open") {
+    closeSheet();
+    if (!S.user) { location.href = signupHref("/earn#me"); return; }
+    S.tab = "level"; drawDash(); $("#me").scrollIntoView(); setTimeout(() => $("#applyForm [name=page_url]")?.focus(), 400); return;
+  }
   if (act === "signout") { e.preventDefault(); try { await api("/api/auth/logout", {method: "POST"}); } catch {} location.href = "/earn"; return; }
   if (act === "profile-first") { closeSheet(); S.tab = "profile"; drawDash(); $("#me").scrollIntoView(); return; }
   if (act === "submit-for") { S.submitFor = a.dataset.id; closeSheet(); S.tab = "submit"; drawDash(); $("#me").scrollIntoView(); setTimeout(() => $("#subForm [name=url]")?.focus(), 400); return; }
@@ -1342,6 +1487,14 @@ document.addEventListener("input", e => {
   d.innerHTML = `<span class="detect ok">✓ ${esc(PLAT[r.platform][0])}</span>`;
 });
 document.addEventListener("submit", async e => {
+  if (e.target.id === "applyForm") {
+    e.preventDefault();
+    const f = e.target, b = f.querySelector("button.primary"), body = Object.fromEntries(new FormData(f).entries());
+    b.disabled = true;
+    try { await api("/api/earn/apply", {method: "POST", body}); toast("Sent! We'll look at it within 2 days. You'll get an email.", "good"); await refresh(); }
+    catch (err) { toast(err.message, "bad"); b.disabled = false; }
+    return;
+  }
   if (e.target.id === "subForm") {
     e.preventDefault();
     const f = e.target, b = f.querySelector("button"); b.disabled = true; b.textContent = "Checking the clip…";

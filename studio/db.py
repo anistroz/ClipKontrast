@@ -169,7 +169,29 @@ earn_campaigns = sa.Table(                                                    # 
     sa.Column("ends_at", sa.Float),
     sa.Column("has_cover", sa.Boolean, nullable=False, server_default=sa.false()),
     sa.Column("accent", sa.String(9), nullable=False, server_default="#C6F432"),
+    # premium: only approved clippers can join, and each is paid at their level's rate (tier_rates: Silver,Gold,Elite)
+    sa.Column("premium", sa.Boolean, nullable=False, server_default=sa.false()),
+    sa.Column("tier_rates", sa.String(40), nullable=False, server_default=""),
+    sa.Column("free_views", sa.Integer, nullable=False, server_default="0"),   # the first views of every clip aren't paid
     sa.Column("created_at", sa.Float, nullable=False),
+    sa.Column("updated_at", sa.Float, nullable=False),
+)
+earn_levels = sa.Table(                                                       # a clipper's level, and their application to get one
+    "earn_levels", meta,
+    sa.Column("user_id", sa.String(40), sa.ForeignKey("users.id", ondelete="CASCADE"), primary_key=True),
+    sa.Column("status", sa.String(10), nullable=False, server_default="none"),     # none | pending | approved | rejected
+    sa.Column("level", sa.String(10), nullable=False, server_default="silver"),    # silver | gold | elite, once approved
+    sa.Column("page_url", sa.String(300), nullable=False, server_default=""),
+    sa.Column("recording_url", sa.String(300), nullable=False, server_default=""), # a link to their 28-day insights recording
+    sa.Column("sample_url", sa.String(300), nullable=False, server_default=""),    # their best edit
+    sa.Column("niche", sa.String(40), nullable=False, server_default=""),
+    sa.Column("followers", sa.Integer, nullable=False, server_default="0"),        # as they say; checked on the recording
+    sa.Column("avg_views", sa.Integer, nullable=False, server_default="0"),
+    sa.Column("note", sa.String(300), nullable=False, server_default=""),
+    sa.Column("review_note", sa.String(300), nullable=False, server_default=""),
+    sa.Column("applied_at", sa.Float),
+    sa.Column("reviewed_at", sa.Float),
+    sa.Column("reviewer", sa.String(40), nullable=False, server_default=""),
     sa.Column("updated_at", sa.Float, nullable=False),
 )
 earn_profiles = sa.Table(                                                     # a clipper's payout details and handles

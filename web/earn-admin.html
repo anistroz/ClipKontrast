@@ -188,6 +188,7 @@ const TABS = {overview: ["Overview", "home", "Campaigns, clips waiting for revie
   campaigns: ["Campaigns", "flag", "Create campaigns, set budgets and rates, and go live"],
   review: ["Review clips", "check", "Check each clip, set its views, then approve or reject it"],
   clippers: ["Clippers", "users", "Everyone who signed up: payout details, account handles and campaigns"],
+  levels: ["Premium clippers", "check", "Who applied for premium campaigns: look at their page, recording and best edit, then approve them at a level"],
   payouts: ["Payouts", "money", "What each clipper is owed, and the record of what was sent"],
   requests: ["Campaign requests", "flag", "Creators, brands and agencies who asked to launch a campaign (clipkontrast.com/launch)"],
   bugs: ["Bug reports", "bug", "Problems people reported from the app and the website, with what their app sent along"],
@@ -287,6 +288,9 @@ function openForm(c) {
         <div class="field"><label>Rate per 1,000 views (₹) *</label><input name="rate_per_1k" type="number" min="0" step="0.5" value="${c.rate_per_1k}"></div></div>
       <div class="g2"><div class="field"><label>Minimum views for a clip to earn</label><input name="min_views" type="number" min="0" value="${c.min_views}"></div>
         <div class="field"><label>Most one clip can earn (₹, 0 = no limit)</label><input name="max_per_clip" type="number" min="0" value="${c.max_per_clip}"></div></div>
+      <div class="field" style="margin-top:6px"><label style="display:flex;gap:8px;align-items:center;font-weight:600"><input type="checkbox" name="premium" value="1" ${c.premium ? "checked" : ""}> Premium: only approved clippers can join, and each is paid by their level</label></div>
+      <div class="g2"><div class="field"><label>Level rates per 1,000 views (Silver, Gold, Elite)</label><input name="tier_rates" value="${esc(c.tier_rates ? Object.values(c.tier_rates).join(", ") : "50, 75, 100")}" placeholder="50, 75, 100"><div class="hint">With Premium on, these replace the rate above; the site shows "up to" the Elite rate.</div></div>
+        <div class="field"><label>Views not paid on each clip</label><input name="free_views" type="number" min="0" value="${c.free_views || 0}"><div class="hint">E.g. 2000: a clip earns only for its views after the first 2,000, so buying views up to a line gains nothing.</div></div></div>
       <div class="preview" id="mathPrev"></div>
       <div class="sect">Results (shown once the campaign has ended)</div>
       <div class="hint" style="margin:-4px 0 10px">An ended campaign becomes a showcase on the website: its views, clips, clippers and budget, never who clipped what. Fill these in from the campaign's report; empty fields use what was counted here.</div>
@@ -619,6 +623,41 @@ function drawRequests() {
       : `<div class="empty"><b>No requests here</b>Requests from clipkontrast.com/launch show up here, and you get a notification for each.</div>`}`;
 }
 
+// ---------------------------------------------------------------- premium clippers: applications and levels
+const LVN = {silver: "🥈 Silver", gold: "🥇 Gold", elite: "💎 Elite"};
+const kShort = n => n >= 1e5 ? (n / 1e5).toFixed(1).replace(/\.0$/, "") + "L" : n >= 1e3 ? Math.round(n / 1e3) + "K" : String(n || 0);
+const pageLabel = u => u.replace(/^https?:\/\/(www\.)?/, "").slice(0, 34);
+function levelActions(x) {
+  if (x.status === "approved") return `<span class="chip live">${LVN[x.level] || x.level}</span>` + ["silver", "gold", "elite"].filter(l => l !== x.level)
+    .map(l => `<button class="btn xs" data-act="lset" data-uid="${esc(x.user_id)}" data-level="${l}">Move to ${LVN[l]}</button>`).join("");
+  return ["silver", "gold", "elite"].map(l => `<button class="btn xs${l === (x.earned_level || "silver") ? " primary" : ""}" data-act="lapprove" data-uid="${esc(x.user_id)}" data-level="${l}">Approve: ${LVN[l]}</button>`).join("")
+    + (x.status !== "rejected" ? `<button class="btn xs" data-act="lreject" data-uid="${esc(x.user_id)}">Not yet…</button>` : "");
+}
+function levelRow(x) {
+  const low = x.avg_views < 3000, good = x.avg_views >= 15000;
+  return `<tr>
+    <td><b>${esc(x.name || x.email.split("@")[0])}</b><div style="color:var(--faint);font-size:12px">${esc(x.email)} · ${esc(x.niche)} · ${esc(ago(x.applied_at))}</div>${x.note ? `<div style="font-size:12px;color:var(--dim);margin-top:2px">“${esc(x.note)}”</div>` : ""}${x.review_note ? `<div style="font-size:12px;color:var(--warn);margin-top:2px">Note: ${esc(x.review_note)}</div>` : ""}</td>
+    <td><a href="${esc(safeUrl(x.page_url))}" target="_blank" rel="noopener">${esc(pageLabel(x.page_url))} ↗</a></td>
+    <td class="num">${kShort(x.followers)}</td>
+    <td class="num" style="font-weight:700;color:${low ? "var(--bad)" : good ? "var(--good)" : "inherit"}">${kShort(x.avg_views)}${low ? " ⚠" : ""}</td>
+    <td>${x.recording_url ? `<a href="${esc(safeUrl(x.recording_url))}" target="_blank" rel="noopener">▶ Watch</a>` : `<span style="color:var(--bad)">Not sent</span>`}</td>
+    <td><a href="${esc(safeUrl(x.sample_url))}" target="_blank" rel="noopener">Clip ↗</a></td>
+    <td style="font-size:12.5px">${x.checked_clips ? `${x.checked_clips} approved clip${x.checked_clips === 1 ? "" : "s"}, best ${kShort(x.best)}` : `<span style="color:var(--faint)">No clips yet</span>`}</td>
+    <td><div style="display:flex;gap:6px;flex-wrap:wrap">${levelActions(x)}</div></td></tr>`;
+}
+function drawLevels() {
+  const L = S.levels; if (!L) return "Loading…";
+  const st = S.lStatus || "pending";
+  const names = {pending: "Waiting", approved: "Approved", rejected: "Not approved", all: "All"};
+  return `<div class="filters"><div class="seg">${Object.keys(names).map(x => `<button class="${st === x ? "on" : ""}" data-act="lstatus" data-s="${x}">${names[x]}${L.counts[x] ? `<span class="c">${L.counts[x]}</span>` : ""}</button>`).join("")}</div>
+      <span style="color:var(--faint);font-size:13px">Elite places used: <b>${L.elite_used} / ${L.elite_slots}</b> · levels go up by themselves as clips get approved</span></div>
+    ${L.items.length ? `<div class="card" style="margin-top:0;padding:0;overflow:auto"><table><thead><tr><th>Clipper</th><th>Page</th><th class="num">Followers</th><th class="num">Avg views</th><th>Recording</th><th>Best edit</th><th>On ClipKontrast</th><th>Decide</th></tr></thead><tbody>
+      ${L.items.map(levelRow).join("")}</tbody></table></div>
+      <p class="hint" style="margin-top:10px">Look at average views more than followers. The recording should show views mostly from the Shorts/Reels feed and from India. A clipper hears your decision by email and on their Earn page.</p>`
+      : `<div class="empty"><b>${st === "pending" ? "No applications waiting" : "Nobody here"}</b>Clippers apply from their Earn page (Level &amp; badges). Turn on Premium on a campaign to open it to approved clippers only.</div>`}`;
+}
+async function loadLevels() { S.levels = await api(`/api/admin/earn/levels?status=${S.lStatus === "all" ? "" : (S.lStatus || "pending")}`); }
+
 function drawBugs() {
   const b = S.bugs; if (!b) return "Loading…";
   const c = b.counts, all = Object.values(c).reduce((x, y) => x + y, 0);
@@ -649,13 +688,14 @@ function drawBugs() {
 // ---------------------------------------------------------------- drawing and loading
 function draw() {
   nav();
-  $("#view").innerHTML = !S.sum ? "Loading…" : {overview: drawOverview, campaigns: drawCampaigns, review: drawReview, clippers: drawClippers, payouts: drawPayouts, requests: drawRequests, bugs: drawBugs, settings: drawSettings}[S.tab]();
+  $("#view").innerHTML = !S.sum ? "Loading…" : {overview: drawOverview, campaigns: drawCampaigns, review: drawReview, clippers: drawClippers, payouts: drawPayouts, requests: drawRequests, bugs: drawBugs, levels: drawLevels, settings: drawSettings}[S.tab]();
 }
 async function loadQueue() { S.queue = await api(`/api/admin/earn/submissions?status=${S.qStatus === "all" ? "" : S.qStatus}&campaign=${encodeURIComponent(S.qCamp)}&q=${encodeURIComponent(S.q)}`); }
 async function load() {
   [S.sum, S.camps] = await Promise.all([api("/api/admin/earn/summary"), api("/api/admin/earn/campaigns")]);
   if (S.tab === "review") await loadQueue();
   if (S.tab === "payouts") S.owed = await api("/api/admin/earn/owed");
+  if (S.tab === "levels") await loadLevels();
   if (S.tab === "clippers") S.clippers = (await api("/api/admin/earn/clippers")).clippers;
   if (S.tab === "requests") S.reqs = await api("/api/admin/earn/requests");
   else if (!S.reqs) api("/api/admin/earn/requests").then(r => { S.reqs = r; nav(); }).catch(() => {});
@@ -677,6 +717,18 @@ document.addEventListener("click", async e => {
     if (act === "cmore") { S.cLimit = (S.cLimit || 300) + 300; draw(); return; }
     if (act === "ccsv") { clippersCsv(clippersShown()); toast("CSV downloaded."); return; }
     if (act === "rstatus") { S.rStatus = a.dataset.s; draw(); return; }
+    if (act === "lstatus") { S.lStatus = a.dataset.s; await loadLevels(); draw(); return; }
+    if (act === "lapprove" || act === "lset") {
+      const note = act === "lset" ? (prompt("Why? The clipper sees this (optional).", "") || "") : "";
+      await api(`/api/admin/earn/levels/${encodeURIComponent(a.dataset.uid)}`, {method: "POST", body: {action: act === "lapprove" ? "approve" : "level", level: a.dataset.level, note}});
+      toast(act === "lapprove" ? `Approved as ${LVN[a.dataset.level]}. They got an email.` : `Moved to ${LVN[a.dataset.level]}.`, "good"); await loadLevels(); draw(); return;
+    }
+    if (act === "lreject") {
+      const note = prompt("Why not yet? The clipper sees this, in one line.", "Your page needs more views first. Post a few strong clips and apply again.");
+      if (note === null) return;
+      await api(`/api/admin/earn/levels/${encodeURIComponent(a.dataset.uid)}`, {method: "POST", body: {action: "reject", note}});
+      toast("Sent. They can apply again in a week.", "good"); await loadLevels(); draw(); return;
+    }
     if (act === "rset") { await api(`/api/admin/earn/requests/${id}`, {method: "POST", body: {status: a.dataset.s}}); S.reqs = await api("/api/admin/earn/requests"); draw(); toast("Saved."); return; }
     if (act === "rmake") {
       const x = S.reqs.items.find(i => String(i.id) === String(id)); if (!x) return;
@@ -774,6 +826,7 @@ document.addEventListener("submit", async e => {
       d.results = {views: all.r_views, clips: all.r_clips, clippers: all.r_clippers, top_views: all.r_top_views,
                    platforms: {instagram: all.r_instagram, youtube: all.r_youtube, x: all.r_x, tiktok: all.r_tiktok}};
       d.platforms = $$('input[name="platforms"]:checked', f).map(x => x.value);
+      d.premium = !!(f.premium && f.premium.checked);
       d.starts_at = d.starts_at ? new Date(d.starts_at).getTime() / 1000 : null;
       d.ends_at = d.ends_at ? new Date(d.ends_at).getTime() / 1000 : null;
       const file = f.cover_new && f.cover_new.files[0]; delete d.cover_new;

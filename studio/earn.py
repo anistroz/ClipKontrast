@@ -41,6 +41,9 @@ _lock = threading.RLock()
 _channels: dict = {}          # YouTube channel id -> (when looked up, "@handle" lower case)
 
 
+from . import levels  # noqa: E402
+
+
 class EarnError(Exception):
     """Something the person can fix, said in plain words."""
 
@@ -290,6 +293,18 @@ def save_campaign(data: dict, cid: str = "") -> dict:
                                  ("hold_days", "Days before views are counted", 60, True)):
         if k in data:
             vals[k] = _num(data[k], name, 0, hi, integer)
+    if "free_views" in data:
+        vals["free_views"] = _num(data["free_views"], "Views not paid on each clip", 0, 1e7, integer=True)
+    if "premium" in data:
+        vals["premium"] = bool(data["premium"]) and str(data["premium"]).lower() not in ("0", "false", "no")
+    if "tier_rates" in data:
+        raw = data["tier_rates"] if isinstance(data["tier_rates"], list) else str(data["tier_rates"] or "").split(",")
+        tr = [_num(x, "Level rates", 0, 100000) for x in raw if str(x).strip()]
+        if tr and (len(tr) != 3 or not tr[0] <= tr[1] <= tr[2]):
+            raise EarnError("Level rates: three numbers, Silver, Gold, Elite, each at least the one before (like 50, 75, 100).")
+        vals["tier_rates"] = ",".join(f"{x:g}" for x in tr)
+    if vals.get("premium") and vals.get("tier_rates"):
+        vals["rate_per_1k"] = max(float(x) for x in vals["tier_rates"].split(","))     # the "up to" rate
     for k in ("starts_at", "ends_at"):
         if k in data:
             vals[k] = float(data[k]) if data[k] not in (None, "", 0) else None
@@ -346,10 +361,11 @@ def delete_campaign(cid: str):
     (COVERS / f"{cid}.jpg").unlink(missing_ok=True)
 
 
-def _estimate(views: int, camp) -> float:
-    if views < (camp.min_views or 0) or not camp.rate_per_1k:
+def _estimate(views: int, camp, level: str = None) -> float:
+    rate = levels.rate_for(camp, level or "silver")
+    if views < (camp.min_views or 0) or not rate:
         return 0.0
-    amt = views / 1000 * camp.rate_per_1k
+    amt = max(0, views - (camp.free_views or 0)) / 1000 * rate
     if camp.max_per_clip:
         amt = min(amt, camp.max_per_clip)
     return round(amt, 2)
@@ -611,7 +627,9 @@ def _camp_dict(r, st: dict, admin=False, member=False, detail=True) -> dict:
          "committed": committed, "paid": round(st["paid"], 2), "remaining": round(max(0.0, r.budget - committed), 2),
          "used_pct": round(min(100.0, committed / r.budget * 100), 1) if r.budget else 0,
          "clips": st["clips"], "views": st["views"], "clippers": st["clippers"],
-         "open": _is_open(r, committed), "state": _state(r, committed), "member": member, "sort_order": r.sort_order}
+         "open": _is_open(r, committed), "state": _state(r, committed), "member": member, "sort_order": r.sort_order,
+         "premium": bool(r.premium), "free_views": r.free_views or 0,
+         "tier_rates": dict(zip(levels.LEVELS, levels.parse_rates(r.tier_rates))) if r.premium else None}
     if d["state"] == "ended":
         d["showcase"] = _showcase(r, st)            # an ended campaign is shown for what it achieved
     moments = parse_moments(r.moments, r.sources)
@@ -849,11 +867,17 @@ def _camp_row(c, cid: str):
     return r
 
 
+def _need_level(c, camp, uid: str):
+    if camp.premium and levels.level_of(c.execute(sa.select(db.earn_levels).where(db.earn_levels.c.user_id == uid)).first()) == "starter":
+        raise EarnError("This campaign is for approved clippers. Apply once with your page and your best edit; most answers come in 2 days.")
+
+
 def join(uid: str, cid: str) -> dict:
     if not profile(uid)["complete"]:
         raise EarnError("Finish your payout profile first: WhatsApp, UPI ID and at least one account handle.")
     with db.engine.begin() as c:
         r = _camp_row(c, cid)
+        _need_level(c, r, uid)
         committed = _stats(c, [r.id])[r.id]["committed"]
         if not _is_open(r, committed):
             raise EarnError("This campaign isn't taking new clippers right now.")
@@ -915,6 +939,7 @@ def submit(uid: str, cid: str, url: str, note: str = "") -> dict:
     with db.engine.connect() as c:
         camp = _camp_row(c, cid)
         committed = _stats(c, [camp.id])[camp.id]["committed"]
+        _need_level(c, camp, uid)
     if not _is_open(camp, committed):
         raise EarnError("This campaign isn't taking clips right now.")
     if link["platform"] not in camp.platforms.split(","):
@@ -951,14 +976,14 @@ def submit(uid: str, cid: str, url: str, note: str = "") -> dict:
     return submission(sid)
 
 
-def _sub_dict(r, camp=None, admin=False, extra=None) -> dict:
+def _sub_dict(r, camp=None, admin=False, extra=None, level=None) -> dict:
     checks = json.loads(r.checks or "{}")
     hold = (camp.hold_days if camp else 7) * 86400
     since = r.posted_at or r.submitted_at
     d = {"id": r.id, "campaign_id": r.campaign_id, "campaign": camp.title if camp else "", "platform": r.platform, "url": r.url,
          "note": r.note, "submitted_at": r.submitted_at, "posted_at": r.posted_at, "views": r.views, "views_at": r.views_at,
          "views_source": r.views_source, "checks": checks, "has_proof": r.has_proof, "status": r.status,
-         "amount": r.amount, "estimate": _estimate(r.views, camp) if camp else 0, "review_note": r.review_note,
+         "amount": r.amount, "estimate": _estimate(r.views, camp, level) if camp else 0, "review_note": r.review_note,
          "reviewed_at": r.reviewed_at, "ready_at": since + hold, "ready": _now() >= since + hold}
     if extra:
         d.update(extra)
@@ -971,7 +996,8 @@ def submission(sid: int, uid: str = "") -> dict:
         if not r or (uid and r.user_id != uid):
             raise EarnError("That clip doesn't exist.")
         camp = c.execute(sa.select(db.earn_campaigns).where(db.earn_campaigns.c.id == r.campaign_id)).first()
-    return _sub_dict(r, camp)
+        lv = levels.levels_map(c, [r.user_id]).get(r.user_id)
+    return _sub_dict(r, camp, level=lv)
 
 
 def mine(uid: str) -> dict:
@@ -982,13 +1008,14 @@ def mine(uid: str) -> dict:
         joined = [r[0] for r in c.execute(sa.select(db.earn_members.c.campaign_id).where(db.earn_members.c.user_id == uid))]
         payouts = [{"id": p.id, "amount": p.amount, "ref": p.ref, "clips": p.clips, "created_at": p.created_at, "upi": p.upi}
                    for p in c.execute(sa.select(db.earn_payouts).where(db.earn_payouts.c.user_id == uid).order_by(db.earn_payouts.c.created_at.desc()))]
-    subs = [_sub_dict(r, camps.get(r.campaign_id)) for r in rows]
+    lv = levels.info(uid)
+    subs = [_sub_dict(r, camps.get(r.campaign_id), level=lv["level"]) for r in rows]
     tot = {"pending_estimate": round(sum(x["estimate"] for x in subs if x["status"] == "pending"), 2),
            "owed": round(sum(x["amount"] for x in subs if x["status"] == "approved"), 2),
            "paid": round(sum(x["amount"] for x in subs if x["status"] == "paid"), 2),
            "views": sum(x["views"] for x in subs if x["status"] != "rejected"),
            "clips": len([x for x in subs if x["status"] != "rejected"])}
-    return {"profile": profile(uid), "joined": joined, "submissions": subs, "totals": tot, "payouts": payouts}
+    return {"profile": profile(uid), "joined": joined, "submissions": subs, "totals": tot, "payouts": payouts, "level": lv}
 
 
 def withdraw(uid: str, sid: int):
@@ -1041,12 +1068,13 @@ def review_queue(cid: str = "", status: str = "pending", q: str = "", limit: int
         rows = c.execute(query.order_by(s.submitted_at.desc()).limit(limit)).all()
         camps = {r.id: r for r in c.execute(sa.select(db.earn_campaigns))}
         counts = dict(c.execute(sa.select(s.status, sa.func.count()).where(s.campaign_id == cid if cid else sa.true()).group_by(s.status)).all())
+        lvs = levels.levels_map(c, [r.user_id for r in rows])
     items = []
     for r in rows:
         m = r._mapping
-        items.append(_sub_dict(r, camps.get(r.campaign_id), admin=True, extra={
+        items.append(_sub_dict(r, camps.get(r.campaign_id), admin=True, level=lvs.get(r.user_id), extra={
             "clipper": {"name": m["display_name"] or "", "email": m["email"], "upi": m["upi"] or "", "whatsapp": m["whatsapp"] or "",
-                        "handle": m[r.platform] or ""}}))
+                        "handle": m[r.platform] or "", "level": lvs.get(r.user_id, "starter")}}))
     return {"items": items, "counts": {k: counts.get(k, 0) for k in ("pending", "approved", "rejected", "paid")}}
 
 
@@ -1112,7 +1140,7 @@ def decide(sid: int, action: str, note: str = "", views=None) -> dict:
             if r.status == "approved":
                 return _sub_dict(r, camp)
             committed = _stats(c, [camp.id])[camp.id]["committed"]
-            est = _estimate(r.views, camp)
+            est = _estimate(r.views, camp, levels.levels_map(c, [r.user_id]).get(r.user_id))
             remaining = max(0.0, camp.budget - committed)
             if est > 0 and remaining <= 0.5:
                 raise EarnError("The budget for this campaign is used up. Raise the budget to approve more clips.")
@@ -1132,6 +1160,11 @@ def decide(sid: int, action: str, note: str = "", views=None) -> dict:
             raise EarnError("Unknown action.")
     if uid:
         _notify(uid, title, msg)
+    if action == "approve" and uid:
+        try:
+            levels.promote(uid)            # good clips move a clipper up a level, by themselves
+        except Exception:  # noqa: BLE001 - a level that couldn't be worked out now is worked out on the next approval
+            pass
     return submission(sid)
 
 
