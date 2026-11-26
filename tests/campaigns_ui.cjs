@@ -23,7 +23,7 @@ const JPG = require("fs").readFileSync(THUMB);
     out("Home: Clip & get paid, the campaign, its pool in rupees", ["Clip & get paid", "GTA 6 Launch × Mizo Plays", "₹1,10,000", "per 1,000 views"].every(x => home.includes(x)), true);
     out("...the streams to clip, with their pictures (4 on Home)", [await pg.locator("#camps-home .pcs").count(), await pg.locator("#camps-home .pcs img.lt").count()], [4, 4]);
     out("...and our previous campaigns, money first", ["Our previous campaigns", "₹75,000", "₹1,50,000 across 3 completed campaigns"].every(x => home.includes(x)), true);
-    out("Home: a pill at the top says a paid campaign is live", (await pg.innerText("#campPill")).toLowerCase().includes("paid campaign live"), true);
+    out("Home: the card next to the link says a paid campaign is live, with its pool", await pg.innerText("#homeCamp").then(t => ["paid campaign live", "gta 6 launch", "₹1,10,000"].every(x => t.toLowerCase().includes(x))), true);
     await pg.screenshot({ path: path.join(SHOTS, "home.png") });
     await pg.click('[data-act="campscroll"]'); await pg.waitForTimeout(700);
     await pg.screenshot({ path: path.join(SHOTS, "home-scrolled.png") });

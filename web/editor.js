@@ -236,19 +236,22 @@
   function bump(t, at, h) { return Math.max(0, 1 - Math.abs(t - at) / h); }
 
   // ---------------------------------------------------------------- opening
+  function docOf(clip) {          // a clip's edit, as the editor works on it
+    const ed = clip.edit || {};
+    return {start: clip.start, end: clip.end, hook: clip.hook || "", title: clip.title || "", description: clip.description || "",
+      style: clip.style || "bounce", layout: clip.layout || "blur", captions: clip.captions !== false, tighten: !!clip.tighten, zoom: !!clip.zoom,
+      watermark: clip.watermark || "", splits: [], split: clip.split || "balanced",
+      edit: {cuts: deep(ed.cuts || []), fx: deep(ed.fx || []), sfx: deep(ed.sfx || []), punch: deep(ed.punch || []), look: ed.look || "natural",
+             hook_fx: ed.hook_fx || "box", hook_y: ed.hook_y || null, cap_y: ed.cap_y || null, hook_dur: ed.hook_dur || 0,
+             media: deep(ed.media || []), hook_font: ed.hook_font || "", cap_font: ed.cap_font || ""}};
+  }
   async function open(jid, cid) {
     const job = jobOf(jid), clip = job && job.clips.find(c => c.id === cid);
     if (!clip) return;
     if (E) close(true);
     document.querySelector('#tour [data-tour="close"]')?.click();      // the first-run tour never sits over the editor
     if (!document.getElementById("ed-css")) { const st = document.createElement("style"); st.id = "ed-css"; st.textContent = css; document.head.append(st); }
-    const ed = clip.edit || {};
-    const doc = {start: clip.start, end: clip.end, hook: clip.hook || "", title: clip.title || "", description: clip.description || "",
-      style: clip.style || "bounce", layout: clip.layout || "blur", captions: clip.captions !== false, tighten: !!clip.tighten, zoom: !!clip.zoom,
-      watermark: clip.watermark || "", splits: [], split: clip.split || "balanced",
-      edit: {cuts: deep(ed.cuts || []), fx: deep(ed.fx || []), sfx: deep(ed.sfx || []), punch: deep(ed.punch || []), look: ed.look || "natural",
-             hook_fx: ed.hook_fx || "box", hook_y: ed.hook_y || null, cap_y: ed.cap_y || null, hook_dur: ed.hook_dur || 0,
-             media: deep(ed.media || []), hook_font: ed.hook_font || "", cap_font: ed.cap_font || ""}};
+    const doc = docOf(clip);
     E = {jid, cid, doc, saved: JSON.stringify(doc), hist: [JSON.stringify(doc)], hi: 0, tool: "edit", sel: null, pps: 40, data: null,
          playing: false, t: clip.start, tsel: [], lib: [], libEl: {}, draftKey: `ck-edit:${jid}:${cid}:${clip.version || 0}`, safe: false, exporting: false};
     try {     // an edit not exported yet, kept from last time
@@ -304,6 +307,7 @@
     E.root.remove();
     document.body.style.overflow = "";
     E = null;
+    try { if (typeof loadLib === "function") loadLib(); } catch {}     // files added in the editor show in the app's Library too
   }
 
   // ---------------------------------------------------------------- history
@@ -740,8 +744,8 @@
       for (let i = 0; i < n; i++) { const t = d.p0 + i * step, inside = t >= doc.start && t < doc.end && !inCut(doc, t), v = d.peaks[i];
         c.fillStyle = inside ? "rgba(198,244,50,.85)" : "rgba(255,255,255,.18)"; const bh = Math.max(1, v * h * 0.95); c.fillRect(i * step * E.pps, (h - bh) / 2, Math.max(1, step * E.pps - 0.5), bh); } }
   }
-  function hotMoments(n) {      // the hype curve's highest moments inside the clip, a few seconds apart
-    const d = E.data, doc = E.doc; if (!d || !d.hype.length) return [];
+  function hotMoments(n, d = E.data, doc = E.doc) {      // the hype curve's highest moments inside the clip, a few seconds apart
+    if (!d || !d.hype.length) return [];
     const step = (d.p1 - d.p0) / d.hype.length, idx = d.hype.map((v, i) => [v, d.p0 + i * step]).filter(([, t]) => t > doc.start + 0.8 && t < doc.end - 1 && !inCut(doc, t)).sort((a, b) => b[0] - a[0]);
     const out = [];
     for (const [v, t] of idx) { if (v < 0.55 || out.length >= n) break; if (out.every(q => Math.abs(q - t) > 4)) out.push(t); }
@@ -978,9 +982,9 @@
     doc.splits = [...new Set([...(doc.splits || []), t])].sort((a, b) => a - b);
     commit("Split");
   }
-  function addCut(a, b) {
-    const doc = E.doc, merged = cutsMerged([...doc.edit.cuts, [a, b]], doc.start, doc.end);
-    if ((doc.end - doc.start) - merged.reduce((n, [x, y]) => n + y - x, 0) < 1.5) return toast("Keep at least a second and a half of the clip.", "bad");
+  function addCut(a, b, doc = E.doc, quiet = false) {
+    const merged = cutsMerged([...doc.edit.cuts, [a, b]], doc.start, doc.end);
+    if ((doc.end - doc.start) - merged.reduce((n, [x, y]) => n + y - x, 0) < 1.5) return quiet ? false : toast("Keep at least a second and a half of the clip.", "bad");
     doc.edit.cuts = merged.map(([x, y]) => [r3(x), r3(y)]);
     return true;
   }
@@ -1029,16 +1033,15 @@
     for (const w of E.data.words) if (w.s >= doc.start && w.s < doc.end && FILLER_SAFE.test(w.w.replace(/[^\w.,!?…]/g, "")) && !inCut(doc, (w.s + w.e) / 2)) { if (addCut(w.s - 0.02, w.e + 0.02)) n++; }
     if (n) { commit("Remove fillers"); toast(`${n} filler word${n > 1 ? "s" : ""} cut out.`, "ok"); }
   }
-  function hypeEdit() {
-    if (!E.data) return;
-    const doc = E.doc, ed = doc.edit, before = {fx: ed.fx.length, sfx: ed.sfx.length, punch: ed.punch.length};
+  function hypeApply(doc, data) {    // the Hype Edit recipe: changes doc, says how much it added
+    const ed = doc.edit, before = {fx: ed.fx.length, sfx: ed.sfx.length, punch: ed.punch.length};
     // 1. the filler words go, and silences are shortened on export
-    for (const w of E.data.words) if (w.s >= doc.start && w.s < doc.end && FILLER_SAFE.test(w.w.replace(/[^\w.,!?…]/g, "")) && !inCut(doc, (w.s + w.e) / 2)) addCut(w.s - 0.02, w.e + 0.02);
+    for (const w of data.words) if (w.s >= doc.start && w.s < doc.end && FILLER_SAFE.test(w.w.replace(/[^\w.,!?…]/g, "")) && !inCut(doc, (w.s + w.e) / 2)) addCut(w.s - 0.02, w.e + 0.02, doc, true);
     doc.tighten = true;
     // 2. punch in on the hype peaks; the biggest gets a flash, a boom and a riser before it
-    const hot = hotMoments(3);
-    const step = (E.data.p1 - E.data.p0) / Math.max(1, E.data.hype.length);
-    const peak = hot.slice().sort((a, b) => (E.data.hype[Math.round((b - E.data.p0) / step)] || 0) - (E.data.hype[Math.round((a - E.data.p0) / step)] || 0))[0];
+    const hot = hotMoments(3, data, doc);
+    const step = (data.p1 - data.p0) / Math.max(1, data.hype.length);
+    const peak = hot.slice().sort((a, b) => (data.hype[Math.round((b - data.p0) / step)] || 0) - (data.hype[Math.round((a - data.p0) / step)] || 0))[0];
     const free = (list, t, gap) => list.every(x => Math.abs(x.t - t) > gap);
     for (const t of hot) if (free(ed.punch, t, 1.5)) ed.punch.push({t: r3(t - 0.1), z: t === peak ? 1.32 : 1.2, d: t === peak ? 1.6 : 1.1});
     if (peak != null) {
@@ -1051,21 +1054,43 @@
     if (ed.look === "natural") ed.look = "punchy";
     if (ed.hook_fx === "box") ed.hook_fx = "pop";
     ed.fx.sort((a, b) => a.t - b.t); ed.sfx.sort((a, b) => a.t - b.t); ed.punch.sort((a, b) => a.t - b.t);
+    return {fx: ed.fx.length - before.fx, sfx: ed.sfx.length - before.sfx, punch: ed.punch.length - before.punch};
+  }
+  function hypeEdit() {
+    if (!E.data) return;
+    const doc = E.doc, n = hypeApply(doc, E.data);
     commit("Hype Edit");
-    const added = (ed.fx.length - before.fx) + (ed.sfx.length - before.sfx) + (ed.punch.length - before.punch);
-    toast(added ? `Hype Edit: ${ed.punch.length - before.punch} punch-ins, ${ed.fx.length - before.fx} transitions, ${ed.sfx.length - before.sfx} sounds, filler words cut. Press play.` : "This clip already has its hype edit.", "ok");
+    toast(n.fx + n.sfx + n.punch ? `Hype Edit: ${n.punch} punch-ins, ${n.fx} transitions, ${n.sfx} sounds, filler words cut. Press play.` : "This clip already has its hype edit.", "ok");
     seek(doc.start); if (!E.playing) play();
+  }
+  function bodyOf(doc, libOk) {      // what Export sends to make the clip
+    const ed = doc.edit;
+    return {start: r3(doc.start), end: r3(doc.end), hook: doc.hook, title: doc.title, description: doc.description, style: doc.style,
+      layout: doc.layout, captions: doc.captions, tighten: doc.tighten, zoom: doc.zoom, watermark: doc.watermark, split: doc.split,
+      edit: {cuts: cutsMerged(ed.cuts, doc.start, doc.end), fx: ed.fx.filter(f => f.t >= doc.start && f.t <= doc.end), sfx: ed.sfx.filter(s => s.t >= doc.start - 2 && s.t <= doc.end),
+             punch: ed.punch.filter(p => p.t >= doc.start && p.t <= doc.end), look: ed.look, hook_fx: ed.hook_fx, hook_y: ed.hook_y, cap_y: ed.cap_y, hook_dur: ed.hook_dur,
+             media: ed.media.filter(m => m.t >= doc.start && m.t <= doc.end && libOk(m.id)), hook_font: libOk(ed.hook_font) ? ed.hook_font : "", cap_font: libOk(ed.cap_font) ? ed.cap_font : ""}};
+  }
+  /* Hype Edit on a clip without opening it: read its hype, add the edit, make it again. Used by "Hype Edit all"
+     on Home and in the Editor page. Says what happened: "done", "same" (already hype-edited) or throws. */
+  async function hypeAuto(jid, cid) {
+    const clip = (jobOf(jid) || {clips: []}).clips.find(c => c.id === cid);
+    if (!clip || clip.status !== "done") throw new Error("This clip isn't ready.");
+    const doc = docOf(clip);
+    const data = await api(`/api/jobs/${encodeURIComponent(jid)}/clips/${encodeURIComponent(cid)}/editor`);
+    const n = hypeApply(doc, data);
+    if (!(n.fx + n.sfx + n.punch)) return "same";
+    let lib = [];
+    if (doc.edit.media.length || doc.edit.hook_font || doc.edit.cap_font) { try { lib = (await api("/api/library")).items || []; } catch {} }
+    const body = bodyOf(doc, id => !!id && lib.some(i => i.id === id));
+    await send(`/api/jobs/${encodeURIComponent(jid)}/clips/${encodeURIComponent(cid)}/render`, body);
+    return "done";
   }
 
   // ---------------------------------------------------------------- export
   async function exportClip() {
     if (E.exporting) return;
-    const doc = E.doc, ed = doc.edit;
-    const body = {start: r3(doc.start), end: r3(doc.end), hook: doc.hook, title: doc.title, description: doc.description, style: doc.style,
-      layout: doc.layout, captions: doc.captions, tighten: doc.tighten, zoom: doc.zoom, watermark: doc.watermark, split: doc.split,
-      edit: {cuts: cutsMerged(ed.cuts, doc.start, doc.end), fx: ed.fx.filter(f => f.t >= doc.start && f.t <= doc.end), sfx: ed.sfx.filter(s => s.t >= doc.start - 2 && s.t <= doc.end),
-             punch: ed.punch.filter(p => p.t >= doc.start && p.t <= doc.end), look: ed.look, hook_fx: ed.hook_fx, hook_y: ed.hook_y, cap_y: ed.cap_y, hook_dur: ed.hook_dur,
-             media: ed.media.filter(m => m.t >= doc.start && m.t <= doc.end && libItem(m.id)), hook_font: libItem(ed.hook_font) ? ed.hook_font : "", cap_font: libItem(ed.cap_font) ? ed.cap_font : ""}};
+    const doc = E.doc, body = bodyOf(doc, id => !!libItem(id));
     if (body.end - body.start < 3) return toast("A clip needs to be at least 3 seconds long.", "bad");
     if (E.playing) play();
     E.exporting = true; drawState();
@@ -1282,7 +1307,7 @@
   }
   function onResize() { if (!E) return; drawTimeline(); drawFrame(); }
 
-  window.CKEditor = {open, close, isOpen: () => !!E,
+  window.CKEditor = {open, close, isOpen: () => !!E, hypeAuto,
     // for tests: the edit as it stands
     state: () => E && {doc: deep(E.doc), sel: E.sel, tool: E.tool, t: now(), playing: E.playing, ready: !!(E.v && E.v.videoWidth),
       lib: E.lib.map(i => ({id: i.id, kind: i.kind, type: i.type, ready: !!i.ready})), layout: E.data && geom().lay}};

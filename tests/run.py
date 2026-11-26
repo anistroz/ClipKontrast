@@ -56,6 +56,7 @@ def main() -> int:
                 ("Earn: public view numbers count only clips that can be trusted", ["tests/test_public_views.py"]),
                 ("The clip editor: edits, transitions, sounds, looks, text effects, preview", ["tests/test_editor.py"]),
                 ("The clip editor in a browser: edit every way, export", ["tests/test_editor_ui.py", str(ROOT)]),
+                ("The app in a browser: Home, the Editor page, the Library, Hype Edit all", ["tests/test_app_ui.py", str(ROOT)]),
                 ("abuse and limits", ["tests/test_abuse.py", BASE, str(ROOT)]),
                 ("queue under load", ["tests/test_load_queue.py", str(ROOT)]),
                 ("deleting and bulk actions", ["tests/test_delete.py"]),
