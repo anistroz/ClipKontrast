@@ -15,7 +15,7 @@ import uuid
 import numpy as np
 from pathlib import Path
 
-from . import brain, config, creators, ctx, edit, facecam, games, load, media, quality, render, roman, safe, transcribe, usage, whisper
+from . import brain, config, creators, ctx, edit, facecam, library, games, load, media, quality, render, roman, safe, transcribe, usage, whisper
 from . import tag as tagmod
 
 class _FairQueue:
@@ -521,6 +521,8 @@ def request_render(jid, cid, changes: dict):
     for k in ("start", "end"):
         if k in changes:
             new[k] = round(float(changes[k]), 2)
+    if "split" in changes:           # how the facecam and the game share the frame, in the facecam layout
+        new["split"] = changes["split"] if changes["split"] in render.SPLITS else "balanced"
     if "src_offset" in clip:  # live clip: can only move inside the saved piece of stream
         new["start"] = max(new["start"], clip["src_offset"])
         new["end"] = min(new["end"], clip["src_end"])
@@ -565,17 +567,27 @@ def editor_data(jid, cid) -> dict:
     off = clip.get("src_offset", 0.0) if clip.get("src") else 0.0
     info = edit.prepare(job, clip, src, meta, off, [])
     d = Path(job["dir"])
-    words = []
-    for f in (d / "clips" / f"{cid}.words.json", d / "words.json"):
-        if f.is_file():
-            try:
-                got = json.loads(f.read_text(encoding="utf-8"))
-            except ValueError:
-                continue
-            words = [{"s": w["s"], "e": w["e"], "w": w["w"]} for w in got
-                     if isinstance(w, dict) and info["p0"] - 0.5 <= w.get("s", -1) <= info["p1"]]
-            if words:
+    def from_file(f):
+        try:
+            got = json.loads(f.read_text(encoding="utf-8")) if f.is_file() else []
+        except (OSError, ValueError):
+            return []
+        return [{"s": w["s"], "e": w["e"], "w": w["w"]} for w in got
+                if isinstance(w, dict) and info["p0"] - 0.5 <= w.get("s", -1) <= info["p1"]]
+
+    # 1. the words this clip's captions were last made from (kept beside it since the editor came)
+    words = from_file(d / "clips" / f"{cid}.words.json")
+    if not words:
+        # 2. a clip made before that: the words kept with it (Hinglish, English fixed by the AI, heard again)
+        for k in ("hl_words", "en_words", "fixed_words", "hi_words"):
+            got = [w for w in clip.get(k) or [] if isinstance(w, dict) and clip["start"] - 1 <= w.get("s", -1) <= clip["end"] + 1]
+            if len(got) >= 2:
+                words = [{"s": w["s"], "e": w["e"], "w": w["w"]} for w in got]
                 break
+    if not words:
+        words = from_file(d / "words.json")          # 3. the video's own transcript
+    if words and (job.get("options") or {}).get("caption_lang") != "deva":
+        words = roman.words(words)          # Hindi in Roman letters (Hinglish), the way the clip's captions write it
     sw, sh = info["w"] or meta.get("width") or job.get("width") or 1920, info["h"] or meta.get("height") or job.get("height") or 1080
     face = clip.get("facecam")
     want = clip.get("layout", "blur")
@@ -601,6 +613,7 @@ def editor_data(jid, cid) -> dict:
             "p0": info["p0"], "p1": info["p1"], "step": info["step"], "thumbs": info["thumbs"], "peaks": info["peaks"],
             "hype": info["hype"], "words": words, "src_w": sw, "src_h": sh, "out_w": render.W, "out_h": render.H,
             "layout": layout, "fg_h": fg_h, "top_h": top_h, "hook_y": hook_y, "cap_y": cap_y, "facecam": face,
+            "camera": clip.get("camera"), "splits": render.SPLITS, "split": clip.get("split") or "balanced",
             "game": render._box(clip.get("game")), "pip_w": render.PIP_W, "pip_margin": render.PIP_MARGIN,
             "styles": styles, "hook": {"font": render.HOOK["font"], "file": render.FONT_FILES[render.HOOK["font"]],
                                        "px": round(hf.em(render.HOOK["size"]), 1), "max_w": render.HOOK["max_w"]},
@@ -665,6 +678,11 @@ def _render_one(job, clip, words):
                 clip["listen_error"] = str(e)[:200] or type(e).__name__
         local = dict(clip, start=clip["start"] - off, end=clip["end"] - off, hook=roman.to_roman(clip.get("hook") or ""))
         local["tag"] = tagmod.spec(_with_channel(job), clip)          # the streamer's handle on it, if asked for
+        if clip.get("edit"):          # the person's own fonts, sounds and media the edit uses
+            try:
+                local["lib"] = library.resolve(job.get("user"), clip["edit"])
+            except Exception:  # noqa: BLE001 - the clip is made without them
+                local["lib"] = {}
         near = _caption_words(job, clip, words, off, src) if clip.get("captions", True) else []
         # the size of the file this clip is really cut from (a piece can come in another size than the first one)
         try:          # the words this clip's captions were made from, in its source time: the editor shows them

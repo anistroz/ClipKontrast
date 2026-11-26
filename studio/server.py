@@ -22,7 +22,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Redirect
 
 from . import admin as admins
 from . import account, load
-from . import (accounts, ai, alerts, auth, brain, config, creators, ctx, db, earn, jobs, live, media, posting,
+from . import (accounts, ai, alerts, auth, brain, config, creators, ctx, db, earn, jobs, library, live, media, posting,
                profiles, render, safe, transcribe, usage, whisper)
 
 from . import tools as _tools  # noqa: E402
@@ -124,6 +124,8 @@ class Gate:
                 cap = 9 * 1024 * 1024          # a screenshot or a campaign cover
             if path in ("/api/public/bug-report", "/api/bug-report"):
                 cap = 7 * 1024 * 1024          # a bug report, with its screenshot
+            if path == "/api/library":
+                cap = 210 * 1024 * 1024        # a font, sound, picture or video for the editor's library
             try:
                 if int(req.headers.get("content-length") or 0) > cap:
                     return await deny(413, f"That file is too big. The limit is {config.MAX_UPLOAD_MB} MB." if path == "/api/upload" else "That request is too large.")
@@ -1288,6 +1290,58 @@ def edit_font(name: str):
     if not f.is_file():
         raise HTTPException(404)
     return FileResponse(f, media_type="font/ttf", headers={"Cache-Control": "public, max-age=604800"})
+
+
+# ---------------------------------------------------------------- the editor's library: own fonts, sounds, media
+@app.get("/api/library")
+def library_list():
+    return {"items": library.listing(ctx.uid()), "limits": library.MAX_MB, "kinds": library.KINDS}
+
+
+@app.post("/api/library")
+async def library_add(kind: str = Form(...), file: UploadFile = File(...)):
+    """Add a font, sound, picture or video to the person's library. It's checked and made into a safe format first."""
+    _throttle("library:" + ctx.uid(), 60, 3600, "That's a lot of uploads in a short time. Wait a little.")
+    tmp = config.TMP_DIR / f"lib-{os.urandom(6).hex()}{Path(file.filename or '').suffix.lower()[:8]}"
+    size = 0
+    try:
+        with tmp.open("wb") as out:
+            while chunk := await file.read(1024 * 1024):
+                size += len(chunk)
+                if size > library.MAX_MB.get(kind, 50) * 1024 * 1024:
+                    raise HTTPException(413, f"That file is too big. The limit is {library.MAX_MB.get(kind, 50)} MB.")
+                out.write(chunk)
+        uid = ctx.uid()
+        item = await run_in_threadpool(library.add, uid, kind, file.filename or "", tmp)
+    except library.LibraryError as e:
+        raise HTTPException(400, str(e))
+    finally:
+        tmp.unlink(missing_ok=True)
+    ctx.bump()
+    return item
+
+
+@app.delete("/api/library/{iid}")
+def library_delete(iid: str):
+    if not library.delete(ctx.uid(), iid):
+        raise HTTPException(404, "That isn't in your library.")
+    ctx.bump()
+    return {"ok": True}
+
+
+@app.get("/api/library/{iid}/{what}")
+def library_file(iid: str, what: str):
+    """A library item's file (to hear, see or draw it in the editor), or its picture."""
+    if what not in ("file", "thumb"):
+        raise HTTPException(404)
+    it = library.get(ctx.uid(), iid)
+    f = library.path(ctx.uid(), iid, thumb=what == "thumb")
+    if not it or not f:
+        raise HTTPException(404)
+    kind = {"font": "font/" + ("otf" if f.suffix == ".otf" else "ttf"), "sound": "audio/mp4"}.get(it["kind"]) if what == "file" else "image/jpeg"
+    if it["kind"] == "media" and what == "file":
+        kind = "image/png" if f.suffix == ".png" else "video/mp4"
+    return FileResponse(f, media_type=kind, headers={"Cache-Control": "private, max-age=86400", "X-Content-Type-Options": "nosniff"})
 
 
 @app.get("/api/jobs/{jid}/clips/{cid}/frame")

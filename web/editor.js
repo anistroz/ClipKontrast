@@ -163,6 +163,24 @@
 .ed-pun{position:absolute;top:5px;bottom:5px;border-radius:7px;background:rgba(198,244,50,.16);border:1px dashed rgba(198,244,50,.7);color:var(--lime);font-size:10.5px;
   font-weight:800;padding:0 8px;display:flex;align-items:center;white-space:nowrap;overflow:hidden;cursor:grab;touch-action:none}
 .ed-pun.sel{outline:2px solid #fff}
+.ed-med{position:absolute;top:5px;bottom:5px;border-radius:7px;background:linear-gradient(90deg,#FF7AD9,#B57CFF);color:#1a0820;font-size:10.5px;font-weight:800;
+  padding:0 8px 0 4px;display:flex;align-items:center;gap:5px;white-space:nowrap;overflow:hidden;cursor:grab;touch-action:none}
+.ed-med img{height:22px;width:22px;object-fit:cover;border-radius:4px;flex:none}.ed-med.sel{outline:2px solid #fff}
+.ed-mbox{position:absolute;border:2px solid #FF7AD9;border-radius:6px;cursor:move;touch-action:none}
+.ed-mbox i{position:absolute;right:-7px;bottom:-7px;width:14px;height:14px;border-radius:4px;background:#FF7AD9;cursor:nwse-resize}
+.ed-lib{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
+.ed-lib .it{position:relative;border-radius:10px;overflow:hidden;background:var(--p2);border:1px solid var(--ln);aspect-ratio:1;display:grid;place-items:center}
+.ed-lib .it img{width:100%;height:100%;object-fit:cover}.ed-lib .it span{position:absolute;left:4px;bottom:4px;font-size:9.5px;font-weight:800;background:rgba(0,0,0,.7);padding:1px 5px;border-radius:5px}
+.ed-lib .it .acts{position:absolute;inset:auto 4px 4px auto;display:flex;gap:3px}
+.ed-lib .it button{width:24px;height:24px;border-radius:7px;border:0;background:rgba(0,0,0,.72);display:grid;place-items:center;font-weight:800}
+.ed-lib .it button:hover{background:var(--lime);color:var(--ink)}
+.ed-drop{border:1.5px dashed var(--ln2);border-radius:14px;padding:16px;text-align:center;color:var(--dim);font-size:12px;margin-bottom:16px;cursor:pointer}
+.ed-drop:hover,.ed-drop.over{border-color:var(--lime);color:#fff;background:rgba(198,244,50,.05)}.ed-drop b{display:block;color:#fff;font-size:13px;margin-bottom:3px}
+.ed-font{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:11px;background:var(--p2);border:1px solid var(--ln);margin-bottom:6px}
+.ed-font b{font-size:20px;font-weight:400;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ed-fonts{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+.ed-fonts button{padding:7px 10px;border-radius:9px;background:var(--p2);border:1px solid var(--ln);font-size:15px}
+.ed-fonts button.on{border-color:var(--lime);box-shadow:inset 0 0 0 1px var(--lime)}
 .ed-wave{position:absolute;inset:3px 0}
 .ed-ph{position:absolute;top:0;bottom:0;width:2px;background:#fff;z-index:8;pointer-events:none}
 .ed-ph::before{content:"";position:absolute;top:-1px;left:-6px;border:7px solid transparent;border-top:9px solid #fff}
@@ -227,14 +245,15 @@
     const ed = clip.edit || {};
     const doc = {start: clip.start, end: clip.end, hook: clip.hook || "", title: clip.title || "", description: clip.description || "",
       style: clip.style || "bounce", layout: clip.layout || "blur", captions: clip.captions !== false, tighten: !!clip.tighten, zoom: !!clip.zoom,
-      watermark: clip.watermark || "", splits: [],
+      watermark: clip.watermark || "", splits: [], split: clip.split || "balanced",
       edit: {cuts: deep(ed.cuts || []), fx: deep(ed.fx || []), sfx: deep(ed.sfx || []), punch: deep(ed.punch || []), look: ed.look || "natural",
-             hook_fx: ed.hook_fx || "box", hook_y: ed.hook_y || null, cap_y: ed.cap_y || null, hook_dur: ed.hook_dur || 0}};
+             hook_fx: ed.hook_fx || "box", hook_y: ed.hook_y || null, cap_y: ed.cap_y || null, hook_dur: ed.hook_dur || 0,
+             media: deep(ed.media || []), hook_font: ed.hook_font || "", cap_font: ed.cap_font || ""}};
     E = {jid, cid, doc, saved: JSON.stringify(doc), hist: [JSON.stringify(doc)], hi: 0, tool: "edit", sel: null, pps: 40, data: null,
-         playing: false, t: clip.start, tsel: [], draftKey: `ck-edit:${jid}:${cid}:${clip.version || 0}`, safe: false, exporting: false};
+         playing: false, t: clip.start, tsel: [], lib: [], libEl: {}, draftKey: `ck-edit:${jid}:${cid}:${clip.version || 0}`, safe: false, exporting: false};
     try {     // an edit not exported yet, kept from last time
       const dr = localStorage.getItem(E.draftKey);
-      if (dr) { const d = JSON.parse(dr); if (d && d.edit) { E.doc = Object.assign(doc, d); E.hist = [JSON.stringify(E.doc)]; E.restored = true; } }
+      if (dr) { const d = JSON.parse(dr); if (d && d.edit) { d.edit = Object.assign({media: [], hook_font: "", cap_font: ""}, d.edit); E.doc = Object.assign(doc, d); E.hist = [JSON.stringify(E.doc)]; E.restored = true; } }
     } catch {}
     const root = document.createElement("div"); root.id = "ed"; root.tabIndex = -1;
     document.body.append(root); E.root = root;
@@ -252,6 +271,7 @@
     }
     if (!E) return;
     await loadFonts();
+    loadLibrary();
     startMedia();
     if (E.restored) toast("Your unsaved edit of this clip was brought back. Export to make it.", "ok");
   }
@@ -276,6 +296,7 @@
     }
     try { E.v && E.v.pause(); } catch {}
     E.sfxAudio && E.sfxAudio.forEach(a => a.pause());
+    Object.values(E.libEl || {}).forEach(el => { try { el.pause && el.pause(); } catch {} });
     cancelAnimationFrame(E.raf);
     clearInterval(E.poll);
     document.removeEventListener("keydown", onKey, true);
@@ -299,7 +320,7 @@
 
   // ---------------------------------------------------------------- the frame of the editor
   const RAIL = [["edit", "scissors", "Edit"], ["frame", "video", "Frame"], ["captions", "chat", "Captions"], ["text", "film", "Text"],
-                ["effects", "sparkle", "Effects"], ["audio", "radio", "Audio"], ["post", "send", "Post"]];
+                ["effects", "sparkle", "Effects"], ["audio", "radio", "Audio"], ["library", "folder", "Library"], ["post", "send", "Post"]];
   function shell() {
     const job = jobOf(E.jid), clip = job.clips.find(c => c.id === E.cid);
     const n = job.clips.findIndex(c => c.id === E.cid) + 1;
@@ -347,6 +368,9 @@
     E.root.addEventListener("input", onInput);
     E.root.addEventListener("change", onChange);
     E.root.addEventListener("pointerdown", onDown);
+    // files dropped anywhere on the editor go into the library
+    E.root.addEventListener("dragover", e => { if (e.dataTransfer && [...e.dataTransfer.types].includes("Files")) { e.preventDefault(); E.root.querySelector("#edDrop")?.classList.add("over"); } });
+    E.root.addEventListener("drop", e => { if (!e.dataTransfer || !e.dataTransfer.files.length) return; e.preventDefault(); E.tool = "library"; drawPanel(); upload([...e.dataTransfer.files]); });
     E.cv = E.root.querySelector("#edCanvas"); E.ctx = E.cv.getContext("2d");
     E.lane = E.root.querySelector("#edLane"); E.inner = E.root.querySelector("#edInner");
     drawPanel(); drawInsp(); drawState();
@@ -407,8 +431,11 @@
       .concat(E.doc.edit.fx.filter(f => f.sound !== false && (E.data.options.transition_sound[f.type])).map(f => [f.t - ({whoosh: .45, swoosh: .18}[E.data.options.transition_sound[f.type]] || 0), E.data.options.transition_sound[f.type], 0.8]));
     for (const [t, k, vol] of list) if (t > a && t <= b) hear(k, vol);
   }
+  function sfxName(kind) { if (String(kind).startsWith("lib:")) { const it = libItem(kind.slice(4)); return it ? it.name : "Deleted sound"; } return (E.data.options.sounds || {})[kind] || kind; }
   function hear(kind, vol = 0.8) {
-    const a = new Audio(`/api/edit/sound/${kind}.wav`); a.volume = clamp(vol * 0.8, 0, 1); a.play().catch(() => {});
+    const lib = String(kind).startsWith("lib:") ? libItem(kind.slice(4)) : null;
+    if (String(kind).startsWith("lib:") && !lib) return;
+    const a = new Audio(lib ? lib.url : `/api/edit/sound/${kind}.wav`); a.volume = clamp(vol * 0.8, 0, 1); a.play().catch(() => {});
     E.sfxAudio.push(a); if (E.sfxAudio.length > 12) E.sfxAudio.shift();
   }
 
@@ -448,11 +475,11 @@
     ctx.translate(W / 2 + sx, H / 2 + sy); ctx.rotate(ang); ctx.scale(z, z); ctx.translate(-W / 2, -H / 2);
     const lookF = look === "none" ? "" : look;
     const f2 = (extra = "") => (lookF + " " + extra + (blur ? ` blur(${blur}px)` : "")).trim() || "none";
-    const lay = d.layout, face = d.facecam && d.facecam.length === 4 ? d.facecam.map(x => x * k) : null, game = d.game ? d.game.map(x => x * k) : null;
+    const G = geom(), lay = G.lay, face = d.facecam && d.facecam.length === 4 ? d.facecam.map(x => x * k) : null, game = d.game ? d.game.map(x => x * k) : null;
     const g = game || [0, 0, vw, vh];
     if (lay === "split" && face) {
-      ctx.filter = f2(); cover(ctx, v, face[0], face[1], face[2], face[3], 0, 0, W, d.top_h);
-      cover(ctx, v, g[0], g[1], g[2], g[3], 0, d.top_h, W, H - d.top_h);
+      ctx.filter = f2(); cover(ctx, v, face[0], face[1], face[2], face[3], 0, 0, W, G.top);
+      cover(ctx, v, g[0], g[1], g[2], g[3], 0, G.top, W, H - G.top);
     } else if (lay === "gameplay" && face) {
       ctx.filter = f2(); cover(ctx, v, g[0], g[1], g[2], g[3], 0, 0, W, H);
       const pw = d.pip_w, ph = pw * face[3] / face[2];
@@ -461,7 +488,7 @@
       ctx.filter = f2(); cover(ctx, v, 0, 0, vw, vh, 0, 0, W, H);
     } else {                       // blurred fill behind the whole picture
       ctx.filter = f2("blur(28px) brightness(.86) saturate(1.15)"); cover(ctx, v, 0, 0, vw, vh, -60, -60, W + 120, H + 120);
-      ctx.filter = f2(); const fh = d.fg_h; cover(ctx, v, 0, 0, vw, vh, 0, (H - fh) / 2, W, fh);
+      ctx.filter = f2(); const fh = G.fg; cover(ctx, v, 0, 0, vw, vh, 0, (H - fh) / 2, W, fh);
     }
     ctx.restore(); ctx.filter = "none";
     if (glitch) {               // an RGB split: the picture shifted, tinted, added on top
@@ -472,17 +499,67 @@
     if (flash > 0) { ctx.fillStyle = `rgba(255,255,255,${clamp(flash, 0, 0.95)})`; ctx.fillRect(0, 0, W, H); }
     if (dark > 0) { ctx.fillStyle = `rgba(0,0,0,${clamp(dark, 0, 1)})`; ctx.fillRect(0, 0, W, H); }
     if (wipe != null) { ctx.fillStyle = "#C6F432"; ctx.fillRect(-W + wipe * 2 * W, 0, W, H); }
+    drawMedia(ctx, ot);
     drawCaptions(ctx, t);
     drawHook(ctx, ot);
     if (doc.watermark) { ctx.font = `800 46px "Poppins ExtraBold"`; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillStyle = "rgba(255,255,255,.6)";
       const cy = capY(); ctx.fillText(doc.watermark.slice(0, 40), W / 2, cy + 128 <= 1660 ? cy + 128 : cy - 140); }
     placeBoxes();
   }
-  function hookY() { return E.doc.edit.hook_y || E.data.hook_y; }
-  function capY() { return E.doc.edit.cap_y || E.data.cap_y; }
+  function geom() {
+    const d = E.data, face = d.facecam && d.facecam.length === 4;
+    let lay = E.doc.layout;
+    if ((lay === "gameplay" || lay === "split") && d.camera === "full") lay = "crop";
+    else if ((lay === "gameplay" || lay === "split") && !face) lay = "blur";
+    if (d.src_h >= d.src_w && lay !== "crop") lay = "crop";
+    const top = (d.splits || {})[E.doc.split] || d.top_h || 720;
+    const fg = lay === "blur" ? Math.min(H, Math.round(W * d.src_h / d.src_w / 2) * 2) : lay === "zoom" ? 1000 : H, t0 = (H - fg) / 2;
+    let hy, cy;
+    if (lay === "split") { hy = top; cy = Math.min(1640, top + Math.floor((H - top) * 0.63)); }
+    else if (lay === "crop" || lay === "gameplay") { hy = 300; cy = 1380; }
+    else { hy = Math.max(230, t0 - 190); cy = Math.min(1640, t0 + fg + 180); }
+    if (lay === "gameplay" && face) hy = d.pip_margin + Math.round(d.pip_w * d.facecam[3] / d.facecam[2]) + 32;
+    return {lay, fg, top, hy, cy};
+  }
+  function hookY() { return E.doc.edit.hook_y || geom().hy; }
+  function capY() { return E.doc.edit.cap_y || geom().cy; }
+  const libItem = id => E.lib.find(i => i.id === id);
+  function hookFam() { const f = libItem(E.doc.edit.hook_font); return f && f.ready ? `CKLIB-${f.id}` : E.data.hook.font; }
+  function capFam(st) { const f = libItem(E.doc.edit.cap_font); return f && f.ready ? `CKLIB-${f.id}` : st.font; }
   function roundRect(ctx, x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
+  function mediaEl(id) {          // the picture or video of a library item, for drawing
+    const it = libItem(id); if (!it) return null;
+    if (E.libEl[id]) return E.libEl[id];
+    let el;
+    if (it.type === "image") { el = new Image(); el.src = it.url; }
+    else { el = document.createElement("video"); el.src = it.url; el.muted = it.type === "gif"; el.playsInline = true; el.preload = "auto"; el.loop = it.type === "gif"; }
+    E.libEl[id] = el; return el;
+  }
+  function mediaRect(m, el) {
+    const it = libItem(m.id) || {}, w = m.w * W, iw = (el && (el.naturalWidth || el.videoWidth)) || it.w || 16, ih = (el && (el.naturalHeight || el.videoHeight)) || it.h || 9;
+    const h = w * ih / iw; return [m.x * W - w / 2, m.y * H - h / 2, w, h];
+  }
+  function drawMedia(ctx, ot) {
+    E.mediaRects = {};
+    E.doc.edit.media.forEach((m, i) => {
+      const at = toOut(E.doc, m.t); if (at == null) return;
+      const el = mediaEl(m.id), it = libItem(m.id); if (!el || !it) return;
+      const on = ot >= at && ot <= at + m.d;
+      if (it.type !== "image") {      // a video plays along with the clip, from where it was put
+        const want = (m.from || 0) + Math.max(0, ot - at);
+        if (on) {
+          if (Math.abs(el.currentTime - want) > 0.25) { try { el.currentTime = want; } catch {} }
+          el.volume = clamp(m.vol * 0.9, 0, 1); el.muted = it.type === "gif" || !it.audio || (E.v && E.v.muted);
+          if (E.playing && el.paused) el.play().catch(() => {}); if (!E.playing && !el.paused) el.pause();
+        } else if (!el.paused) el.pause();
+      }
+      if (!on) return;
+      const r = mediaRect(m, el); E.mediaRects[i] = r;
+      try { ctx.drawImage(el, r[0], r[1], r[2], r[3]); } catch {}
+    });
+  }
   function hookLines(ctx, text, size) {
-    ctx.font = `800 ${size}px "${E.data.hook.font}"`;
+    ctx.font = `800 ${size}px "${hookFam()}"`;
     const words = text.split(/\s+/).filter(Boolean), max = E.data.hook.max_w;
     let lines = [words.join(" ")];
     if (ctx.measureText(lines[0]).width > max && words.length > 1) {
@@ -508,7 +585,7 @@
     ctx.save(); ctx.globalAlpha = a; ctx.translate(W / 2, y); ctx.scale(s, s); ctx.translate(-W / 2, -y);
     const boxed = ["box", "pop", "lime", "type"].includes(ed.hook_fx);
     if (boxed) { ctx.fillStyle = ed.hook_fx === "lime" ? "#C6F432" : "#FFFFFF"; roundRect(ctx, (W - bw) / 2, y - bh / 2, bw, bh, Math.min(26, bh / 2)); ctx.fill(); }
-    ctx.font = `800 ${size}px "${E.data.hook.font}"`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.font = `800 ${size}px "${hookFam()}"`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
     const total = lines.join("").length; let shown = 1e9;
     if (ed.hook_fx === "type") { const step = clamp(Math.floor(600 / Math.max(1, total)), 18, 45); shown = Math.floor(ot * 1000 / step); }
     let before = 0;
@@ -547,11 +624,11 @@
     for (let i = 0; i < gs.length; i++) { const end = Math.min(gs[i][gs[i].length - 1].e + 0.25, gs[i + 1] ? gs[i + 1][0].s : 1e9); if (t >= gs[i][0].s && t < end) { g = gs[i]; break; } }
     if (!g) return;
     let size = st.px;
-    ctx.font = `${size}px "${st.font}"`; ctx.textAlign = "left"; ctx.textBaseline = "middle";
+    ctx.font = `${size}px "${capFam(st)}"`; ctx.textAlign = "left"; ctx.textBaseline = "middle";
     const texts = g.map(w => { const x = w.w.replace(/[.,;:]+$/, ""); return st.upper ? x.toUpperCase() : x; });
     const gap = size * 0.28 + st.outline * 2;
     let total = texts.reduce((n, x) => n + ctx.measureText(x).width, 0) + gap * (texts.length - 1);
-    if (total > 960) { size = Math.max(36, size * 960 / total); ctx.font = `${size}px "${st.font}"`; total = texts.reduce((n, x) => n + ctx.measureText(x).width, 0) + gap * (texts.length - 1); }
+    if (total > 960) { size = Math.max(36, size * 960 / total); ctx.font = `${size}px "${capFam(st)}"`; total = texts.reduce((n, x) => n + ctx.measureText(x).width, 0) + gap * (texts.length - 1); }
     const cy = capY(); let x = (W - total) / 2;
     if (st.band) { ctx.fillStyle = "rgba(0,0,0,.65)"; roundRect(ctx, (W - total) / 2 - size * .35, cy - size * .66, total + size * .7, size * 1.32, 28); ctx.fill(); }
     g.forEach((w, i) => {
@@ -574,6 +651,12 @@
     else hb.style.display = "none";
     if (E.doc.captions) { cb.style.display = ""; const st = E.data.styles[E.doc.style] || {px: 120}; cb.style.top = ((capY() - st.px * .7) * h) + "px"; cb.style.height = (st.px * 1.4 * h) + "px"; }
     else cb.style.display = "none";
+    let mb = E.root.querySelector("#edMediaBox");      // the picked picture or video: drag to move, the corner to resize
+    const r = E.sel && E.sel.k === "media" && E.mediaRects && E.mediaRects[E.sel.i];
+    if (r) {
+      if (!mb) { mb = document.createElement("div"); mb.id = "edMediaBox"; mb.className = "ed-mbox"; mb.innerHTML = "<i></i>"; ph.append(mb); }
+      Object.assign(mb.style, {left: r[0] * h + "px", top: r[1] * h + "px", width: r[2] * h + "px", height: r[3] * h + "px", display: ""});
+    } else if (mb) mb.style.display = "none";
   }
 
   // ---------------------------------------------------------------- the timeline
@@ -586,7 +669,7 @@
     const hgt = (E.root.querySelector(".ed-tracks")?.clientHeight || 200);
     const fixed = 20 + 14;
     const rest = Math.max(120, hgt - fixed), r = n => Math.max(22, Math.floor(rest * n));
-    return [["", 20], ["🔥 Hype", 14], ["🎬 Video", r(.30)], ["💬 Captions", r(.17)], ["T  Text", r(.15)], ["✦ Effects", r(.18)], ["🔊 Sound", r(.20)]];
+    return [["", 20], ["🔥 Hype", 14], ["🎬 Video", r(.27)], ["💬 Captions", r(.15)], ["T  Text", r(.13)], ["🖼 Media", r(.13)], ["✦ Effects", r(.14)], ["🔊 Sound", r(.18)]];
   }
   function drawTimeline() {
     if (!E || !E.data || !E.inner) return;
@@ -625,13 +708,17 @@
     // text
     const hs = doc.start, he = ed.hook_dur > 0 ? fromOut(doc, Math.min(outLen(doc), ed.hook_dur)) : doc.end;
     html += `<div class="ed-ln" style="height:${hh[4]}px">${doc.hook.trim() ? `<div class="ed-txt${E.sel && E.sel.k === "hook" ? " sel" : ""}" data-hook="1" style="left:${X(hs)}px;width:${Math.max(30, X(he) - X(hs))}px">${esc(doc.hook)} · ${esc(d.options.hook_fx[ed.hook_fx])}</div>` : ""}</div>`;
+    // media: pictures, GIFs and videos from the library, over the clip
+    let md = "";
+    ed.media.forEach((m, i) => { const it = libItem(m.id); md += `<div class="ed-med${E.sel && E.sel.k === "media" && E.sel.i === i ? " sel" : ""}" data-media="${i}" style="left:${X(m.t)}px;width:${Math.max(30, m.d * E.pps)}px">${it && it.thumb ? `<img src="${it.thumb}" alt="">` : ""}${esc(it ? it.name : "Deleted")}</div>`; });
+    html += `<div class="ed-ln" style="height:${hh[5]}px">${md}</div>`;
     // effects: sound effects and punch-ins
     let ef = "";
     ed.punch.forEach((p, i) => ef += `<div class="ed-pun${E.sel && E.sel.k === "punch" && E.sel.i === i ? " sel" : ""}" data-punch="${i}" style="left:${X(p.t)}px;width:${Math.max(26, p.d * E.pps)}px">⤢ ${p.z.toFixed(2)}×</div>`);
-    html += `<div class="ed-ln" style="height:${hh[5]}px">${ef}</div>`;
+    html += `<div class="ed-ln" style="height:${hh[6]}px">${ef}</div>`;
     let sf = `<canvas class="ed-wave" id="edWaveCv"></canvas>`;
-    ed.sfx.forEach((s, i) => sf += `<div class="ed-sfx${E.sel && E.sel.k === "sfx" && E.sel.i === i ? " sel" : ""}" data-sfx="${i}" style="left:${X(s.t)}px">${SFX_ICON[s.kind] || "♪"} ${esc(d.options.sounds[s.kind])}</div>`);
-    html += `<div class="ed-ln" style="height:${hh[6]}px">${sf}</div>`;
+    ed.sfx.forEach((s, i) => sf += `<div class="ed-sfx${E.sel && E.sel.k === "sfx" && E.sel.i === i ? " sel" : ""}" data-sfx="${i}" style="left:${X(s.t)}px">${SFX_ICON[s.kind] || "♪"} ${esc(sfxName(s.kind))}</div>`);
+    html += `<div class="ed-ln" style="height:${hh[7]}px">${sf}</div>`;
     html += `<div class="ed-ph" id="edPh"></div>`;
     // the hottest moments, marked on the ruler
     for (const h of hotMoments(3)) html += `<span class="ed-hot" style="left:${X(h)}px;top:${hh[0] - 2}px">🔥</span>`;
@@ -648,7 +735,7 @@
       const n = d.hype.length, step = (d.p1 - d.p0) / Math.max(1, n);
       for (let i = 0; i < n; i++) { const v = d.hype[i]; c.fillStyle = `hsla(${70 - v * 60},95%,${30 + v * 30}%,${0.25 + v * 0.75})`; c.fillRect(i * step * E.pps, 0, Math.ceil(step * E.pps) + 1, hh[1]); } }
     const wc = E.root.querySelector("#edWaveCv");
-    if (wc) { const h = hh[6] - 6; wc.width = width * dpr; wc.height = h * dpr; wc.style.width = width + "px"; wc.style.height = h + "px"; const c = wc.getContext("2d"); c.scale(dpr, dpr);
+    if (wc) { const h = hh[7] - 6; wc.width = width * dpr; wc.height = h * dpr; wc.style.width = width + "px"; wc.style.height = h + "px"; const c = wc.getContext("2d"); c.scale(dpr, dpr);
       const n = d.peaks.length, step = (d.p1 - d.p0) / Math.max(1, n), doc = E.doc;
       for (let i = 0; i < n; i++) { const t = d.p0 + i * step, inside = t >= doc.start && t < doc.end && !inCut(doc, t), v = d.peaks[i];
         c.fillStyle = inside ? "rgba(198,244,50,.85)" : "rgba(255,255,255,.18)"; const bh = Math.max(1, v * h * 0.95); c.fillRect(i * step * E.pps, (h - bh) / 2, Math.max(1, step * E.pps - 0.5), bh); } }
@@ -706,7 +793,7 @@
       const L = (S.status && S.status.layouts) || {}, pic = {blur: [[34, 32]], zoom: [[28, 44]], crop: [[0, 100]], gameplay: [[0, 100], [3, 14, "pip"]], split: [[0, 38], [40, 60]]};
       h += `<div class="ed-sec"><div class="ed-h">Layout</div><div class="ed-layouts">${Object.entries(L).map(([k, v]) => `<button data-layout="${k}" class="${doc.layout === k ? "on" : ""}" title="${esc(v)}"><span class="ed-lay">${(pic[k] || []).map(([t, hh, pip]) => pip ? `<i style="top:${t}%;height:${hh}%;left:auto;right:3px;width:40%;background:#C6F432"></i>` : `<i style="top:${t}%;height:${hh}%"></i>`).join("")}</span>${esc(v.split(/[,+(]/)[0].trim())}</button>`).join("")}</div>
         ${E.data.layout !== doc.layout && ["split", "gameplay"].includes(doc.layout) && !E.data.facecam ? `<p class="ed-help" style="margin-top:8px">No webcam was found yet: press Fix facecam to show where it is.</p>` : ""}
-        ${E.data.layout !== doc.layout ? `<p class="ed-help" style="margin-top:8px">The preview shows the new layout after you export.</p>` : ""}</div>
+        ${doc.layout === "split" && E.data.facecam ? `<div class="ed-h" style="margin-top:14px">Facecam size</div><div class="ed-seg">${[["small", "Small"], ["balanced", "Balanced"], ["half", "Half"], ["big", "Big"]].map(([k, l]) => `<button data-split="${k}" class="${doc.split === k ? "on" : ""}">${l}</button>`).join("")}</div>` : ""}</div>
         <div class="ed-sec"><div class="ed-h">Facecam</div><div class="ed-row"><div><b>Fix the facecam</b><span>Draw a box around the streamer's webcam</span></div><button class="ed-btn sm" data-e="camfix">${eic("eye")}Fix</button></div></div>
         <div class="ed-sec"><div class="ed-h">Motion</div>
         <div class="ed-row"><div><b>Auto punch-in</b><span>Zooms in on the loudest moments when you export</span></div><button class="ed-tg${doc.zoom ? " on" : ""}" data-tg="zoom"></button></div>
@@ -719,10 +806,12 @@
     } else if (E.tool === "captions") {
       h += `<div class="ed-sec"><div class="ed-row"><div><b>Captions</b><span>Word by word, timed to the voice</span></div><button class="ed-tg${doc.captions ? " on" : ""}" data-tg="captions"></button></div></div>
         <div class="ed-sec"><div class="ed-h">Style <em>${esc((E.data.styles[doc.style] || {}).label || "")}</em></div><div class="ed-styles">${Object.entries(E.data.styles).map(([k, s]) => `<button data-style="${k}" class="${doc.style === k ? "on" : ""}"><img src="/brand/styles/${k}.jpg" alt="" loading="lazy" onerror="this.remove()"><span>${esc(s.label)}</span></button>`).join("")}</div></div>
-        <div class="ed-sec"><div class="ed-h">Position</div><label class="ed-f"><span>From the top <b>${capY()}</b></span><input class="ed-range" type="range" min="300" max="1750" step="5" data-range="cap_y" value="${capY()}"></label></div>`;
+        <div class="ed-sec"><div class="ed-h">Position</div><label class="ed-f"><span>From the top <b>${capY()}</b></span><input class="ed-range" type="range" min="300" max="1750" step="5" data-range="cap_y" value="${capY()}"></label></div>
+        <div class="ed-sec"><div class="ed-h">Font <em>Add your own in Library</em></div><div class="ed-fonts">${fontChoices("cap_font")}</div></div>`;
     } else if (E.tool === "text") {
       h += `<div class="ed-sec"><div class="ed-h">Big text</div><label class="ed-f"><input class="ed-in" data-txt="hook" maxlength="60" value="${esc(doc.hook)}" placeholder="The hook that stops the scroll"></label>
         <div class="ed-h" style="margin-top:6px">Effect</div><div class="ed-txfx">${Object.entries(o.hook_fx).map(([k, v]) => `<button data-hookfx="${k}" class="${ed.hook_fx === k ? "on" : ""}" style="${{box: "background:#fff;color:#14100E", pop: "background:#fff;color:#14100E;transform:scale(.96)", lime: "background:#C6F432;color:#14100E", outline: "color:#fff;text-shadow:2px 2px 0 #000,-2px -2px 0 #000,2px -2px 0 #000,-2px 2px 0 #000;background:#4a3a30", glow: "color:#fff;text-shadow:0 0 10px #C6F432,0 0 18px #C6F432", type: "letter-spacing:.14em;font-family:'Geist Mono',monospace;font-weight:700"}[k]}">${esc(v)}</button>`).join("")}</div></div>
+        <div class="ed-sec"><div class="ed-h">Font <em>Add your own in Library</em></div><div class="ed-fonts">${fontChoices("hook_font")}</div></div>
         <div class="ed-sec"><div class="ed-h">How long it stays</div><div class="ed-seg">${[[0, "Whole clip"], [3, "3 s"], [5, "5 s"], [8, "8 s"]].map(([v, l]) => `<button data-hookdur="${v}" class="${(ed.hook_dur || 0) === v ? "on" : ""}">${l}</button>`).join("")}</div></div>
         <div class="ed-sec"><div class="ed-h">Position</div><label class="ed-f"><span>From the top <b>${hookY()}</b></span><input class="ed-range" type="range" min="120" max="1750" step="5" data-range="hook_y" value="${hookY()}"></label><p class="ed-help">Or drag it on the preview.</p></div>
         <div class="ed-sec"><div class="ed-h">Your @handle</div><label class="ed-f"><input class="ed-in" data-txt="watermark" maxlength="40" value="${esc(doc.watermark)}" placeholder="@yourname"></label><p class="ed-help">Small, under the captions, so reposts still point to you.</p></div>`;
@@ -736,7 +825,14 @@
       h += `<div class="ed-sec"><div class="ed-h">Sound effects <em>Made by ClipKontrast · free to use</em></div><p class="ed-help">▶ to hear it, + to add it at the playhead. Whooshes and risers start just before, so they land on the moment.</p>
         <div class="ed-chips">${Object.entries(o.sounds).map(([k, v]) => `<span class="ed-chip"><span>${SFX_ICON[k] || "♪"} ${esc(v)}</span><button class="pl" data-hear="${k}" title="Hear it">▶</button><button class="pl" data-addsfx="${k}" title="Add at the playhead">+</button></span>`).join("")}</div></div>
         <div class="ed-sec"><div class="ed-h">Voice</div><div class="ed-row"><div><b>Cut silences</b><span>Quiet stretches are shortened</span></div><button class="ed-tg${doc.tighten ? " on" : ""}" data-tg="tighten"></button></div>
-        <p class="ed-help">Every clip's sound is evened out to the loudness Shorts, Reels and TikTok expect.</p></div>`;
+        <p class="ed-help">Every clip's sound is evened out to the loudness Shorts, Reels and TikTok expect.</p></div>
+        <div class="ed-sec"><div class="ed-h">Your sounds <em>${E.lib.filter(i => i.kind === "sound").length}</em></div>${libSounds() || `<p class="ed-help">Add your own sounds (memes, bass drops, your intro) in Library.</p>`}</div>`;
+    } else if (E.tool === "library") {
+      h += `<div class="ed-drop" data-e="upload" id="edDrop"><b>${E.uploading ? "Uploading " + esc(E.uploading) + "…" : "Add your own files"}</b>Fonts (.ttf .otf), sounds (.mp3 .wav .m4a) and pictures, GIFs or videos for memes. Drop them here or click. They stay in your library for every clip.</div>
+        <div class="ed-sec"><div class="ed-h">Pictures, GIFs and videos <em>${E.lib.filter(i => i.kind === "media").length}</em></div>
+        ${E.lib.some(i => i.kind === "media") ? `<div class="ed-lib">${E.lib.filter(i => i.kind === "media").map(i => `<div class="it" title="${esc(i.name)}">${i.thumb ? `<img src="${i.thumb}" alt="">` : ""}<span>${i.type === "image" ? "PIC" : i.type === "gif" ? "GIF" : tc(i.dur || 0, false)}</span><div class="acts"><button data-libadd="${i.id}" title="Put it on the clip at the playhead">+</button><button data-libdel="${i.id}" title="Delete from your library">×</button></div></div>`).join("")}</div>` : `<p class="ed-help">Memes, reaction pictures, a logo, a second clip: put them over your clip at any moment.</p>`}</div>
+        <div class="ed-sec"><div class="ed-h">Sounds <em>${E.lib.filter(i => i.kind === "sound").length}</em></div>${libSounds() || `<p class="ed-help">Your own sound effects show here.</p>`}</div>
+        <div class="ed-sec"><div class="ed-h">Fonts <em>${E.lib.filter(i => i.kind === "font").length}</em></div>${E.lib.filter(i => i.kind === "font").map(i => `<div class="ed-font"><b style="font-family:'CKLIB-${i.id}'">${esc(i.family || i.name)}</b><button class="ed-btn sm" data-font="hook_font" data-v="${i.id}">Big text</button><button class="ed-btn sm" data-font="cap_font" data-v="${i.id}">Captions</button><button class="ed-ib" data-libdel="${i.id}" title="Delete">×</button></div>`).join("") || `<p class="ed-help">Add a font and use it for the big text or the captions.</p>`}</div>`;
     } else if (E.tool === "post") {
       const job = jobOf(E.jid), c = job.clips.find(x => x.id === E.cid);
       h += `<div class="ed-sec"><div class="ed-h">Post text</div><label class="ed-f"><span>Title</span><input class="ed-in" data-txt="title" maxlength="100" value="${esc(doc.title)}"></label>
@@ -759,6 +855,43 @@
     p.innerHTML = h;
   }
 
+  function fontChoices(key) {
+    const cur = E.doc.edit[key] || "";
+    const base = key === "hook_font" ? E.data.hook.font : (E.data.styles[E.doc.style] || {}).font;
+    return `<button data-font="${key}" data-v="" class="${cur ? "" : "on"}" style="font-family:'${esc(base || "")}'">Style's own</button>` +
+      E.lib.filter(i => i.kind === "font").map(i => `<button data-font="${key}" data-v="${i.id}" class="${cur === i.id ? "on" : ""}" style="font-family:'CKLIB-${i.id}'">${esc(i.family || i.name)}</button>`).join("");
+  }
+  function libSounds() {
+    const ss = E.lib.filter(i => i.kind === "sound");
+    return ss.length ? `<div class="ed-chips">${ss.map(i => `<span class="ed-chip"><span>♪ ${esc(i.name)}</span><button class="pl" data-hear="lib:${i.id}" title="Hear it">▶</button><button class="pl" data-addsfx="lib:${i.id}" title="Add at the playhead">+</button>${E.tool === "library" ? `<button class="pl" data-libdel="${i.id}" title="Delete">×</button>` : ""}</span>`).join("")}</div>` : "";
+  }
+  async function loadLibrary() {
+    try { const r = await api("/api/library"); if (!E) return; E.lib = r.items || []; } catch { return; }
+    await Promise.all(E.lib.filter(i => i.kind === "font").map(i => new FontFace(`CKLIB-${i.id}`, `url(${i.url})`).load().then(f => { document.fonts.add(f); i.ready = true; }).catch(() => {})));
+    if (E) { drawPanel(); drawTimeline(); drawFrame(); }
+  }
+  async function upload(files) {
+    const kindOf = n => /\.(ttf|otf)$/i.test(n) ? "font" : /\.(mp3|wav|m4a|aac|ogg|opus|flac)$/i.test(n) ? "sound" : "media";
+    for (const f of files) {
+      E.uploading = f.name; drawPanel();
+      const fd = new FormData(); fd.append("kind", kindOf(f.name)); fd.append("file", f);
+      try {
+        const r = await fetch("/api/library", {method: "POST", body: fd});
+        if (!r.ok) { let m = "That file couldn't be added."; try { m = (await r.json()).detail || m; } catch {} toast(`${f.name}: ${m}`, "bad"); }
+      } catch { toast(`${f.name} couldn't be uploaded.`, "bad"); }
+    }
+    E.uploading = ""; await loadLibrary(); toast("Added to your library.", "ok");
+  }
+  function addMedia(id) {
+    const it = libItem(id); if (!it) return;
+    const doc = E.doc, t = r3(clamp(now(), doc.start, doc.end - 0.3));
+    const d = it.type === "image" ? 2.5 : Math.min(it.dur || 3, Math.max(0.5, doc.end - t));
+    doc.edit.media.push({id, t, d: r3(d), x: 0.5, y: it.type === "image" ? 0.32 : 0.5, w: it.type === "image" ? 0.55 : 0.8, vol: 1, from: 0});
+    doc.edit.media.sort((a, b) => a.t - b.t);
+    E.sel = {k: "media", i: doc.edit.media.findIndex(m => m.id === id && m.t === t)};
+    commit("Media");
+  }
+
   // ---------------------------------------------------------------- the right panel: what's selected
   function drawInsp() {
     if (!E) return;
@@ -778,8 +911,8 @@
       }
       if (s.k === "sfx" && ed.sfx[s.i]) {
         const x = ed.sfx[s.i];
-        el.innerHTML = `<div class="ed-sel"><i>${SFX_ICON[x.kind] || "♪"}</i><div><b>${esc(o.sounds[x.kind])}</b><span>At ${tc(toOut(doc, x.t) || 0)}</span></div></div>
-          <div class="ed-h">Sound</div><div class="ed-chips" style="margin-bottom:14px">${Object.entries(o.sounds).map(([k, v]) => `<button class="ed-chip${x.kind === k ? " on" : ""}" data-setsfx="${k}" style="padding:0 10px">${SFX_ICON[k] || "♪"} ${esc(v)}</button>`).join("")}</div>
+        el.innerHTML = `<div class="ed-sel"><i>${SFX_ICON[x.kind] || "♪"}</i><div><b>${esc(sfxName(x.kind))}</b><span>At ${tc(toOut(doc, x.t) || 0)}</span></div></div>
+          <div class="ed-h">Sound</div><div class="ed-chips" style="margin-bottom:14px">${Object.entries(o.sounds).concat(E.lib.filter(i => i.kind === "sound").map(i => ["lib:" + i.id, i.name])).map(([k, v]) => `<button class="ed-chip${x.kind === k ? " on" : ""}" data-setsfx="${k}" style="padding:0 10px">${SFX_ICON[k] || "♪"} ${esc(v)}</button>`).join("")}</div>
           <label class="ed-f"><span>Volume <b>${Math.round(x.vol * 100)}%</b></span><input class="ed-range" type="range" min="0.1" max="1.5" step="0.05" data-sfxvol value="${x.vol}"></label>
           <div style="display:flex;gap:8px"><button class="ed-btn sm" data-hear="${x.kind}">▶ Hear it</button><button class="ed-btn sm" data-e="del">${eic("trash")}Remove</button></div>`;
         return;
@@ -790,6 +923,18 @@
           <label class="ed-f"><span>Zoom <b>${x.z.toFixed(2)}×</b></span><input class="ed-range" type="range" min="1.05" max="1.8" step="0.01" data-punz value="${x.z}"></label>
           <label class="ed-f"><span>Holds for <b>${x.d.toFixed(1)} s</b></span><input class="ed-range" type="range" min="0.3" max="6" step="0.1" data-pund value="${x.d}"></label>
           <button class="ed-btn sm" data-e="del" style="width:100%;justify-content:center">${eic("trash")}Remove punch-in</button>`;
+        return;
+      }
+      if (s.k === "media" && ed.media[s.i]) {
+        const m = ed.media[s.i], it = libItem(m.id) || {name: "Deleted", type: "image"};
+        el.innerHTML = `<div class="ed-sel"><i>🖼</i><div><b>${esc(it.name)}</b><span>At ${tc(toOut(doc, m.t) || 0)} · drag it on the preview</span></div></div>
+          <label class="ed-f"><span>Size <b>${Math.round(m.w * 100)}%</b></span><input class="ed-range" type="range" min="0.05" max="1.6" step="0.01" data-med="w" value="${m.w}"></label>
+          <label class="ed-f"><span>Left / right <b>${Math.round(m.x * 100)}</b></span><input class="ed-range" type="range" min="0" max="1" step="0.01" data-med="x" value="${m.x}"></label>
+          <label class="ed-f"><span>Up / down <b>${Math.round(m.y * 100)}</b></span><input class="ed-range" type="range" min="0" max="1" step="0.01" data-med="y" value="${m.y}"></label>
+          <label class="ed-f"><span>Shows for <b>${m.d.toFixed(1)} s</b></span><input class="ed-range" type="range" min="0.2" max="${Math.max(1, it.type === "image" ? 30 : (it.dur || 10))}" step="0.1" data-med="d" value="${m.d}"></label>
+          ${it.audio ? `<label class="ed-f"><span>Its sound <b>${Math.round(m.vol * 100)}%</b></span><input class="ed-range" type="range" min="0" max="1.5" step="0.05" data-med="vol" value="${m.vol}"></label>` : ""}
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px"><button class="ed-btn sm" data-medfit="full">Full screen</button><button class="ed-btn sm" data-medfit="top">Top</button><button class="ed-btn sm" data-medfit="mid">Middle</button><button class="ed-btn sm" data-medfit="bottom">Bottom</button></div>
+          <button class="ed-btn sm" data-e="del" style="width:100%;justify-content:center">${eic("trash")}Remove from the clip</button>`;
         return;
       }
       if (s.k === "cut") {
@@ -851,6 +996,7 @@
     if (s.k === "fx") ed.fx.splice(s.i, 1);
     else if (s.k === "sfx") ed.sfx.splice(s.i, 1);
     else if (s.k === "punch") ed.punch.splice(s.i, 1);
+    else if (s.k === "media") ed.media.splice(s.i, 1);
     else if (s.k === "cut") { const c = cutsMerged(ed.cuts, doc.start, doc.end); c.splice(s.i, 1); ed.cuts = c; }
     else if (s.k === "seg") { if (!addCut(s.a, s.b)) return; }
     else if (s.k === "hook") { doc.hook = ""; }
@@ -916,9 +1062,10 @@
     if (E.exporting) return;
     const doc = E.doc, ed = doc.edit;
     const body = {start: r3(doc.start), end: r3(doc.end), hook: doc.hook, title: doc.title, description: doc.description, style: doc.style,
-      layout: doc.layout, captions: doc.captions, tighten: doc.tighten, zoom: doc.zoom, watermark: doc.watermark,
+      layout: doc.layout, captions: doc.captions, tighten: doc.tighten, zoom: doc.zoom, watermark: doc.watermark, split: doc.split,
       edit: {cuts: cutsMerged(ed.cuts, doc.start, doc.end), fx: ed.fx.filter(f => f.t >= doc.start && f.t <= doc.end), sfx: ed.sfx.filter(s => s.t >= doc.start - 2 && s.t <= doc.end),
-             punch: ed.punch.filter(p => p.t >= doc.start && p.t <= doc.end), look: ed.look, hook_fx: ed.hook_fx, hook_y: ed.hook_y, cap_y: ed.cap_y, hook_dur: ed.hook_dur}};
+             punch: ed.punch.filter(p => p.t >= doc.start && p.t <= doc.end), look: ed.look, hook_fx: ed.hook_fx, hook_y: ed.hook_y, cap_y: ed.cap_y, hook_dur: ed.hook_dur,
+             media: ed.media.filter(m => m.t >= doc.start && m.t <= doc.end && libItem(m.id)), hook_font: libItem(ed.hook_font) ? ed.hook_font : "", cap_font: libItem(ed.cap_font) ? ed.cap_font : ""}};
     if (body.end - body.start < 3) return toast("A clip needs to be at least 3 seconds long.", "bad");
     if (E.playing) play();
     E.exporting = true; drawState();
@@ -952,7 +1099,7 @@
 
   // ---------------------------------------------------------------- input
   function onClick(e) {
-    const b = e.target.closest("[data-e],[data-tool],[data-addtr],[data-settr],[data-addsfx],[data-setsfx],[data-hear],[data-look],[data-hookfx],[data-hookdur],[data-style],[data-layout],[data-tg],[data-go],[data-word],[data-fxsound]");
+    const b = e.target.closest("[data-e],[data-tool],[data-addtr],[data-settr],[data-addsfx],[data-setsfx],[data-hear],[data-look],[data-hookfx],[data-hookdur],[data-style],[data-layout],[data-tg],[data-go],[data-word],[data-fxsound],[data-split],[data-font],[data-libadd],[data-libdel],[data-medfit]");
     if (!b || !E) return;
     const d = b.dataset, doc = E.doc, ed = doc.edit;
     if (d.word !== undefined && b.closest("#edTrans")) {
@@ -970,6 +1117,11 @@
     if (d.setsfx && E.sel && E.sel.k === "sfx") { ed.sfx[E.sel.i].kind = d.setsfx; hear(d.setsfx); return commit("Sound"); }
     if (d.hear) return hear(d.hear);
     if (d.look) { ed.look = d.look; return commit("Look"); }
+    if (d.split) { doc.split = d.split; return commit("Facecam size"); }
+    if (d.font) { ed[d.font] = d.v || ""; return commit("Font"); }
+    if (d.libadd) return addMedia(d.libadd);
+    if (d.libdel) { (async () => { if (!await ask("Delete from your library?", "Clips already made keep it. Edits that use it lose it.", "Delete", true)) return; try { await api(`/api/library/${d.libdel}`, {method: "DELETE"}); } catch (err) { return toast(err.message, "bad"); } loadLibrary(); })(); return; }
+    if (d.medfit && E.sel && E.sel.k === "media") { const m = ed.media[E.sel.i]; Object.assign(m, {full: {x: .5, y: .5, w: 1}, top: {x: .5, y: .22}, mid: {x: .5, y: .5}, bottom: {x: .5, y: .78}}[d.medfit]); return commit("Place"); }
     if (d.hookfx) { ed.hook_fx = d.hookfx; commit("Text effect"); seek(doc.start); if (!E.playing) play(); return; }
     if (d.hookdur !== undefined) { ed.hook_dur = Number(d.hookdur); return commit("Text length"); }
     if (d.style) { doc.style = d.style; return commit("Caption style"); }
@@ -1006,6 +1158,7 @@
     if (a === "camfix") { D.jid = E.jid; D.cid = E.cid; openCamFix(); const f = document.getElementById("formdlg"); f && f.addEventListener("close", () => setTimeout(reloadData, 400), {once: true}); return; }
     if (a === "hype") return hypeEdit();
     if (a === "export") return exportClip();
+    if (a === "upload") { const inp = document.createElement("input"); inp.type = "file"; inp.multiple = true; inp.accept = ".ttf,.otf,.mp3,.wav,.m4a,.aac,.ogg,.opus,.flac,.png,.jpg,.jpeg,.webp,.gif,.mp4,.mov,.webm,.mkv,.m4v"; inp.onchange = () => inp.files.length && upload([...inp.files]); inp.click(); return; }
     if (a === "hideexp") { E.ov && E.ov.remove(); E.ov = null; return; }
     if (a === "gopost") { E.ov && E.ov.remove(); E.ov = null; E.tool = "post"; drawPanel(); return; }
     if (a === "postnow" || a === "postqueue") return post(a === "postnow");
@@ -1027,6 +1180,7 @@
     if (t.dataset.range) { ed[t.dataset.range] = Number(t.value); const lb = t.parentElement.querySelector("b"); if (lb) lb.textContent = t.value; drawFrame(); return; }
     if (t.dataset.fxd !== undefined && s && s.k === "fx") { ed.fx[s.i].d = Number(t.value); t.parentElement.querySelector("b").textContent = Number(t.value).toFixed(2) + " s"; drawFrame(); return; }
     if (t.dataset.sfxvol !== undefined && s && s.k === "sfx") { ed.sfx[s.i].vol = Number(t.value); t.parentElement.querySelector("b").textContent = Math.round(t.value * 100) + "%"; return; }
+    if (t.dataset.med && s && s.k === "media") { const m = ed.media[s.i]; m[t.dataset.med] = Number(t.value); const lb = t.parentElement.querySelector("b"); if (lb) lb.textContent = t.dataset.med === "d" ? Number(t.value).toFixed(1) + " s" : Math.round(t.value * 100) + (["w", "vol"].includes(t.dataset.med) ? "%" : ""); drawFrame(); return; }
     if (t.dataset.punz !== undefined && s && s.k === "punch") { ed.punch[s.i].z = Number(t.value); t.parentElement.querySelector("b").textContent = Number(t.value).toFixed(2) + "×"; drawFrame(); return; }
     if (t.dataset.pund !== undefined && s && s.k === "punch") { ed.punch[s.i].d = Number(t.value); t.parentElement.querySelector("b").textContent = Number(t.value).toFixed(1) + " s"; drawFrame(); return; }
   }
@@ -1039,13 +1193,22 @@
       else doc.end = r3(clamp(v, doc.start + 3, E.data.p1));
       return commit("Length");
     }
-    if (t.dataset.range || t.dataset.fxd !== undefined || t.dataset.sfxvol !== undefined || t.dataset.punz !== undefined || t.dataset.pund !== undefined) return commit("Adjust");
+    if (t.dataset.range || t.dataset.med || t.dataset.fxd !== undefined || t.dataset.sfxvol !== undefined || t.dataset.punz !== undefined || t.dataset.pund !== undefined) return commit("Adjust");
   }
   // dragging: the trim handles, transitions, sounds, punch-ins, the playhead, the big text and the captions
   function onDown(e) {
     if (!E || !E.data || e.button !== 0) return;
     const doc = E.doc, ed = doc.edit, t = e.target;
     const laneX = ev => { const r = E.inner.getBoundingClientRect(); return E.data.p0 + (ev.clientX - r.left) / E.pps; };
+    const mbx = t.closest("#edMediaBox");
+    if (mbx && E.sel && E.sel.k === "media") {
+      e.preventDefault(); const r = E.root.querySelector("#edPhone").getBoundingClientRect(), m = ed.media[E.sel.i], k = W / r.width;
+      const x0 = e.clientX, y0 = e.clientY, m0 = {...m}, resize = t.tagName === "I";
+      const mv = ev => { const dx = (ev.clientX - x0) * k, dy = (ev.clientY - y0) * k;
+        if (resize) m.w = clamp(m0.w + dx * 2 / W, 0.05, 1.6); else { m.x = clamp(m0.x + dx / W, -0.3, 1.3); m.y = clamp(m0.y + dy / H, -0.3, 1.3); } drawFrame(); };
+      const up = () => { removeEventListener("pointermove", mv); removeEventListener("pointerup", up); commit("Move"); drawInsp(); };
+      addEventListener("pointermove", mv); addEventListener("pointerup", up); return;
+    }
     const hb = t.closest("#edHookBox,#edCapBox");
     if (hb) {
       e.preventDefault(); const ph = E.root.querySelector("#edPhone"), r = ph.getBoundingClientRect(), key = hb.id === "edHookBox" ? "hook_y" : "cap_y";
@@ -1061,10 +1224,10 @@
       addEventListener("pointermove", mv); addEventListener("pointerup", up); return;
     }
     if (!t.closest("#edInner")) return;
-    const handle = t.closest("[data-h]"), fx = t.closest("[data-fx]"), sfx = t.closest("[data-sfx]"), pun = t.closest("[data-punch]");
-    if (handle || fx || sfx || pun) {
+    const handle = t.closest("[data-h]"), fx = t.closest("[data-fx]"), sfx = t.closest("[data-sfx]"), pun = t.closest("[data-punch]"), med = t.closest("[data-media]");
+    if (handle || fx || sfx || pun || med) {
       e.preventDefault(); let moved = false; const x0 = e.clientX;
-      const kind = handle ? "h" : fx ? "fx" : sfx ? "sfx" : "punch", i = Number((fx || sfx || pun || {dataset: {}}).dataset[kind === "punch" ? "punch" : kind] ?? -1);
+      const kind = handle ? "h" : fx ? "fx" : sfx ? "sfx" : med ? "media" : "punch", i = Number((fx || sfx || pun || med || {dataset: {}}).dataset[kind] ?? -1);
       if (kind !== "h") select({k: kind === "punch" ? "punch" : kind, i});
       const mv = ev => {
         if (Math.abs(ev.clientX - x0) > 3) moved = true; if (!moved) return;
@@ -1072,12 +1235,13 @@
         if (kind === "h") { if (handle.dataset.h === "start") doc.start = r3(clamp(tt, E.data.lo, doc.end - 3)); else doc.end = r3(clamp(tt, doc.start + 3, E.data.p1)); seek(handle.dataset.h === "start" ? doc.start : doc.end - 0.05); }
         else if (kind === "fx") { const j = joins(doc).find(q => Math.abs(q - tt) * E.pps < 10); ed.fx[i].t = r3(clamp(j != null ? j : tt, doc.start, doc.end)); }
         else if (kind === "sfx") ed.sfx[i].t = r3(clamp(tt, doc.start - 2, doc.end - 0.1));
+        else if (kind === "media") ed.media[i].t = r3(clamp(tt, doc.start, doc.end - 0.2));
         else ed.punch[i].t = r3(clamp(tt, doc.start, doc.end - 0.3));
         drawTimeline(); drawFrame();
       };
       const up = () => { removeEventListener("pointermove", mv); removeEventListener("pointerup", up);
-        if (moved) { if (kind === "fx") ed.fx.sort((a, b) => a.t - b.t); if (kind === "sfx") ed.sfx.sort((a, b) => a.t - b.t); if (kind === "punch") ed.punch.sort((a, b) => a.t - b.t); E.sel = null; commit("Move"); }
-        else if (kind !== "h") { const at = kind === "fx" ? ed.fx[i].t : kind === "sfx" ? ed.sfx[i].t : ed.punch[i].t; seek(Math.max(doc.start, at - 0.6)); } };
+        if (moved) { if (kind === "fx") ed.fx.sort((a, b) => a.t - b.t); if (kind === "sfx") ed.sfx.sort((a, b) => a.t - b.t); if (kind === "punch") ed.punch.sort((a, b) => a.t - b.t); if (kind === "media") ed.media.sort((a, b) => a.t - b.t); E.sel = null; commit("Move"); }
+        else if (kind !== "h") { const at = kind === "fx" ? ed.fx[i].t : kind === "sfx" ? ed.sfx[i].t : kind === "media" ? ed.media[i].t : ed.punch[i].t; seek(Math.max(doc.start, at - 0.6)); } };
       addEventListener("pointermove", mv); addEventListener("pointerup", up); return;
     }
     const cut = t.closest("[data-cut]"), seg = t.closest("[data-tseg]"), hook = t.closest("[data-hook]");
@@ -1120,5 +1284,6 @@
 
   window.CKEditor = {open, close, isOpen: () => !!E,
     // for tests: the edit as it stands
-    state: () => E && {doc: deep(E.doc), sel: E.sel, tool: E.tool, t: now(), playing: E.playing, ready: !!(E.v && E.v.videoWidth)}};
+    state: () => E && {doc: deep(E.doc), sel: E.sel, tool: E.tool, t: now(), playing: E.playing, ready: !!(E.v && E.v.videoWidth),
+      lib: E.lib.map(i => ({id: i.id, kind: i.kind, type: i.type, ready: !!i.ready})), layout: E.data && geom().lay}};
 })();

@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import json
 import math
+import re
 import subprocess
 import threading
 from pathlib import Path
@@ -66,7 +67,9 @@ LOOKS = {
 }
 HOOK_FX = {"box": "Box", "pop": "Pop", "lime": "Lime", "outline": "Outline", "glow": "Glow", "type": "Typewriter"}
 
-MAX_CUTS, MAX_FX, MAX_SFX, MAX_PUNCH = 60, 30, 40, 20
+MAX_CUTS, MAX_FX, MAX_SFX, MAX_PUNCH, MAX_MEDIA = 60, 30, 40, 20, 12
+LIB_ID = re.compile(r"^[0-9a-f]{12}$")             # an item of the person's own library (studio/library.py)
+LIB = re.compile(r"^lib:[0-9a-f]{12}$")
 PAD = 12.0                 # seconds of the video either side of the clip in its preview copy (room to trim out)
 SFX_DIR = config.DATA_DIR / "sfx"
 
@@ -127,7 +130,8 @@ def clean(v, start: float, end: float, lo: float | None = None, hi: float | None
         out["fx"] = sorted(fx, key=lambda x: x["t"])
     sfx = []
     for s in (v.get("sfx") or [])[:MAX_SFX]:
-        if not isinstance(s, dict) or s.get("kind") not in SOUNDS:
+        # one of ClipKontrast's sounds, or one from the person's own library ("lib:" and its id)
+        if not isinstance(s, dict) or not (s.get("kind") in SOUNDS or LIB.match(str(s.get("kind", "")))):
             raise EditError("A sound effect isn't valid.")
         sfx.append({"t": t(s.get("t")), "kind": s["kind"], "vol": _num(s.get("vol", 0.8), 0.0, 1.5, "A sound's volume")})
     if sfx:
@@ -155,6 +159,21 @@ def clean(v, start: float, end: float, lo: float | None = None, hi: float | None
             out[k] = int(_num(v[k], a, b, "A place on the screen"))
     if v.get("hook_dur") not in (None, "", 0):
         out["hook_dur"] = _num(v["hook_dur"], 0.5, 180, "How long the big text stays")
+    for k in ("hook_font", "cap_font"):            # a font from the person's library, by its id
+        if v.get(k):
+            if not LIB_ID.match(str(v[k])):
+                raise EditError("That font isn't in your library.")
+            out[k] = str(v[k])
+    media = []
+    for m in (v.get("media") or [])[:MAX_MEDIA]:   # pictures, GIFs and videos from the library, laid over the clip
+        if not isinstance(m, dict) or not LIB_ID.match(str(m.get("id", ""))):
+            raise EditError("A picture or video on the clip isn't valid.")
+        media.append({"id": str(m["id"]), "t": t(m.get("t")), "d": _num(m.get("d", 3), 0.2, 120, "How long a picture stays"),
+                      "x": _num(m.get("x", 0.5), -0.5, 1.5, "A place on the screen"), "y": _num(m.get("y", 0.5), -0.5, 1.5, "A place on the screen"),
+                      "w": _num(m.get("w", 0.6), 0.05, 2.0, "A size"), "vol": _num(m.get("vol", 1.0), 0.0, 1.5, "A volume"),
+                      "from": _num(m.get("from", 0), 0, 600, "Where a video starts")})
+    if media:
+        out["media"] = sorted(media, key=lambda x: x["t"])
     return out
 
 
@@ -281,9 +300,9 @@ def post_graph(ed: dict, start: float, keep: list, length: float, w: int, h: int
     return ";".join(parts)
 
 
-def sounds_for(ed: dict, start: float, keep: list, length: float) -> list:
+def sounds_for(ed: dict, start: float, keep: list, length: float, lib: dict | None = None) -> list:
     """(sound file, when in the finished clip, volume) for every sound effect of the edit, and the sounds its
-    transitions bring. Sounds that can't be made are left out."""
+    transitions bring. Sounds that can't be made (or were deleted from the library) are left out."""
     out = []
     items = [(s["t"], s["kind"], s["vol"]) for s in (ed or {}).get("sfx") or []]
     items += [(f["t"], TRANSITION_SOUND.get(f["type"], ""), 0.8) for f in (ed or {}).get("fx") or [] if f.get("sound")]
@@ -295,10 +314,34 @@ def sounds_for(ed: dict, start: float, keep: list, length: float) -> list:
             continue
         if kind in ("whoosh", "swoosh", "riser"):         # these build up to the moment: they start before it
             at = max(0.0, at - {"whoosh": 0.45, "swoosh": 0.18, "riser": 1.6}[kind])
-        f = sound_file(kind)
+        if kind.startswith("lib:"):
+            it = (lib or {}).get(kind[4:])
+            f = Path(it["path"]) if it and it.get("kind") == "sound" else None
+        else:
+            f = sound_file(kind)
         if f:
             out.append((f, round(at, 3), vol))
     return out[:MAX_SFX]
+
+
+def overlays_for(ed: dict, start: float, keep: list, length: float, lib: dict | None = None) -> list:
+    """The pictures, GIFs and videos laid over the clip, ready for the render: their file, kind, when they show (in
+    the finished clip's time) and for how long, their middle (x, y as parts of the frame), width (part of the frame),
+    whether their sound is heard, and its volume. Ones deleted from the library are left out."""
+    out = []
+    for m in (ed or {}).get("media") or []:
+        it = (lib or {}).get(m["id"])
+        if not it or it.get("kind") != "media":
+            continue
+        at = to_out(m["t"], start, keep, length)
+        if at is None or at >= length - 0.05:
+            continue
+        d = min(m["d"], length - at)
+        if it.get("type") in ("video", "gif") and it.get("dur"):
+            d = min(d, max(0.2, it["dur"] - m.get("from", 0)))
+        out.append({"path": it["path"], "type": it.get("type", "image"), "at": round(at, 3), "d": round(d, 3), "x": m["x"], "y": m["y"],
+                    "w": m["w"], "vol": m["vol"], "from": m.get("from", 0), "audio": bool(it.get("audio")) and m["vol"] > 0})
+    return out[:MAX_MEDIA]
 
 
 _sfx_lock = threading.Lock()

@@ -79,8 +79,40 @@ const check = (n, ok, got) => { console.log((ok ? "PASS " : "FAIL ") + n + (ok ?
   check("Hype Edit adds punch-ins, transitions and a riser, and is one Undo away", s.doc.edit.punch.length >= 2 && s.doc.edit.sfx.some(x => x.kind === "riser"), s.doc.edit);
   await p.keyboard.press("Space"); await p.waitForTimeout(1500); await p.keyboard.press("Space");
   await p.screenshot({ path: OUT + "editor-hype.png" });
+  // the layout changes in the preview at once, no export needed
+  const pix = () => p.evaluate(() => { const c = document.querySelector("#edCanvas").getContext("2d").getImageData(0, 0, 540, 960).data; let h = 0; for (let i = 0; i < c.length; i += 997) h = (h * 31 + c[i]) % 1e9; return h; });
+  await p.click('[data-tool="frame"]');
+  const before1 = await pix();
+  await p.click('[data-layout="crop"]'); await p.waitForTimeout(300);
+  s = await st();
+  check("a new layout shows in the preview at once", s.doc.layout === "crop" && s.layout === "crop" && (await pix()) !== before1, s.layout);
+  check("...with no 'after you export' note", !(await p.$eval("#edPanel", e => /after you export/.test(e.textContent))));
+  await p.click('[data-layout="blur"]');
+  // the library: own fonts, sounds and media
+  await p.click('[data-tool="library"]');
+  const files = process.argv[4] ? ["font.ttf", "boing.wav", "meme.png", "reaction.mp4"].map(f => process.argv[4] + "/" + f) : [];
+  if (files.length) {
+    const [chooser] = await Promise.all([p.waitForEvent("filechooser"), p.click("#edDrop")]);
+    await chooser.setFiles(files);
+    await p.waitForFunction(() => CKEditor.state().lib.length >= 4, null, { timeout: 120000 });
+    s = await st();
+    check("files added to the library: a font, a sound, a picture and a video", JSON.stringify(s.lib.map(i => i.kind).sort()) === JSON.stringify(["font", "media", "media", "sound"]), s.lib);
+    await p.waitForTimeout(500);
+    await p.click('[data-libadd] >> nth=0');
+    s = await st();
+    check("a picture or video goes on the clip at the playhead, picked, its settings on the right", s.doc.edit.media.length === 1 && s.sel && s.sel.k === "media" && !!(await p.$("#edInsp [data-med]")), s.sel);
+    await p.click('[data-medfit="top"]');
+    check("...and can be placed in one click", (await st()).doc.edit.media[0].y < 0.3);
+    const font = s.lib.find(i => i.kind === "font").id;
+    await p.click(`#edPanel [data-font="hook_font"][data-v="${font}"]`);
+    check("a library font is used for the big text", (await st()).doc.edit.hook_font === font);
+    await p.click('[data-tool="audio"]');
+    await p.click('[data-addsfx^="lib:"]');
+    check("a library sound goes on the timeline", (await st()).doc.edit.sfx.some(x => x.kind.startsWith("lib:")));
+    await p.screenshot({ path: OUT + "editor-library.png" });
+  }
   // every tool panel opens
-  for (const t of ["frame", "captions", "post", "ai"]) { await p.click(`[data-tool="${t}"]`); await p.waitForTimeout(150); }
+  for (const t of ["frame", "captions", "post", "ai", "library"]) { await p.click(`[data-tool="${t}"]`); await p.waitForTimeout(150); }
   check("every tool's panel opens", (await p.$eval("#edPanel", e => e.textContent.length)) > 50);
   // export
   const before = await p.evaluate(([j, c]) => S.jobs.find(x => x.id === j).clips.find(x => x.id === c).version, ids);
@@ -91,6 +123,7 @@ const check = (n, ok, got) => { console.log((ok ? "PASS " : "FAIL ") + n + (ok ?
   const clip = await p.evaluate(([j, c]) => S.jobs.find(x => x.id === j).clips.find(x => x.id === c), ids);
   check("Export makes the clip with the edit: a new version comes back", /ready/.test(msg) && clip.version === before + 1 && clip.status === "done", { msg, v: clip.version, before, st: clip.status, err: clip.error });
   check("...the edit is saved with the clip", !!(clip.edit && clip.edit.fx && clip.edit.fx.length && clip.edit.look), clip.edit);
+  if (process.argv[4]) check("...with its library picture, font and sound", !!(clip.edit.media && clip.edit.media.length && clip.edit.hook_font && clip.edit.sfx.some(x => x.kind.startsWith("lib:"))), clip.edit);
   check("...and nothing failed quietly (no 'effects couldn't be added')", !/couldn't be added/.test(clip.layout_note || ""), clip.layout_note);
   await p.screenshot({ path: OUT + "editor-exported.png" });
   await p.click('[data-e="hideexp"]');

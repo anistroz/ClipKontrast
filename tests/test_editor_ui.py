@@ -26,7 +26,16 @@ try:
         except Exception:
             time.sleep(1)
     shots = os.environ.get("CK_SHOTS") or tempfile.mkdtemp(prefix="ck-editor-shots-")
-    r = subprocess.run(["node", "tests/editor_ui.cjs", BASE, shots], cwd=ROOT, timeout=600)
+    # files to add to the library, the way a person would: a font, a sound, a picture and a short video
+    lib = Path(tempfile.mkdtemp(prefix="ck-editor-lib-"))
+    import shutil
+    shutil.copyfile(Path(ROOT) / "studio" / "fonts" / "Bangers-Regular.ttf", lib / "font.ttf")
+    for args, name in [(["-f", "lavfi", "-i", "sine=f=660:d=0.8"], "boing.wav"),
+                       (["-f", "lavfi", "-i", "color=c=red:s=400x300", "-frames:v", "1"], "meme.png"),
+                       (["-f", "lavfi", "-i", "testsrc=s=320x240:r=30:d=3", "-f", "lavfi", "-i", "sine=f=900:d=3", "-shortest",
+                         "-c:v", "libx264", "-preset", "ultrafast", "-c:a", "aac"], "reaction.mp4")]:
+        subprocess.run(["ffmpeg", "-v", "error", "-y", *args, str(lib / name)], check=True)
+    r = subprocess.run(["node", "tests/editor_ui.cjs", BASE, shots, str(lib)], cwd=ROOT, timeout=900)
     print(f"  screenshots: {shots}")
     code = r.returncode
 finally:

@@ -127,5 +127,65 @@ try:
     check("a bad edit is refused when saving", "accepted", "refused")
 except ValueError:
     check("a bad edit is refused when saving", True)
+
+# ---- the library: the person's own fonts, sounds and media, used in a clip
+from studio import library  # noqa: E402
+import shutil as _sh  # noqa: E402
+uid = "u_0123456789abcdef"
+
+
+def up(name, src_file=None, make=None):
+    f = work / ("up-" + name)
+    if src_file:
+        _sh.copyfile(src_file, f)
+    else:
+        make(f)
+    return f
+
+
+font = library.add(uid, "font", "MyFont.ttf", up("MyFont.ttf", src_file="studio/fonts/Bangers-Regular.ttf"))
+check("a font is added, with its family name read from it", (font["kind"], font["family"]), ("font", "Bangers"))
+snd = library.add(uid, "sound", "bruh.mp3", up("bruh.wav", make=lambda f: subprocess.run(
+    ["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "sine=f=500:d=1.2", str(f)], check=True)))
+check("a sound is added, made into AAC, with its length", (snd["kind"], round(snd["dur"], 1)), ("sound", 1.2))
+img = library.add(uid, "media", "meme.png", up("meme.png", make=lambda f: subprocess.run(
+    ["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "color=c=red:s=400x300", "-frames:v", "1", str(f)], check=True)))
+check("a picture is added, with a thumbnail", (img["type"], bool(img.get("thumb"))), ("image", True))
+vid = library.add(uid, "media", "reaction.mp4", up("reaction.mp4", make=lambda f: subprocess.run(
+    ["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc=s=320x240:r=30:d=3", "-f", "lavfi", "-i", "sine=f=800:d=3",
+     "-shortest", "-c:v", "libx264", "-preset", "ultrafast", "-c:a", "aac", str(f)], check=True)))
+check("a video is added, with its sound and length", (vid["type"], vid["audio"], round(vid["dur"])), ("video", True, 3))
+for name, kind, why in [("evil.ttf", "font", "isn't a font"), ("x.exe", "media", "isn't a picture or video"), ("big.mp3", "sound", "no sound")]:
+    try:
+        library.add(uid, kind, name, up(name, make=lambda f: f.write_text("not really")))
+        check(f"a file that {why} is refused", "accepted", "refused")
+    except library.LibraryError:
+        check(f"a file that {why} is refused", True)
+check("the library lists them, newest first, with no paths on this computer",
+      [i["kind"] for i in library.listing(uid)] == ["media", "media", "sound", "font"] and "/" not in str([i.get("family") for i in library.listing(uid)])
+      and all(not str(v).startswith(str(config.DATA_DIR)) for i in library.listing(uid) for v in i.values()))
+check("someone else can't reach a person's library", library.path("u_fedcba9876543210", img["id"]), None)
+
+ed = edit.clean({"hook_font": font["id"], "cap_font": font["id"], "sfx": [{"t": 12, "kind": "lib:" + snd["id"]}],
+                 "media": [{"id": img["id"], "t": 11, "d": 2, "x": 0.5, "y": 0.3, "w": 0.4}, {"id": vid["id"], "t": 14, "d": 5, "x": 0.5, "y": 0.7, "w": 0.5, "vol": 1}]},
+                10, 30)
+check("an edit can use library fonts, sounds and media", (ed["hook_font"], ed["sfx"][0]["kind"], len(ed["media"])), (font["id"], "lib:" + snd["id"], 2))
+refused("a library id that isn't one is refused", lambda: edit.clean({"media": [{"id": "../../x", "t": 1}]}, 0, 10))
+clip = {"start": 10, "end": 30, "layout": "blur", "hook": "MY OWN FONT", "style": "hype", "edit": ed, "captions": True,
+        "lib": library.resolve(uid, ed)}
+got = render.render_clip(src, out_dir, "lib", clip, words, 1280, 720)
+ass = (out_dir / "lib.ass").read_text(encoding="utf-8")
+check("a clip is made with the person's font (heading and captions), sound, picture and video", got.get("file") == "lib.mp4" and not got.get("fx_note"))
+check("...the heading and the captions are drawn in their font", "Style: Hook,Bangers" in ass and "Style: Cap,Bangers" in ass)
+def colour_at(t, x, y):
+    p = subprocess.run(["ffmpeg", "-v", "error", "-ss", f"{t}", "-i", str(out_dir / "lib.mp4"), "-frames:v", "1", "-vf", f"crop=2:2:{x}:{y},scale=1:1",
+                        "-f", "rawvideo", "-pix_fmt", "rgb24", "-"], capture_output=True)
+    return tuple(p.stdout[:3]) if len(p.stdout) >= 3 else (0, 0, 0)
+r, g_, b_ = colour_at(1.5, 540, int(0.3 * 1920))
+check("...the red picture shows where it was put, when it was put there", (r, g_, b_), lambda c: c[0] > 180 and c[1] < 80 and c[2] < 80)
+r2 = colour_at(5.0, 540, int(0.3 * 1920))
+check("...and is gone after its two seconds", r2, lambda c: not (c[0] > 180 and c[1] < 80))
+library.delete(uid, img["id"])
+check("deleting a picture from the library takes its file away", library.get(uid, img["id"]) is None and library.resolve(uid, ed).get(img["id"]) is None)
 print(f"  {len(fails)} failed" if fails else "  ALL PASSED")
 sys.exit(1 if fails else 0)
