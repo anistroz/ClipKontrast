@@ -1151,18 +1151,18 @@ dialog[open]{animation:fadein .16s ease}
 .home-top{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(300px,1fr);gap:16px;padding:14px 28px 4px;align-items:stretch}
 @media (max-width:1100px){.home-top{grid-template-columns:1fr}}
 @media (max-width:640px){.home-top{padding:12px 16px 4px}}
-.mk{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:20px 20px 16px;min-width:0}
-.mk>h2{font-size:clamp(20px,2.1vw,25px);font-weight:700;letter-spacing:-.03em;line-height:1.2;color:var(--text);text-wrap:balance}
+.mk{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:24px 24px 20px;min-width:0}
+.mk>h2{font-size:clamp(22px,2.3vw,30px);font-weight:700;letter-spacing:-.03em;line-height:1.2;color:var(--text);text-wrap:balance}
 .mk>h2 em{font-style:normal;color:var(--brand)}
-.mk>p{margin:6px 0 14px;font-size:13.5px;color:var(--dim)}
+.mk>p{margin:6px 0 16px;font-size:15px;color:var(--dim)}
 .composer.big{max-width:none;margin:0;background:transparent;border:0;border-radius:0}
 .composer.big .modes{border:0;padding:0;margin-bottom:10px;gap:6px;flex-wrap:wrap}
-.composer.big .modes button{border-radius:999px;border:1px solid var(--line);background:var(--muted);padding:6px 13px;font-size:12.5px;border-bottom:1px solid var(--line)}
+.composer.big .modes button{border-radius:999px;border:1px solid var(--line);background:var(--muted);padding:8px 16px;font-size:14px;border-bottom:1px solid var(--line)}
 .composer.big .modes button:hover{background:#2A221D}
 .composer.big .modes button[aria-selected=true]{background:var(--brand-soft);border-color:var(--brand-line);color:var(--brand)}
 .composer.big .composer-input{background:var(--muted);border:1px solid var(--line-2);border-radius:14px;padding:5px;gap:6px;transition:border-color .15s ease}
 .composer.big .composer-input:focus-within{border-color:var(--brand-line)}
-.composer.big .composer-input input,.composer.big .composer-input input:focus{height:46px;padding:0 10px 0 40px;font-size:15px;border-radius:10px;flex:1;min-width:0}
+.composer.big .composer-input input,.composer.big .composer-input input:focus{height:52px;padding:0 10px 0 42px;font-size:16px;border-radius:10px;flex:1;min-width:0}
 .composer.big .composer-input>svg{left:15px}
 .composer.big .composer-input>.btn{flex:none;height:46px;border-radius:11px;padding:0 18px;font-size:14px}
 .composer.big:has(#url:focus){border-color:transparent}
@@ -1170,9 +1170,9 @@ dialog[open]{animation:fadein .16s ease}
 .composer.big .prerange{margin:10px 0 0}
 .composer.big .live-prev,.composer.big .live-how{margin-left:0;margin-right:0}
 .quick{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:12px}
-.quick>b{font-size:12px;color:var(--faint);font-weight:600;margin:0 2px 0 6px}
+.quick>b{font-size:13px;color:var(--faint);font-weight:600;margin:0 2px 0 8px}
 .quick>b:first-child{margin-left:0}
-.qchip{height:30px;padding:0 11px;border-radius:999px;border:1px solid var(--line);background:var(--muted);color:var(--dim);font:inherit;font-size:12px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.qchip{height:36px;padding:0 14px;border-radius:999px;border:1px solid var(--line);background:var(--muted);color:var(--dim);font:inherit;font-size:13.5px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
 .qchip svg{width:14px;height:14px}
 .qchip:hover{color:var(--text);background:#2A221D}
 .qchip[aria-pressed=true]{border-color:var(--brand-line);color:var(--brand);background:var(--brand-soft)}
@@ -1189,7 +1189,7 @@ dialog[open]{animation:fadein .16s ease}
 .hcamp .tag{align-self:flex-start;display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;padding:3px 10px;border-radius:999px;background:var(--brand);color:var(--on-brand)}
 .hcamp .tag i{width:7px;height:7px;border-radius:50%;background:var(--on-brand);animation:pulse 1.3s infinite}
 .hcamp .tag.soft{background:rgba(255,255,255,.1);color:var(--text)}
-.hcamp h3{font-size:19px;font-weight:700;letter-spacing:-.02em;line-height:1.25;color:var(--text);max-width:85%}
+.hcamp h3{font-size:22px;font-weight:700;letter-spacing:-.02em;line-height:1.25;color:var(--text);max-width:85%}
 .hcamp p{font-size:13px;color:var(--dim);max-width:88%}
 .hcamp .pool{font-size:32px;font-weight:800;letter-spacing:-.04em;color:var(--brand);line-height:1.1;margin-top:4px}
 .hcamp .pool small{font-size:12px;color:var(--dim);font-weight:500;letter-spacing:0;margin-left:8px}
@@ -1209,6 +1209,16 @@ dialog[open]{animation:fadein .16s ease}
 .home-sec .rgrid{grid-template-columns:repeat(6,minmax(0,1fr))}
 @media (max-width:1280px){.home-sec .rgrid{grid-template-columns:repeat(4,minmax(0,1fr))}.home-sec .rgrid .rc:nth-child(n+5){display:none}}
 @media (max-width:700px){.home-sec .rgrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.work{display:grid;gap:10px}
+.wk{display:grid;grid-template-columns:120px minmax(0,1fr) auto;gap:16px;align-items:center;background:var(--card);border:1px solid var(--brand-line);border-radius:16px;padding:12px 14px}
+.wk .wt{width:120px;aspect-ratio:16/9;border-radius:10px;background:var(--muted) center/cover;display:grid;place-items:center;color:var(--faint)}
+.wk b{display:block;font-size:15px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wk .st{display:flex;gap:10px;align-items:center;font-size:13px;color:var(--dim);margin:4px 0 8px}
+.wk .st i{width:8px;height:8px;border-radius:50%;background:var(--brand);animation:pulse 1.3s infinite;flex:none}
+.wk .bar2{height:8px;border-radius:999px;background:var(--muted);overflow:hidden}.wk .bar2 i{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,#9BD10F,var(--brand));transition:width .6s ease}
+.wk .pct{font-family:inherit;font-size:22px;font-weight:800;color:var(--brand);text-align:right;line-height:1.1}
+.wk .pct small{display:block;font-size:12px;font-weight:600;color:var(--dim)}
+.rc-th .risk{position:absolute;left:8px;bottom:50px;font-size:10px;font-weight:800;padding:2px 7px;border-radius:999px;background:var(--bad);color:#fff}
 .rc{background:var(--card);border:1px solid var(--line);border-radius:16px;overflow:hidden;min-width:0;display:flex;flex-direction:column;transition:border-color .15s ease}
 .rc:hover{border-color:var(--line-2)}
 .rc-th{all:unset;cursor:pointer;display:block;position:relative;aspect-ratio:9/13;background:#000;overflow:hidden}
@@ -1230,8 +1240,8 @@ dialog[open]{animation:fadein .16s ease}
 .rc-th .mk2{position:absolute;inset:0;display:grid;place-items:center;text-align:center;padding:12px;font-size:12px;color:var(--dim);background:var(--muted)}
 .rc-th .mk2.bad{color:#FF8A8A;background:var(--bad-soft)}
 .rc-bd{padding:9px 10px 10px;min-width:0}
-.rc-bd b{display:block;font-size:12.5px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.rc-bd span{display:block;font-size:11px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rc-bd b{display:block;font-size:13.5px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rc-bd span{display:block;font-size:12px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .rempty{display:flex;align-items:center;gap:14px;padding:18px;border:1px dashed var(--line-2);border-radius:16px;color:var(--dim);font-size:13px}
 .rempty div>b:first-child{display:block;color:var(--text);font-size:14px}.rempty b{color:var(--text)}
 .rempty .btn{margin-left:auto;flex:none}
@@ -2054,8 +2064,8 @@ function go(v, tab, fromHistory) {
   if (window._gaStop) { window._gaStop(); window._gaStop = null; }
   $("#heroSlot").innerHTML = v === "overview" ? `<section class="home-top"><div class="mk"><h2>Paste a stream. <em>Get clips. Edit like a pro.</em></h2>
       <p>The AI finds the moments and makes captioned shorts. Open any clip in the editor to finish it.</p><div id="add"></div></div><div id="homeCamp"></div></section>
-      <section class="home-sec" id="readyRow"></section><section class="hcards" id="homeCards"></section>` : "";
-  if (v === "overview") { view.innerHTML = `<div id="camps-home"></div><div id="ov"></div>`; loadCampaigns(); drawHomeTop(); loadLib(); }
+      <section class="home-sec" id="workRow" hidden></section><section class="home-sec" id="readyRow"></section><section class="hcards" id="homeCards"></section>` : "";
+  if (v === "overview") { view.innerHTML = `<div id="ov"></div>`; loadCampaigns(); drawHomeTop(); loadLib(); }
   else if (v === "studio") { view.innerHTML = `<div id="studio"></div>`; }
   else if (v === "assets") { view.innerHTML = `<div id="assets"></div>`; drawAssets(true); loadLib(); }
   else if (v === "campaigns") { view.innerHTML = `<div id="camps-page"></div>`; drawCampaignsPage(); loadCampaigns(); }
@@ -3432,7 +3442,7 @@ function drawHomeTop() {
       <h3>${esc(c.title)}</h3><p>${c.creator_name ? `<b>${esc(c.creator_name)}</b> · ` : ""}${esc(c.tagline || "Clip the streams, post the clips, get paid for every view.")}</p>
       <div class="pool">${inr(c.budget)}<small>clipper pool${c.rate_per_1k ? ` · ₹${Number(c.rate_per_1k).toLocaleString("en-IN")} / 1K views` : ""}</small></div>
       <div class="row"><a class="btn primary" href="${esc(joinUrl(c))}" target="_blank" rel="noopener">${ic("money")}Clip &amp; get paid ↗</a>
-        <button class="btn" data-act="campscroll">See streams</button></div></section>`
+        <button class="btn" data-act="go" data-v="campaigns">See streams</button></div></section>`
     : `<section class="hcamp"><span class="tag soft">${ic("scissors")} The ClipKontrast editor</span>
       <h3>Finish every clip like a pro</h3><p>Every clip opens in the editor, with a live preview.</p>
       <ul><li>Cut words out from the transcript</li><li>Transitions, whooshes, punch-ins and looks</li><li>Your own fonts, sounds and memes</li><li>Hype Edit: the whole edit in one click</li></ul>
@@ -3442,16 +3452,30 @@ function drawHomeTop() {
 /* Every clip, newest video first: [job, clip]. */
 function readyClips() { return S.jobs.flatMap(j => (j.clips || []).map(c => [j, c])); }
 const notEdited = () => readyClips().filter(([, c]) => c.status === "done" && !c.edit);
+// words platforms hold back (the same list as studio/brain.py), to mark clips made before the AI was told
+const RISKY = /\b(naked|nude|nudity|nsfw|sex|sexy|porn\w*|boobs?|tits?|horny|onlyfans|strip(?:per|ping)?|rape\w*|suicide|nazi|terroris\w*)\b/i;
+function drawWork() {
+  const box = $("#workRow"); if (!box) return;
+  const busy = S.jobs.filter(j => j.status === "queued" || j.status === "running").slice(0, 3);
+  box.hidden = !busy.length;
+  if (!busy.length) { put(box, ""); return; }
+  put(box, `<div class="sec-h"><h3>${ic("bolt")}Making clips now</h3><span class="sub">· clips show up below as soon as each one is ready</span></div>
+    <div class="work">${busy.map(j => { const done = j.clips.filter(c => c.status === "done").length, pct = Math.round((j.progress || 0) * 100);
+      return `<div class="wk"><span class="wt" style="${j.thumb ? `background-image:url(/media/${esc(j.id)}/thumb.jpg)` : ""}">${j.thumb ? "" : ic("film")}</span>
+        <div style="min-width:0"><b>${esc(j.title || j.source?.name || "Your video")}</b><div class="st"><i></i>${esc(j.status === "queued" ? "Waiting its turn" : j.stage || "Working")}${done ? ` · <span style="color:var(--brand)">${done} clip${done === 1 ? "" : "s"} ready</span>` : ""}</div>
+          <div class="bar2"><i style="width:${Math.max(2, pct)}%"></i></div></div>
+        <div class="pct">${pct}%<small>${j.clips.length ? `${done} of ${j.clips.length} clips` : "finding moments"}</small></div></div>`; }).join("")}</div>`);
+}
 function readyCard(j, c) {
   const a = `data-j="${esc(j.id)}" data-c="${esc(c.id)}"`, who = S.creators.find(x => x.id === j.creator)?.name || j.title || "";
   const busy = c.status === "queued" || c.status === "rendering";
   const pic = c.status === "done" ? `<img src="/media/${esc(j.id)}/${esc(c.cover)}?v=${c.version || 0}" alt="" loading="lazy">`
     : `<span class="mk2${c.status === "error" ? " bad" : ""}">${c.status === "error" ? "Couldn't make this clip. Open it to try again." : c.status === "rendering" ? "Making this clip…" : "Waiting its turn…"}</span>`;
   return `<article class="rc"><div class="rc-wrap"><button class="rc-th" data-act="openclip" ${a} aria-label="Open: ${esc(c.hook || c.title || "clip")}"${busy ? " disabled" : ""}>${pic}
-      ${c.score ? `<span class="sc ${scoreCls(c.score)}" title="AI score">${c.score}</span>` : ""}${c.edit ? `<span class="edt">EDITED</span>` : ""}${c.music >= 0.35 ? `<span class="mus" title="Music in the background: it may get muted on YouTube or Instagram">♪ Music</span>` : ""}
+      ${c.score ? `<span class="sc ${scoreCls(c.score)}" title="AI score">${c.score}</span>` : ""}${c.edit ? `<span class="edt">EDITED</span>` : ""}${c.music >= 0.35 ? `<span class="mus" title="Music in the background: it may get muted on YouTube or Instagram">♪ Music</span>` : ""}${RISKY.test(`${c.hook || ""} ${c.title || ""}`) ? `<span class="risk" title="The big text or title has a word YouTube and Instagram often hold back. Change it before posting.">⚠ Reach risk</span>` : ""}
       ${c.status === "done" ? `<span class="len">${fmt(c.end - c.start)}</span>` : ""}</button>
       ${c.status === "done" ? `<button class="go" data-act="editclip" ${a} title="Open in the editor">${ic("scissors")}Edit</button>` : ""}</div>
-    <div class="rc-bd"><b>${esc(c.hook || c.title || "Untitled clip")}</b><span>${fmt(c.end - c.start)}${who ? ` · ${esc(who)}` : ""}</span></div></article>`;
+    <div class="rc-bd"><b>${esc(c.title || c.hook || "Untitled clip")}</b><span>${fmt(c.end - c.start)}${who ? ` · ${esc(who)}` : ""}</span></div></article>`;
 }
 function drawReady() {
   const box = $("#readyRow"); if (!box) return;
@@ -3827,7 +3851,7 @@ $("#clipdlg").addEventListener("click", e => { if (e.target === e.currentTarget)
 /* ============================================================ render + polling */
 function render() {
   drawShell(); drawJobs(); drawStream(); drawSelBar();
-  if (S.view === "overview") { drawOverview(); drawReady(); drawHomeCards(); }
+  if (S.view === "overview") { drawOverview(); drawWork(); drawReady(); drawHomeCards(); }
   if (S.view === "studio") drawStudio();
   if ($("#clog")) drawLog();
   if (D.jid) drawClipDlg(false);
