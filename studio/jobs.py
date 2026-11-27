@@ -15,7 +15,7 @@ import uuid
 import numpy as np
 from pathlib import Path
 
-from . import brain, config, creators, ctx, edit, facecam, library, games, load, media, quality, render, roman, safe, transcribe, usage, whisper
+from . import brain, config, creators, ctx, edit, facecam, library, sounds, games, load, media, quality, render, roman, safe, transcribe, usage, whisper
 from . import tag as tagmod
 
 class _FairQueue:
@@ -611,7 +611,7 @@ def editor_data(jid, cid) -> dict:
     return {"preview": f"/api/jobs/{jid}/clips/{cid}/editor/preview.mp4?v={info['key'][3]}",
             "strip": f"/api/jobs/{jid}/clips/{cid}/editor/strip.jpg?v={info['key'][3]}",
             "p0": info["p0"], "p1": info["p1"], "step": info["step"], "thumbs": info["thumbs"], "peaks": info["peaks"],
-            "hype": info["hype"], "words": words, "src_w": sw, "src_h": sh, "out_w": render.W, "out_h": render.H,
+            "hype": info["hype"], "follow": info.get("follow") or [], "words": words, "src_w": sw, "src_h": sh, "out_w": render.W, "out_h": render.H,
             "layout": layout, "fg_h": fg_h, "top_h": top_h, "hook_y": hook_y, "cap_y": cap_y, "facecam": face,
             "camera": clip.get("camera"), "splits": render.SPLITS, "split": clip.get("split") or "balanced",
             "game": render._box(clip.get("game")), "pip_w": render.PIP_W, "pip_margin": render.PIP_MARGIN,
@@ -713,6 +713,17 @@ def _render_one(job, clip, words):
             note = (note + " " if note else "") + _tools.NO_CAPTIONS
         if fx_note:
             note = (note + " " if note else "") + fx_note
+        risky = brain.risky_words(clip.get("hook"), clip.get("title"))
+        if risky:                 # a heading that platforms hold back: said before it's posted
+            note = (note + " " if note else "") + (f"The big text or title says \"{', '.join(risky)}\": YouTube and Instagram "
+                                                   "often show such clips to fewer people. Change it before posting.")
+        try:                      # music in the background gets clips muted or blocked: the clip says so
+            if sounds.ready():
+                clip["music"], mnote = sounds.check_music(d / "clips" / out["file"])
+                if mnote:
+                    note = (note + " " if note else "") + mnote
+        except Exception:  # noqa: BLE001 - only a warning: never in the way of a clip
+            pass
         clip.update(out, layout_used=used, layout_note=note, status="done", version=clip.get("version", 0) + 1, error=None)
         clip.pop("made", None)
         post = {k: clip.get(k) for k in ("title", "description", "hashtags", "hook", "start", "end", "score")}
@@ -729,6 +740,13 @@ def _render_one(job, clip, words):
     except Exception as e:  # noqa: BLE001
         clip.update(status="error", error=safe.friendly(e, 400))
         clip.pop("made", None)
+        try:                                 # sent to ClipKontrast by itself, for those who turned it on (Settings)
+            from . import autoreport
+            fr = traceback.extract_tb(e.__traceback__)[-5:]
+            autoreport.report(job.get("user"), "a clip failed", safe.friendly(e, 300),
+                              " < ".join(f"{Path(f.filename).name}:{f.lineno} {f.name}" for f in reversed(fr))[:400])
+        except Exception:  # noqa: BLE001
+            pass
         creators.log(job["creator"], f"Clip failed: {safe.friendly(e, 200)}")
     save(job)
 
@@ -1644,6 +1662,14 @@ def _run_job(job):
     span = (hi - lo) / 16000
     db = media.loudness_per_second(audio[lo:hi])
     voice = media.voice_per_second(audio[lo:hi])         # a raised voice: one of the signs something happened
+    react = None                                          # laughter, cheering and screaming heard each second
+    if sounds.ready() and not o.get("exact"):
+        _set(job, stage="Listening for laughs and cheers")
+        try:
+            ev = sounds.per_second(audio[lo:hi])
+            react = ev["react"] if ev else None
+        except Exception:  # noqa: BLE001 - only a bonus: the clips are picked without it
+            react = None
     abs0 = sec0 + lo / 16000                             # the video's own second that db[0] is
 
     def chat_now(wait=0.0, s0=0, m=None):
@@ -1875,7 +1901,8 @@ def _run_job(job):
         found, ai = brain.find_clips(bw, db[s0: s0 + int((b - a) / 16000) + 1], (b - a) / 16000, job["title"],
                                      job["uploader"], quota, int(o["min_len"]), int(o["max_len"]), notes.append, game=game,
                                      voice=voice[s0: s0 + int((b - a) / 16000) + 1],
-                                     chat=chat_now(30, s0, int((b - a) / 16000) + 1))
+                                     chat=chat_now(30, s0, int((b - a) / 16000) + 1),
+                                     events=react[s0: s0 + int((b - a) / 16000) + 1] if react is not None else None)
         tokens += ai.get("tokens", 0)
         model = ai.get("model") or model
         if ai.get("note"):
@@ -1906,7 +1933,7 @@ def _run_job(job):
         rel = [dict(w, s=round(w["s"] - base, 2), e=round(w["e"] - base, 2)) for w in words]
         found, ai = brain.find_clips(rel, db, span, job["title"], job["uploader"], int(o["max_clips"]),
                                      int(o["min_len"]), int(o["max_len"]), notes.append, game=game, voice=voice,
-                                     chat=chat_now(60))
+                                     chat=chat_now(60), events=react)
         tokens += ai.get("tokens", 0)
         model = ai.get("model") or model
         if ai.get("note"):
@@ -1921,7 +1948,7 @@ def _run_job(job):
         rel = [dict(w, s=round(w["s"] - base, 2), e=round(w["e"] - base, 2)) for w in words]
         n = min(int(o["max_clips"]), 3, max(1, int(span // max(15, int(o["max_len"])))))
         late = chat_now()
-        net = brain.liveliest_clips(rel, db, span, n, int(o["min_len"]), int(o["max_len"]), voice, late["z"] if late else None)
+        net = brain.liveliest_clips(rel, db, span, n, int(o["min_len"]), int(o["max_len"]), voice, late["z"] if late else None, react)
         if net:
             notes.append("Nothing stood out to the AI, so the liveliest parts were clipped.")
             job["safety_net"] = True
@@ -2027,6 +2054,12 @@ def _worker(quick_only=False):
             # where it happened, for a bug report: the last steps as file:line function, no folders or names
             frames = traceback.extract_tb(e.__traceback__)[-5:]
             job["error_where"] = " < ".join(f"{Path(f.filename).name}:{f.lineno} {f.name}" for f in reversed(frames))[:400]
+            try:                             # sent to ClipKontrast by itself, for those who turned it on (Settings)
+                from . import autoreport
+                autoreport.report(job.get("user"), "a video failed" if kind == "job" else "a clip failed", safe.friendly(e, 300),
+                                  job["error_where"])
+            except Exception:  # noqa: BLE001
+                pass
             if kind == "job":
                 for c in job["clips"]:
                     if c.get("status") in ("queued", "rendering"):

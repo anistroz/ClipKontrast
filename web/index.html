@@ -1217,6 +1217,7 @@ dialog[open]{animation:fadein .16s ease}
 .rc-th .sc{position:absolute;left:8px;top:8px;font-size:10.5px;font-weight:800;padding:2px 7px;border-radius:999px;background:rgba(0,0,0,.6);color:#fff}
 .rc-th .sc.s-hi{background:var(--brand);color:var(--on-brand)}.rc-th .sc.s-mid{background:#3A4A12;color:#E9FBB4}
 .rc-th .edt{position:absolute;right:8px;top:8px;font-size:10px;font-weight:800;letter-spacing:.04em;padding:2px 7px;border-radius:999px;background:#FF7AD9;color:#1a0820}
+.rc-th .mus{position:absolute;left:8px;top:34px;font-size:10px;font-weight:800;padding:2px 7px;border-radius:999px;background:#FFB86B;color:#2a1600}
 .rc-th .len{position:absolute;right:8px;bottom:50px;font-size:11px;font-weight:600;padding:1px 6px;border-radius:6px;background:rgba(0,0,0,.6);color:#fff}
 .rc-wrap{position:relative}
 .rc .go{position:absolute;left:8px;right:8px;bottom:8px;height:34px;border:0;border-radius:10px;background:var(--brand);color:var(--on-brand);display:flex;align-items:center;justify-content:center;gap:6px;font:inherit;font-weight:800;font-size:12.5px;cursor:pointer;transition:background-color .15s ease}
@@ -1852,7 +1853,12 @@ function updateHow() {
 }
 /* "What's new": what the latest versions brought, for the people clipping (nothing about the website or the build).
    Change NEWS.id when the list changes: the line at the top shows again for everyone, until they close it. */
-const NEWS = {id: "2026-11-29", items: [
+const NEWS = {id: "2026-11-30", items: [
+  {e: "😂", t: "Clips find the laughs", d: "ClipKontrast now hears real laughter, cheering and screaming in a stream (not just \"it got louder\"), and uses them to pick the moments that go viral. The editor's hype curve shows them too.", new: true},
+  {e: "🎯", t: "Follows the face", d: "With Fill screen, the clip now follows the streamer's face instead of cutting them off at the side. The camera stays still for small moves and glides when they move.", new: true},
+  {e: "🎵", t: "Music warning", d: "A clip with a song in the background is marked ♪ Music: YouTube and Instagram often mute or block those. Turn the stream's sound down in the editor, or pick another moment.", new: true},
+  {e: "🛡️", t: "Safer big text", d: "The AI no longer writes headings with words platforms hold back (like \"naked\"), and a clip tells you if its big text or title has one.", new: true},
+  {e: "🛠️", t: "Problems can report themselves", d: "Turn it on in Settings, Storage: when a video or clip fails, the report goes to us by itself, so we can fix it sooner. Never your videos or your name.", new: true, act: "go", v: "settings", tab: "storage", btn: "Settings"},
   {e: "✂️", t: "Cut exactly what you pick", d: "In the editor, drag on the video or captions track to pick a part (its edges snap to words), then press Del: only that part is cut. Drag the edge of a cut to make it longer or shorter. A plain click just moves the playhead.", new: true},
   {e: "📊", t: "A real export bar", d: "Export now shows how much of your clip is made, in percent, with about how long is left.", new: true},
   {e: "🎞️", t: "Your clip's window is back", d: "Clicking a clip opens its window again: watch it, change the title and description, post it. Open in the editor is right at the top, and every Edit button still opens the editor.", new: true},
@@ -2954,7 +2960,7 @@ function clipHtml(j, c) {
   const key = `c:${j.id}:${c.id}`, busyClip = c.status === "queued" || c.status === "rendering";
   return `<article class="clip ${sel().has(key) ? "picked" : ""}">
     <button class="shot" data-act="openclip" ${a} aria-label="Open clip: ${esc(c.title || c.hook)}">${body}
-      <span class="badge l ${scoreCls(c.score)}" title="AI score">${c.score || "Hand"}</span><span class="badge r">${fmt(c.end - c.start)}</span></button>
+      <span class="badge l ${scoreCls(c.score)}" title="AI score">${c.score || "Hand"}</span><span class="badge r">${fmt(c.end - c.start)}</span>${c.music >= 0.35 ? `<span class="badge" style="left:10px;top:40px;background:#FFB86B;color:#2a1600" title="Music in the background: it may get muted on YouTube or Instagram">♪ Music</span>` : ""}</button>
     <div class="clip-body">
       <div class="hook">${esc(c.hook || "Untitled clip")}</div>
       <div class="ttl">${esc(c.title)}</div>
@@ -3442,7 +3448,7 @@ function readyCard(j, c) {
   const pic = c.status === "done" ? `<img src="/media/${esc(j.id)}/${esc(c.cover)}?v=${c.version || 0}" alt="" loading="lazy">`
     : `<span class="mk2${c.status === "error" ? " bad" : ""}">${c.status === "error" ? "Couldn't make this clip. Open it to try again." : c.status === "rendering" ? "Making this clip…" : "Waiting its turn…"}</span>`;
   return `<article class="rc"><div class="rc-wrap"><button class="rc-th" data-act="openclip" ${a} aria-label="Open: ${esc(c.hook || c.title || "clip")}"${busy ? " disabled" : ""}>${pic}
-      ${c.score ? `<span class="sc ${scoreCls(c.score)}" title="AI score">${c.score}</span>` : ""}${c.edit ? `<span class="edt">EDITED</span>` : ""}
+      ${c.score ? `<span class="sc ${scoreCls(c.score)}" title="AI score">${c.score}</span>` : ""}${c.edit ? `<span class="edt">EDITED</span>` : ""}${c.music >= 0.35 ? `<span class="mus" title="Music in the background: it may get muted on YouTube or Instagram">♪ Music</span>` : ""}
       ${c.status === "done" ? `<span class="len">${fmt(c.end - c.start)}</span>` : ""}</button>
       ${c.status === "done" ? `<button class="go" data-act="editclip" ${a} title="Open in the editor">${ic("scissors")}Edit</button>` : ""}</div>
     <div class="rc-bd"><b>${esc(c.hook || c.title || "Untitled clip")}</b><span>${fmt(c.end - c.start)}${who ? ` · ${esc(who)}` : ""}</span></div></article>`;
@@ -3694,6 +3700,12 @@ async function drawSettings() {
                 <p class="sub">The change happens the next time ClipKontrast starts, so nothing is moved while a video is being made.</p>
                 <div class="row"><button class="btn primary" data-act="storsave">Use this folder</button><button class="btn ghost" data-act="storchange">Cancel</button></div></div>`
             : `<div class="row" style="margin-top:16px"><button class="btn" data-act="storchange">Change folder</button></div>`}</section>`;
+      if (S.status.accounts === false) {          // the app on someone's own computer: problems can report themselves
+        let st = {}; try { st = await api("/api/settings"); } catch {}
+        body.insertAdjacentHTML("beforeend", `<section class="set-sec"><h2>Help fix problems faster</h2>
+          <p class="help">When a video or a clip fails, send the same report as Report a problem by itself: what failed and the app's technical details (version, system, the last errors). Never your videos, and never your computer's user name. At most a few a day.</p>
+          <label class="sw"><input type="checkbox" id="auto_reports" ${st.auto_reports ? "checked" : ""}>Send problem reports automatically</label></section>`);
+      }
     }
     if (tab === "apps") {
       const conn = S.accounts || [];
@@ -3893,6 +3905,7 @@ document.addEventListener("change", async e => {
     if (t.id === "o_captions") t.dataset.overridden = "true";
     syncCaptionStyle(t);
   }
+  if (t.id === "auto_reports") { try { await send("/api/settings", {auto_reports: t.checked}, "PUT"); toast(t.checked ? "Problems will be reported by themselves. Thank you!" : "Automatic reports are off.", "ok"); } catch (err) { toast(err.message, "bad"); t.checked = !t.checked; } return; }
   if (t.id === "ai_provider") { $("#ai_models").innerHTML = ""; if (S.ai && t.value !== S.ai.provider) { $("#ai_model").value = ""; $("#ai_base").value = ""; } return aiHints(); }
   if (t.dataset.sel) {
     const k = t.dataset.sel;

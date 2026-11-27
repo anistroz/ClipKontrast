@@ -554,7 +554,7 @@ def _zp(z, w, h):
     return f",zoompan=z='{z}':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s={w}x{h}:fps={config.OUT_FPS}"
 
 
-def _filter(layout, fg_h, facecam=None, z="", game=None, top_h=SPLIT_TOP):
+def _filter(layout, fg_h, facecam=None, z="", game=None, top_h=SPLIT_TOP, follow=""):
     # The part of the picture that is the game, when it was set by hand: cut out first, then placed as usual.
     g = _box(game)
     gcrop = f"crop={g[2]}:{g[3]}:{g[0]}:{g[1]}," if g else ""
@@ -580,7 +580,9 @@ def _filter(layout, fg_h, facecam=None, z="", game=None, top_h=SPLIT_TOP):
                     f"[fc]crop={fw}:{fh}:{fx}:{fy},scale={PIP_W}:{pip_h},setsar=1[p];"
                     f"[b][p]overlay={W - PIP_W - PIP_MARGIN}:{PIP_MARGIN}[v0];")
     if layout == "crop" or (layout in FACECAM_LAYOUTS and not facecam):
-        return f"[0:v]fps={config.OUT_FPS},scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H}{_zp(z, W, H)},setsar=1[v0];"
+        # filled to the screen: the crop follows the face when one was found (studio/faces.py), else the middle
+        cx = f":x='{follow}':y=(ih-oh)/2" if follow else ""
+        return f"[0:v]fps={config.OUT_FPS},scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H}{cx}{_zp(z, W, H)},setsar=1[v0];"
     return (f"[0:v]fps={config.OUT_FPS},split=2[a][b];"
             f"[a]scale=270:480:force_original_aspect_ratio=increase,crop=270:480,boxblur=6:2,"
             f"scale={W}:{H},eq=brightness=-0.14:saturation=1.15[bg];"
@@ -706,6 +708,18 @@ def render_clip(src: Path, out_dir: Path, name: str, clip: dict, words: list, sr
     if keep:
         moments = [m for m in (_remap(t, keep) for t in moments) if m is not None and 0.8 < m < length - 1.5]
     z = zoom_expr(moments)
+    follow = ""
+    if layout == "crop" and clip.get("follow", True) is not False and src_w > src_h:
+        try:
+            from . import faces
+            keys = faces.camera(faces.track(src, start, end), crop_share=(W / H) / (src_w / src_h))
+            if keep:          # the clip's own seconds, after its cuts
+                keys = [(round(t2, 2), x) for t2, x in ((_remap(t, keep), x) for t, x in keys) if t2 is not None]
+                keys = [k for i, k in enumerate(keys) if i == 0 or k[0] > keys[i - 1][0]]
+            follow = faces.crop_x(keys)
+        except Exception as e:  # noqa: BLE001 - the middle, as before
+            print(f"  Face not followed in {name}: {e}", flush=True)
+            follow = ""
     post = editmod.post_graph(ed, start, keep, length, W, H, config.OUT_FPS)
     sfx = editmod.sounds_for(ed, start, keep, length, lib)
     over = editmod.overlays_for(ed, start, keep, length, lib)
@@ -733,7 +747,7 @@ def render_clip(src: Path, out_dir: Path, name: str, clip: dict, words: list, sr
         if post or sfx or over:
             try:
                 out = _render_in(work, src, out_dir, name, start, end, layout, fg_h, ass, face=face, z=z, keep=keep,
-                                 game=game, top_h=top_h, tag=tag, post=post, sfx=sfx, over=over, fonts=fonts, progress=progress, voice=ed.get("voice"))
+                                 game=game, top_h=top_h, tag=tag, post=post, sfx=sfx, over=over, fonts=fonts, progress=progress, voice=ed.get("voice"), follow=follow)
             except RuntimeError as e:
                 # effects this ffmpeg can't make: the clip is still made, with the edit's cuts and text, without them
                 print(f"  Effects not added to {name}: {str(e)[-300:]}", flush=True)
@@ -741,7 +755,7 @@ def render_clip(src: Path, out_dir: Path, name: str, clip: dict, words: list, sr
         try:
             if out is None:
                 out = _render_in(work, src, out_dir, name, start, end, layout, fg_h, ass, face=face, z=z, keep=keep,
-                                 game=game, top_h=top_h, tag=tag, fonts=fonts, progress=progress, voice=ed.get("voice"))
+                                 game=game, top_h=top_h, tag=tag, fonts=fonts, progress=progress, voice=ed.get("voice"), follow=follow)
                 if post or sfx or over:
                     out["fx_note"] = "The effects couldn't be added on this computer, so the clip was made without them."
         except RuntimeError as e:
@@ -752,7 +766,7 @@ def render_clip(src: Path, out_dir: Path, name: str, clip: dict, words: list, sr
             ass = build_ass(words if clip.get("captions", True) else [], start, end, clip.get("hook", ""), clip.get("style", "bounce"),
                             clip.get("highlight_words", []), hook_y, cap_y, watermark=clip.get("watermark", ""), hook_fx=hook_fx, hook_dur=hook_dur,
                             hook_font=hook_font, cap_font=cap_font)
-            out = _render_in(work, src, out_dir, name, start, end, layout, fg_h, ass, face=face, game=game, top_h=top_h, tag=tag, fonts=fonts, progress=progress, voice=ed.get("voice"))
+            out = _render_in(work, src, out_dir, name, start, end, layout, fg_h, ass, face=face, game=game, top_h=top_h, tag=tag, fonts=fonts, progress=progress, voice=ed.get("voice"), follow=follow)
             if ed.get("cuts") or post or sfx or over:      # say so: the edit didn't make it into the clip
                 out["fx_note"] = ("Your cuts and effects couldn't be made on this computer, so the clip was made without them. "
                                   "Use Report a problem so we can fix it.")
@@ -764,7 +778,8 @@ def render_clip(src: Path, out_dir: Path, name: str, clip: dict, words: list, sr
 
 
 def _render_in(work: Path, src: Path, out_dir: Path, name: str, start, end, layout, fg_h, ass: str, face=None, z="", keep=None,
-               game=None, top_h=SPLIT_TOP, tag=None, post="", sfx=None, over=None, fonts=None, progress=None, voice=None) -> dict:
+               game=None, top_h=SPLIT_TOP, tag=None, post="", sfx=None, over=None, fonts=None, progress=None, voice=None,
+               follow="") -> dict:
     (work / f"{name}.ass").write_text(ass, encoding="utf-8")
     (work / "f").mkdir(exist_ok=True)
     for f in config.FONTS_DIR.glob("*.ttf"):
@@ -775,7 +790,7 @@ def _render_in(work: Path, src: Path, out_dir: Path, name: str, start, end, layo
         except OSError:
             pass
     from . import tools as _tools
-    pic = _filter(layout, fg_h, face, z, game, top_h)
+    pic = _filter(layout, fg_h, face, z, game, top_h, follow)
     if post:             # the editor's look, punch-ins and transitions, on the laid-out picture, under the captions
         pic += post + ";"
     lab = "[vp]" if post else "[v0]"

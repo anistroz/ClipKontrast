@@ -430,8 +430,16 @@ def prepare(job: dict, clip: dict, src: Path, meta: dict, off: float, words: lis
                         f"fps=1/{step:.3f},scale=-2:72,tile={n}x1", "-frames:v", "1", "-q:v", "5", str(d / "strip.jpg")],
                        capture_output=True, timeout=180, creationflags=NO_WINDOW)
         peaks, hype = _sound_curves(d / "preview.mp4", length, job, a)
+        follow = []
+        try:                      # where a crop filled to the screen looks: the face's path (studio/faces.py)
+            from . import faces
+            if faces.ready() and sw > sh:
+                keys = faces.camera(faces.track(d / "preview.mp4", 0, length), crop_share=(1080 / 1920) / (sw / sh))
+                follow = [[round(a + off + t, 2), x] for t, x in keys]
+        except Exception:  # noqa: BLE001 - the middle, as before
+            follow = []
         out = {"key": key, "p0": round(a + off, 3), "p1": round(b + off, 3), "step": step, "thumbs": n,
-               "peaks": peaks, "hype": hype, "w": sw, "h": sh}
+               "peaks": peaks, "hype": hype, "w": sw, "h": sh, "follow": follow}
         info.write_text(json.dumps(out), encoding="utf-8")
         return out
 
@@ -462,6 +470,15 @@ def _sound_curves(f: Path, length: float, job: dict, a: float):
         loud = np.clip((loud - lo) / max(1e-6, hi - lo), 0, 1)
     chat = _chat_curve(job, a, len(loud))
     hype = np.clip(loud * 0.7 + chat * 0.45, 0, 1) if chat is not None else loud
+    try:                          # real laughter, cheering and screaming heard in it (studio/sounds.py)
+        from . import sounds
+        ev = sounds.of_file(f) if sounds.ready() else None
+        if ev is not None and len(hype):
+            r = np.repeat(np.clip(ev["react"] / 1.5, 0, 1), 4)[: len(hype)]
+            r = np.pad(r, (0, len(hype) - len(r)))
+            hype = np.clip(np.maximum(hype, 0.55 * hype + 0.6 * r), 0, 1)
+    except Exception:  # noqa: BLE001 - the curve from the loudness alone, as before
+        pass
     return [round(float(v), 3) for v in peaks], [round(float(v), 3) for v in hype]
 
 

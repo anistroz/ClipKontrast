@@ -85,6 +85,9 @@ def _startup():
     if not transcribe.REMOTE and config.env("CLIPKONTRAST_FETCH_MODEL", "1") != "0":     # the speech model: fetched now, in the background, if it was never downloaded
         from . import fetch_model
         threading.Thread(target=lambda: _quiet(fetch_model.ensure), daemon=True).start()
+    if not config.EARN_ONLY and config.env("CLIPKONTRAST_FETCH_MODEL", "1") != "0":     # the small sound model (laughs, cheers, music): about 48 MB, once
+        from . import faces, sounds
+        threading.Thread(target=lambda: (_quiet(sounds.ensure), _quiet(faces.ensure)), daemon=True).start()
     jobs.start()
     live.start()
     posting.start()

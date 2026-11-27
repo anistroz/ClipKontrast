@@ -471,9 +471,16 @@
 
   // ---------------------------------------------------------------- the live preview
   function srcScale() { return E.v && E.v.videoWidth ? E.v.videoWidth / (E.data.src_w || E.v.videoWidth) : 1; }
-  function cover(ctx, v, sx, sy, sw, sh, dx, dy, dw, dh) {    // draw part of the video so it fills a box, cropped around its middle
+  function cover(ctx, v, sx, sy, sw, sh, dx, dy, dw, dh, fx) {    // draw part of the video so it fills a box, cropped around its middle (or around fx, a share of the width)
     const r = Math.max(dw / sw, dh / sh), cw = dw / r, ch = dh / r;
-    ctx.drawImage(v, sx + (sw - cw) / 2, sy + (sh - ch) / 2, cw, ch, dx, dy, dw, dh);
+    const x = fx == null ? sx + (sw - cw) / 2 : sx + clamp(fx * sw - cw / 2, 0, sw - cw);
+    ctx.drawImage(v, x, sy + (sh - ch) / 2, cw, ch, dx, dy, dw, dh);
+  }
+  function followAt(t) {         // where the face is at source time t: the same path the export follows (studio/faces.py)
+    const k = E.data.follow; if (!k || !k.length) return null;
+    if (t <= k[0][0]) return k[0][1];
+    for (let i = 1; i < k.length; i++) if (t <= k[i][0]) { const [t0, x0] = k[i - 1], [t1, x1] = k[i]; return x0 + (x1 - x0) * (t - t0) / Math.max(0.01, t1 - t0); }
+    return k[k.length - 1][1];
   }
   function drawFrame() {
     if (!E || !E.v || !E.v.videoWidth) return;
@@ -515,7 +522,7 @@
       const pw = d.pip_w, ph = pw * face[3] / face[2];
       ctx.drawImage(v, face[0], face[1], face[2], face[3], W - pw - d.pip_margin, d.pip_margin, pw, ph);
     } else if (lay === "crop" || ((lay === "split" || lay === "gameplay") && !face)) {
-      ctx.filter = f2(); cover(ctx, v, 0, 0, vw, vh, 0, 0, W, H);
+      ctx.filter = f2(); cover(ctx, v, 0, 0, vw, vh, 0, 0, W, H, followAt(t));
     } else {                       // blurred fill behind the whole picture
       ctx.filter = f2("blur(28px) brightness(.86) saturate(1.15)"); cover(ctx, v, 0, 0, vw, vh, -60, -60, W + 120, H + 120);
       ctx.filter = f2(); const fh = G.fg; cover(ctx, v, 0, 0, vw, vh, 0, (H - fh) / 2, W, fh);

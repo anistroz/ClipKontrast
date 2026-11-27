@@ -28,6 +28,14 @@ def _scrub(text: str) -> str:
     return text
 
 
+def _ready(name: str) -> bool:
+    try:
+        mod = __import__(f"studio.{name}", fromlist=["ready"])
+        return bool(mod.ready())
+    except Exception:  # noqa: BLE001
+        return False
+
+
 def app_line() -> str:
     """One line: app version, system, memory."""
     from . import transcribe
@@ -67,6 +75,8 @@ def _setup() -> list:
                                            f"not downloaded ({whisper.hl_state['error']})" if whisper.hl_state["error"] else
                                            "not downloaded yet"),
             f"AI: {'set up' if config.ai_ready() else 'not set up'}",
+            "Sound model (laughs, cheers, music): " + ("ready" if _ready("sounds") else "not downloaded yet"),
+            "Face model (follows the face): " + ("ready" if _ready("faces") else "not downloaded yet"),
             f"Video encoder: {', '.join(used)}" + (f" (tried and failed: {', '.join(failed)})" if failed else "")]
 
 
