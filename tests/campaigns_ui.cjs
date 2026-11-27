@@ -18,9 +18,12 @@ const JPG = require("fs").readFileSync(THUMB);
       r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ title: "Video " + u.slice(-11), uploader: "Mizo Plays", duration: 36000,
         is_live: false, thumb: "", post_live: false, handle: "mizoplays", platform: u.includes("kick") ? "kick" : "youtube" }) }); });
     await pg.goto(APP + "/app", { waitUntil: "networkidle" });
-    await pg.waitForSelector("#homeCamp .hcamp", { timeout: 20000 });
-    out("Home: the card next to the link says a paid campaign is live, with its pool and rate", await pg.innerText("#homeCamp").then(t => ["paid campaign live", "gta 6 launch", "₹1,10,000", "/ 1k views"].every(x => t.toLowerCase().includes(x))), true);
-    out("...and Home doesn't show the campaign a second time below", await pg.locator("#camps-home").count(), 0);
+    await pg.waitForSelector("#camps-home .pc-hero", { timeout: 20000 });
+    const home = await pg.innerText("#camps-home");
+    out("Home: Clip & get paid, the campaign, its pool in rupees", ["Clip & get paid", "GTA 6 Launch × Mizo Plays", "₹1,10,000", "per 1,000 views"].every(x => home.includes(x)), true);
+    out("...the streams to clip, with their pictures (4 on Home)", [await pg.locator("#camps-home .pcs").count(), await pg.locator("#camps-home .pcs img.lt").count()], [4, 4]);
+    out("...and our previous campaigns, money first", ["Our previous campaigns", "₹75,000", "₹1,50,000 across 3 completed campaigns"].every(x => home.includes(x)), true);
+    out("Home shows the campaign once: the card next to the link is the editor's, not the campaign again", await pg.innerText("#homeCamp").then(t => /editor/i.test(t) && !/paid campaign live/i.test(t)), true);
     await pg.screenshot({ path: path.join(SHOTS, "home.png") });
     out("the sidebar says a paid campaign is live", await pg.locator('.nav-item[data-v="campaigns"] .livec').count(), 1);
     await pg.click('.nav-item[data-v="campaigns"]');

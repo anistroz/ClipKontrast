@@ -2065,7 +2065,7 @@ function go(v, tab, fromHistory) {
   $("#heroSlot").innerHTML = v === "overview" ? `<section class="home-top"><div class="mk"><h2>Paste a stream. <em>Get clips. Edit like a pro.</em></h2>
       <p>The AI finds the moments and makes captioned shorts. Open any clip in the editor to finish it.</p><div id="add"></div></div><div id="homeCamp"></div></section>
       <section class="home-sec" id="workRow" hidden></section><section class="home-sec" id="readyRow"></section><section class="hcards" id="homeCards"></section>` : "";
-  if (v === "overview") { view.innerHTML = `<div id="ov"></div>`; loadCampaigns(); drawHomeTop(); loadLib(); }
+  if (v === "overview") { view.innerHTML = `<div id="camps-home"></div><div id="ov"></div>`; loadCampaigns(); drawHomeTop(); loadLib(); }
   else if (v === "studio") { view.innerHTML = `<div id="studio"></div>`; }
   else if (v === "assets") { view.innerHTML = `<div id="assets"></div>`; drawAssets(true); loadLib(); }
   else if (v === "campaigns") { view.innerHTML = `<div id="camps-page"></div>`; drawCampaignsPage(); loadCampaigns(); }
@@ -3433,17 +3433,10 @@ function syncQuick() {
 }
 document.addEventListener("change", e => { if (e.target.id === "o_captions") $$('#quick [data-k="o_style"]').forEach(b => b.disabled = !e.target.checked); });
 
-/* The card next to the link: the paid campaign that's live, or (with none) what the editor can do. */
+/* The card next to the link: what the editor can do. (The paid campaign has its own section further down Home.) */
 function drawHomeTop() {
   const box = $("#homeCamp"); if (!box) return;
-  const c = (S.camps?.live || []).find(x => x.state === "open");
-  put(box, c ? `<section class="hcamp" style="${c.accent ? `--acc:${esc(c.accent)}` : ""}"><div class="hc-art" aria-hidden="true">${campArt(c)}</div>
-      <span class="tag"><i></i>Paid campaign live</span>
-      <h3>${esc(c.title)}</h3><p>${c.creator_name ? `<b>${esc(c.creator_name)}</b> · ` : ""}${esc(c.tagline || "Clip the streams, post the clips, get paid for every view.")}</p>
-      <div class="pool">${inr(c.budget)}<small>clipper pool${c.rate_per_1k ? ` · ₹${Number(c.rate_per_1k).toLocaleString("en-IN")} / 1K views` : ""}</small></div>
-      <div class="row"><a class="btn primary" href="${esc(joinUrl(c))}" target="_blank" rel="noopener">${ic("money")}Clip &amp; get paid ↗</a>
-        <button class="btn" data-act="go" data-v="campaigns">See streams</button></div></section>`
-    : `<section class="hcamp"><span class="tag soft">${ic("scissors")} The ClipKontrast editor</span>
+  put(box, `<section class="hcamp"><span class="tag soft">${ic("scissors")} The ClipKontrast editor</span>
       <h3>Finish every clip like a pro</h3><p>Every clip opens in the editor, with a live preview.</p>
       <ul><li>Cut words out from the transcript</li><li>Transitions, whooshes, punch-ins and looks</li><li>Your own fonts, sounds and memes</li><li>Hype Edit: the whole edit in one click</li></ul>
       <div class="row"><button class="btn primary" data-act="go" data-v="studio">${ic("scissors")}Open the editor</button><button class="btn" data-act="go" data-v="assets">${ic("folder")}Your library</button></div></section>`);
