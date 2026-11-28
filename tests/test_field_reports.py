@@ -191,6 +191,8 @@ for _ in range(400):
 with ctx.as_user(user.id):
     jobs.stop(j5["id"])
 time.sleep(2.0)
+if j5.get("stage") != "Stopped by you":
+    print("DEBUG j5:", j5.get("status"), j5.get("stage"), j5.get("error"), j5.get("error_where"), flush=True)
 check("Stop during a long step: after a few seconds it's stopped anyway, not 'Stopping…' for minutes",
       (j5["status"], j5["stage"], t.is_alive()), ("error", "Stopped by you", True))
 check("...its place in the line is given to the next video at once", Counting.done_calls, 1)

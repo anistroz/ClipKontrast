@@ -336,7 +336,10 @@ def stop(jid: str) -> dict:
     if job["status"] == "queued" and _making.get(jid) is None:
         _stopped(job)                      # not started yet: stopped now; the worker skips it when its turn comes
     else:
-        _set(job, stage="Stopping…")
+        with _lock:                        # not over a video that finished (or failed) at this very moment
+            if job.get("status") in ("queued", "running"):
+                job["stage"] = "Stopping…"
+        save(job)
         t = threading.Timer(STOP_GRACE, _force_stop, args=(jid,))
         t.daemon = True
         t.start()
