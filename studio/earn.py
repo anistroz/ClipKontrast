@@ -892,7 +892,8 @@ def _check(camp, link: dict, prof: dict, info: dict = None) -> dict:
     ch = {"owner": None, "owner_detail": "", "after_start": None, "tag": None, "found": None, "title": "", "channel": ""}
     want = prof.get(link["platform"], "")
     if link["platform"] in ("x", "tiktok") or link.get("handle"):
-        ch["owner"] = bool(want) and link["handle"] == want
+        mine = {str(prof.get(p) or "").lower() for p in PLATFORMS} - {""}
+        ch["owner"] = bool(want) and (link["handle"] == want or str(link["handle"]).lower() in mine)
         ch["owner_detail"] = f"Link is from {link['handle']}, profile says {want or 'nothing'}"
     posted = _posted_from_id(link["platform"], link["id"])
     if info:
@@ -902,7 +903,11 @@ def _check(camp, link: dict, prof: dict, info: dict = None) -> dict:
             handle = _yt_handle(info["channel_id"]) if info["channel_id"] else ""
         except EarnError:
             handle = ""
-        if want == info["channel_id"] or (handle and want == handle):
+        # Any of the person's own handles counts (a YouTube channel often goes by the name used on Instagram), and so
+        # does the channel's name written as the handle ("VICEXCITYGAMING" for @vicexcitygaming)
+        mine = {str(prof.get(p) or "").lower() for p in PLATFORMS} - {""}
+        name = "@" + re.sub(r"[^a-z0-9._]", "", str(info.get("channel") or "").lower())
+        if want == info["channel_id"] or (handle and (want == handle or handle in mine)) or (len(name) > 3 and name in mine):
             ch["owner"] = True
         elif handle or want.startswith("UC"):
             ch["owner"] = False

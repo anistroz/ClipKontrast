@@ -337,10 +337,38 @@ def stop(jid: str) -> dict:
         _stopped(job)                      # not started yet: stopped now; the worker skips it when its turn comes
     else:
         _set(job, stage="Stopping…")
+        t = threading.Timer(STOP_GRACE, _force_stop, args=(jid,))
+        t.daemon = True
+        t.start()
     return job
 
 
+STOP_GRACE = 15          # seconds a video being made gets to stop by itself before it's stopped anyway
+_freed: set = set()      # videos stopped anyway: their place in the line was already given back
+_retire: set = set()     # worker threads still busy with a video stopped anyway: they leave when it lets go
+
+
+def _force_stop(jid):
+    """Stop was pressed, but the video is in the middle of something long that only looks at Stop when it's done (a
+    long download, the AI waiting out a limit, a slow encoder). It used to keep saying "Stopping…" for many minutes,
+    its creator couldn't be deleted and new videos waited behind it. Now, after STOP_GRACE seconds, it is stopped
+    anyway: shown as stopped, its place in the line given to the next video and a fresh worker started; the old
+    worker finishes its current step in the background and then lets go, without changing anything."""
+    job = _jobs.get(jid)
+    if not job or not job.get("stop") or job.get("status") != "running" or jid in _freed:
+        return
+    owner = _making.get(jid)
+    _freed.add(jid)
+    if owner:
+        _retire.add(owner)
+    _q.done()
+    threading.Thread(target=_worker, daemon=True).start()
+    _stopped(job)
+
+
 def _stopped(job):
+    if job.get("stage") == STOPPED and job.get("status") in ("done", "error"):
+        return                             # already stopped (stopped anyway, then its worker let go)
     for c in job.get("clips", []):
         if c.get("status") in ("queued", "rendering"):
             c.update(status="error", error="Stopped before this clip was made. Press Re-make to make it.")
@@ -654,7 +682,7 @@ def render_one(job, clip, words):
 
 
 def _render_one(job, clip, words):
-    if job.get("stop") and job.get("status") in ("queued", "running"):
+    if job.get("stop") and (job.get("status") in ("queued", "running") or job.get("id") in _freed):
         clip.update(status="error", error="Stopped before this clip was made. Press Re-make to make it.")
         save(job)
         return
@@ -678,6 +706,11 @@ def _render_one(job, clip, words):
                 clip["listen_error"] = str(e)[:200] or type(e).__name__
         local = dict(clip, start=clip["start"] - off, end=clip["end"] - off, hook=roman.to_roman(clip.get("hook") or ""))
         local["tag"] = tagmod.spec(_with_channel(job), clip)          # the streamer's handle on it, if asked for
+        if clip.get("edit") and off:
+            # The editor's cuts, transitions and sounds are in the video's own seconds, like the clip's start and end:
+            # moved into the piece's seconds too. Without this, on a long stream or a live clip, a part cut in the
+            # editor landed somewhere else and was still in the export.
+            local["edit"] = edit.shifted(clip["edit"], off)
         if clip.get("edit"):          # the person's own fonts, sounds and media the edit uses
             try:
                 local["lib"] = library.resolve(job.get("user"), clip["edit"])
@@ -690,6 +723,9 @@ def _render_one(job, clip, words):
                 [{"s": round(w["s"] + off, 3), "e": round(w["e"] + off, 3), "w": w["w"]} for w in near]), encoding="utf-8")
         except (OSError, KeyError, TypeError):
             pass
+        fixes = (clip.get("edit") or {}).get("fix")
+        if fixes:                 # words the person fixed in the editor: the captions say what they typed
+            near = edit.fix_words(near, fixes, off)
         told = {"at": 0.0}
 
         def made(frac):           # how much of the clip is made: the editor's export bar fills with it
@@ -1001,7 +1037,17 @@ def _wait_for_clips(job, futures, began, workers):
     failed after CLIP_MINUTES and the video finishes with the clips that did work."""
     left, gave_up = list(futures), []
     late = "This clip took too long and was stopped. Open it and press Save and re-make to try again."
+    shown, total = None, max(1, len(futures))
     while left:
+        # the bar keeps moving while the clips are made (a long stream's clips can take a while): from 92% to 99%,
+        # by how many clips are done and how far the ones being made have got
+        part = sum(1.0 if f.done() else min(0.95, float(c.get("made") or 0)) for f, c in futures)
+        ready = sum(1 for f, _c in futures if f.done())
+        now = (round(0.92 + 0.07 * part / total, 2), ready)
+        if now != shown:
+            shown = now
+            _set(job, progress=max(job.get("progress") or 0, now[0]),
+                 stage=f"Finishing the clips · {ready} of {len(futures)} ready" if ready else "Finishing the clips")
         still = []
         # A clip that hasn't started is only given up on when every worker is held by a clip that is still hanging;
         # one slow clip that then finished frees its worker, and the clips waiting for it are made, not failed.
@@ -1074,7 +1120,9 @@ def _src_height(o: dict, layout=None) -> int:
     """How tall a video is fetched. A layout that shows the streamer's webcam cuts that small corner out and makes it
     a third of the clip, so it's fetched at 1080p whatever was chosen: from 720p the webcam came out blurry."""
     want = int(o.get("quality") or 720)
-    if (layout or o.get("layout")) in render.FACECAM_LAYOUTS:
+    # Fill the screen and Zoomed in also blow a part of the picture up (a 720p video's middle is only 405 pixels
+    # wide, stretched to 1080): from 720p those clips came out blurry too.
+    if (layout or o.get("layout")) in render.FACECAM_LAYOUTS + ("crop", "zoom"):
         want = max(want, config.MAX_SOURCE_HEIGHT)
     return want
 
@@ -1114,6 +1162,14 @@ def _fetch_piece(job, clip, full_audio):
         media.remove(wav)
         meta = media.probe(piece)
         off = media.find_offset(full_audio, part, want)
+        whole = Path(job.get("audio_src") or "")
+        if whole.is_file():
+            # The sound of a piece of a long stream sometimes comes broken (bits repeated or stuttering) while its
+            # picture is fine: it is compared with the whole video's sound, and swapped for it when it doesn't match.
+            g = media.audio_glitches(full_audio, part, off)
+            if g["start_ok"] and g["bad"] > 0.05 and media.replace_audio(piece, whole, off):
+                print(f"  Clip {clip['id']}: its piece's sound was broken ({g['bad']:.0%} didn't match), so the video's own sound was used", flush=True)
+                clip["sound_fixed"] = True
         clip.update(src=str(piece), src_offset=round(off, 2), src_end=round(off + meta["duration"], 2))
         clip["start"], clip["end"] = max(clip["start"], clip["src_offset"]), min(clip["end"], clip["src_end"])
         job.setdefault("width", meta["width"])
@@ -1653,7 +1709,10 @@ def _run_job(job):
     audio = media.load_audio(wav)
     media.remove(wav)
     if src["type"] == "url" and not section:
-        media.remove(audio_file)
+        if pieces:          # kept while the clips are made: a piece whose sound comes broken gets this sound instead
+            job["audio_src"] = str(audio_file)
+        else:
+            media.remove(audio_file)
     if not job["duration"]:
         job["duration"] = len(audio) / 16000
     sec0 = section[0] if section else 0.0          # with only a part downloaded, times are counted from its start
@@ -1989,6 +2048,8 @@ def _run_job(job):
     ahead.shutdown(wait=False, cancel_futures=True)
     fetch.shutdown(wait=False, cancel_futures=True)
     del audio
+    if job.get("audio_src"):
+        media.remove(job.pop("audio_src"))
     clips = job["clips"]
     job["ai"] = {"model": model, "tokens": tokens, "log": notes[-5:],
                  "note": next((x for x in notes if x.startswith("Clipped exactly the part you chose")), "") if o.get("exact")
@@ -1996,6 +2057,8 @@ def _run_job(job):
                  else "Your AI key wasn't answering, so the free AI on this computer picked the clips." if str(model or "").startswith("ollama:")
                  else "The AI was unavailable, so clips were picked from the sound and the words." if clips and not model else ""}
     stage = "Done" if clips else "Done, but nothing clip-worthy was found"
+    if job.get("stop"):
+        raise Stopped()                    # Stop was pressed during the last step: it stays stopped
     _set(job, status="done", stage=stage, progress=1.0, took=round(time.time() - t0))
     try:
         from . import notices
@@ -2009,6 +2072,9 @@ def _run_job(job):
 
 def _worker(quick_only=False):
     while True:
+        if threading.get_ident() in _retire:   # a fresh worker took this one's place when its video was stopped anyway
+            _retire.discard(threading.get_ident())
+            return
         kind, a, cid = _q.get(quick_only)
         if kind == "fn":
             try:
@@ -2074,8 +2140,14 @@ def _worker(quick_only=False):
         finally:
             ctx._uid.reset(token)
             if kind == "job":
-                _making.pop(job["id"], None)
-                _q.done()
+                if job.get("audio_src"):        # a long video's whole sound, kept only while its clips were made
+                    media.remove(job.pop("audio_src"))
+                if _making.get(job["id"]) == threading.get_ident():
+                    _making.pop(job["id"], None)
+                if job["id"] in _freed:
+                    _freed.discard(job["id"])   # stopped anyway: its place was already given back
+                else:
+                    _q.done()
 
 
 def _pick_up_after_restart():

@@ -211,5 +211,12 @@ full = render.render_clip(src, out_dir, "vfull", {"start": 10, "end": 18, "layou
 low = render.render_clip(src, out_dir, "vlow", {"start": 10, "end": 18, "layout": "blur", "hook": "", "captions": False, "edit": edit.clean({"look": "warm", "voice": 0.2}, 10, 18)}, [], 1280, 720)
 a_, b_ = loudness(out_dir / "vfull.mp4"), loudness(out_dir / "vlow.mp4")
 check("...and the clip's sound is that much quieter", (a_, b_), lambda x: x[0] - x[1] > 10)
+
+# ---- caption words fixed by hand (report #201): kept with the edit, used in the captions, styling codes dropped
+fx = edit.clean({"fix": {"12.0": "Mizo", "13.5": "{\\b1}bad<i>", "14.2": ""}}, 10, 18)
+check("words fixed by hand are kept with the edit, as plain text", fx.get("fix"), {"12.00": "Mizo", "13.50": "b1badi", "14.20": ""})
+ws = [{"s": 2.0, "e": 2.4, "w": "Missou"}, {"s": 3.5, "e": 3.9, "w": "x"}, {"s": 4.2, "e": 4.5, "w": "um"}, {"s": 5.0, "e": 5.3, "w": "ok"}]
+check("...the captions say the fixed word, a hidden word is gone, the rest as heard (a piece starting at 10 s)",
+      [w["w"] for w in edit.fix_words(ws, fx["fix"], 10.0)], ["Mizo", "b1badi", "ok"])
 print(f"  {len(fails)} failed" if fails else "  ALL PASSED")
 sys.exit(1 if fails else 0)

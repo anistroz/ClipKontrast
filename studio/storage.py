@@ -28,11 +28,32 @@ def _size(folder: Path) -> int:
     return total
 
 
+def _own_size(folder: Path) -> int:
+    """What ClipKontrast's own things in a folder take up (not other files that share the folder)."""
+    total = 0
+    for p in config.own_items(folder):
+        try:
+            total += _size(p) if p.is_dir() else p.stat().st_size
+        except OSError:
+            pass
+    return total
+
+
 def used_bytes() -> int:
-    """How much ClipKontrast's folder holds. Added up at most once a minute."""
+    """How much ClipKontrast's own things take up. Added up at most once a minute."""
     if time.time() - _used["at"] > 60:
-        _used.update(at=time.time(), bytes=_size(config.DATA_DIR))
+        _used.update(at=time.time(), bytes=_own_size(config.DATA_DIR))
     return _used["bytes"]
+
+
+def _is_free_for_us(folder: Path) -> bool:
+    """An empty folder, or one that only holds ClipKontrast's own things: it can be used as it is."""
+    try:
+        items = [p for p in folder.iterdir() if p.name not in (".clipkontrast-write-test", "desktop.ini", ".DS_Store")]
+    except OSError:
+        return True
+    own = {p.name for p in config.own_items(folder)}
+    return all(p.name in own for p in items)
 
 
 def drive_of(path: Path) -> str:
@@ -118,6 +139,10 @@ def change(path: str, move: bool = True) -> dict:
     if not new.is_absolute():
         raise ValueError("Give the whole path of the folder, for example D:\\ClipKontrast.")
     new, old = new.resolve(), config.DATA_DIR.resolve()
+    # A folder that already has other things in it (D:\, Downloads, a Videos folder): ClipKontrast gets its own
+    # folder inside it, so its things never mix with the person's own files.
+    if new.is_dir() and new != old and not _is_free_for_us(new):
+        new = new / "ClipKontrast"
     if new == old:
         raise ValueError("That is the folder ClipKontrast already uses.")
     if old in new.parents or new in old.parents:

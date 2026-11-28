@@ -1863,7 +1863,14 @@ function updateHow() {
 }
 /* "What's new": what the latest versions brought, for the people clipping (nothing about the website or the build).
    Change NEWS.id when the list changes: the line at the top shows again for everyone, until they close it. */
-const NEWS = {id: "2026-11-30", items: [
+const NEWS = {id: "2026-12-01", items: [
+  {e: "🔊", t: "Clean sound on long streams", d: "Clips from long streams sometimes came with glitchy, repeating sound. Each clip's sound is now checked against the stream's own, and fixed when it doesn't match.", new: true},
+  {e: "🔍", t: "Sharper Fill screen clips", d: "Fill the screen and Zoomed in now fetch the video at 1080p, so the clip isn't blurry.", new: true},
+  {e: "✍️", t: "Fix a wrong word in the captions", d: "In the editor, double-click any word the AI heard wrong and type what was said. The captions say your word; Hide word takes it out.", new: true},
+  {e: "✂️", t: "Editor cuts on long streams", d: "On long streams and live clips, a part you cut in the editor was sometimes still in the export. It's gone now, exactly where you cut it.", new: true},
+  {e: "⏹️", t: "Stop really stops", d: "Pressing Stop on a video now stops it within seconds, even in the middle of a long download, and new videos don't wait behind it.", new: true},
+  {e: "📸", t: "Instagram with new Meta apps", d: "New Meta apps only offer Facebook login now. Instagram setup takes their App ID, App secret and Facebook Login for Business configuration ID too.", new: true, act: "go", v: "settings", tab: "apps", btn: "Connected apps"},
+  {e: "📁", t: "Your own files stay put", d: "Moving ClipKontrast's folder (Settings, Storage) now moves only ClipKontrast's things. Pick a folder with your own files in it and ClipKontrast makes its own folder inside.", new: true},
   {e: "😂", t: "Clips find the laughs", d: "ClipKontrast now hears real laughter, cheering and screaming in a stream (not just \"it got louder\"), and uses them to pick the moments that go viral. The editor's hype curve shows them too.", new: true},
   {e: "🎯", t: "Follows the face", d: "With Fill screen, the clip now follows the streamer's face instead of cutting them off at the side. The camera stays still for small moves and glides when they move.", new: true},
   {e: "🎵", t: "Music warning", d: "A clip with a song in the background is marked ♪ Music: YouTube and Instagram often mute or block those. Turn the stream's sound down in the editor, or pick another moment.", new: true},
@@ -2083,6 +2090,7 @@ function setTab(t) {
   S.ctab = t;
   if (S.view.startsWith("c:")) remember(S.view, t, "replace");
   drawShell();
+  if (!$("#cbody")) return;
   $("#cbody").innerHTML = t === "clips" ? `<div id="live"></div><div id="add"></div><div id="jobs"></div>` : t === "setup" ? `<div id="cform"></div>` : `<div id="clog"></div>`;
   if ($("#stream")) $("#stream").style.display = t === "clips" ? "" : "none";
   if (t === "clips") drawAdd("compact");
@@ -2094,6 +2102,7 @@ function setTab(t) {
 function drawAdd(variant) {
   const c = creator();
   const liveMode = !c && addMode() === "live", big = variant === "hero";
+  if (!$("#add")) return;                 // a page without the link box (the Library, a page being left)
   $("#add").innerHTML = `<form class="composer ${variant === "hero" ? "big" : "compact"}${liveMode ? " is-live" : ""}" id="addform">
     ${c ? "" : `<div class="modes" role="tablist" aria-label="What to clip">
       <button type="button" role="tab" data-act="addmode" data-m="video" aria-selected="${!liveMode}">${ic("film")}Clip a video</button>
@@ -2460,7 +2469,7 @@ function openMoment(kind, id) {
     else if (exact && len < EXACT_MIN) err = `An exact moment is at least ${EXACT_MIN} seconds.`;
     else if (exact && len > EXACT_MAX) err = `An exact moment is at most ${EXACT_MAX / 60} minutes. Shorten it, or choose "Best clips inside it".`;
     $("#moErr").textContent = err;
-    $("#moLen").innerHTML = `Clip length: <b>${hms(Math.max(0, len))}</b>${exact ? "" : " to choose from"}`;
+    if ($("#moLen")) $("#moLen").innerHTML = `Clip length: <b>${hms(Math.max(0, len))}</b>${exact ? "" : " to choose from"}`;
     return !err;
   };
   const fa = $("#moFa"), fb = $("#moFb");
@@ -3742,8 +3751,9 @@ async function drawSettings() {
            "Add the address below under <b>Authorised redirect URIs</b>.", "Paste its Client ID and Client secret here."],
           "Until Google verifies your app, people see a warning when they connect, and uploads stay private."],
         instagram: ["https://developers.facebook.com/apps", "Meta for Developers",
-          ["Create a <b>Business</b> app and add <b>Instagram</b> (API setup with Instagram login).",
-           "Under <b>Business login settings</b>, add the address below as a redirect URL.", "Paste the <b>Instagram app ID</b> and <b>Instagram app secret</b> from that Instagram page here. Not the <b>App ID</b> at the top of the Meta dashboard: with that one, Instagram says <i>Invalid platform app</i>."],
+          ["Create a <b>Business</b> app and add <b>Instagram</b>.",
+           "<b>If Meta offers API setup with Instagram login:</b> under <b>Business login settings</b>, add the address below as a redirect URL, and paste the <b>Instagram app ID</b> and <b>Instagram app secret</b> from that Instagram page here (not the App ID at the top of the dashboard: with that one, Instagram says <i>Invalid platform app</i>). Leave Configuration ID empty.",
+           "<b>If your app only has Facebook login / Unified login</b> (newer apps): add <b>Facebook Login for Business</b>, create a <b>Configuration</b> with the permissions <b>instagram_basic</b>, <b>instagram_content_publish</b>, <b>pages_show_list</b> and <b>pages_read_engagement</b>, and add the address below under its <b>Valid OAuth Redirect URIs</b>. Paste the <b>App ID</b> and <b>App secret</b> (App settings, Basic) and that <b>Configuration ID</b> here. The Instagram account has to be linked to a Facebook Page."],
           "Works with Creator and Business Instagram accounts. Until Meta reviews your app, only accounts you add as testers can connect."],
         tiktok: ["https://developers.tiktok.com/apps", "TikTok for Developers",
           ["Create an app and add <b>Login Kit</b> and <b>Content Posting API</b> with Direct Post turned on.",
@@ -3760,7 +3770,8 @@ async function drawSettings() {
             <div class="copyrow"><code>${esc(st.redirect)}</code><button class="btn sm" data-act="copytext" data-t="${esc(st.redirect)}">${ic("copy")}Copy</button></div>
             ${!st.https && pf !== "youtube" ? `<p class="warnline">${name} only accepts https addresses. Put ClipKontrast on a domain with https (or a tunnel) and set CLIPKONTRAST_PUBLIC_URL to it first.</p>` : ""}
             <div class="fields"><label class="f">${esc(st.id_label)}<input id="app_id" placeholder="${st.ready ? "Saved: " + esc(st.id_hint) + ". Paste a new one to replace it" : ""}" autocomplete="off" spellcheck="false"></label>
-              <label class="f">${esc(st.secret_label)}<input id="app_secret" type="password" placeholder="${st.ready ? "Saved. Paste a new one to replace it" : ""}" autocomplete="off"></label></div>
+              <label class="f">${esc(st.secret_label)}<input id="app_secret" type="password" placeholder="${st.ready ? "Saved. Paste a new one to replace it" : ""}" autocomplete="off"></label>
+              ${pf === "instagram" ? `<label class="f">Configuration ID <small style="font-weight:400;color:var(--dim)">(only for Facebook / Unified login)</small><input id="app_config" value="${esc(st.config || "")}" placeholder="Empty for Instagram login" autocomplete="off" spellcheck="false"></label>` : ""}</div>
             <p class="sub">${g[3]}</p>
             <div class="row"><button class="btn primary" data-act="appsave" data-p="${pf}">Save</button><button class="btn ghost" data-act="appsetup" data-p="">Close</button></div></div>` : "";
         return `<div class="appcard"><span class="applogo" style="background:${bg}">${logo}</span>
@@ -3834,7 +3845,7 @@ function drawClipDlg(full) {
           <button class="btn" data-act="copy" data-j="${j.id}" data-c="${esc(c.id)}">${ic("copy")}Copy post text</button>
           <button class="btn" data-act="tocampaign" data-j="${j.id}" data-c="${esc(c.id)}" title="Posted this clip? Send its link to a paid campaign">${ic("money")}Send to a campaign</button></div>
       </div></div>`;
-  } else if (D.sig !== sig) $("#stage").innerHTML = stage;
+  } else if (D.sig !== sig && $("#stage")) $("#stage").innerHTML = stage;
   D.sig = sig;
   put($("#dposts"), postPills(c));
 }
@@ -4170,7 +4181,7 @@ document.addEventListener("click", async e => {
     if (a === "appsetup") { S.setupOpen = d.p && S.setupOpen !== d.p ? d.p : ""; return drawSettings(); }
     if (a === "copytext") { await navigator.clipboard.writeText(d.t); return toast("Copied", "ok"); }
     if (a === "appsave") {
-      await send("/api/apps", {platform: d.p, client_id: $("#app_id").value, client_secret: $("#app_secret").value}, "PUT");
+      await send("/api/apps", {platform: d.p, client_id: $("#app_id").value, client_secret: $("#app_secret").value, ...($("#app_config") ? {config_id: $("#app_config").value} : {})}, "PUT");
       S.setupOpen = ""; S.status = await api("/api/status"); toast("Saved. People can connect now.", "ok"); return drawSettings();
     }
     if (a === "bell") return openBell();
@@ -4237,6 +4248,6 @@ $("#main").addEventListener("scroll", () => $(".topbar").classList.toggle("stuck
   setInterval(async () => { try { S.status = await api("/api/status"); drawShell(); if (S.view === "overview") drawOverview(); checkNew(); } catch {} }, 15000);
 })();
 </script>
-<script src="/assets/editor.js?v=2"></script>
+<script src="/assets/editor.js?v=3"></script>
 </body>
 </html>

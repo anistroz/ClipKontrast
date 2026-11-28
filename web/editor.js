@@ -96,6 +96,9 @@
 .ed-trans span{padding:2px 2px;border-radius:5px;cursor:pointer}.ed-trans span:hover{background:var(--p3)}
 .ed-trans span.now{background:rgba(198,244,50,.18);color:var(--lime)}.ed-trans span.cut{text-decoration:line-through;color:#7d6f66;background:rgba(255,80,80,.08)}
 .ed-trans span.sel{background:rgba(127,211,255,.25);color:#fff}.ed-trans span.out{opacity:.35}
+.ed-trans span.fixed{box-shadow:inset 0 -2px 0 var(--lime)}.ed-trans span s{opacity:.45}
+.ed-fixbox{position:fixed;z-index:60;width:260px;background:#221B17;border:1px solid var(--ln);border-radius:12px;padding:12px;box-shadow:0 18px 50px rgba(0,0,0,.55);display:grid;gap:6px}
+.ed-fixbox b{font-size:13px;color:#fff}.ed-fixbox small{font-size:11.5px;color:#a8988c}.ed-fixrow{display:flex;gap:6px;flex-wrap:wrap;margin-top:2px}
 .ed-kbd{font:10px "Geist Mono",ui-monospace,monospace;padding:1px 5px;border-radius:5px;background:var(--p3);color:var(--dim);border:1px solid var(--ln)}
 .ed-keys{display:grid;grid-template-columns:auto 1fr;gap:7px 10px;font-size:12px;color:var(--dim);align-items:center}.ed-keys>span:nth-child(odd){display:flex;gap:3px;justify-self:start}
 .ed-stage{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;min-height:0;min-width:0;
@@ -263,8 +266,12 @@
       watermark: clip.watermark || "", splits: [], split: clip.split || "balanced",
       edit: {cuts: deep(ed.cuts || []), fx: deep(ed.fx || []), sfx: deep(ed.sfx || []), punch: deep(ed.punch || []), look: ed.look || "natural",
              hook_fx: ed.hook_fx || "box", hook_y: ed.hook_y || null, cap_y: ed.cap_y || null, hook_dur: ed.hook_dur || 0,
-             media: deep(ed.media || []), hook_font: ed.hook_font || "", cap_font: ed.cap_font || "", voice: ed.voice == null ? 1 : ed.voice}};
+             media: deep(ed.media || []), hook_font: ed.hook_font || "", cap_font: ed.cap_font || "", voice: ed.voice == null ? 1 : ed.voice,
+             fix: Object.assign({}, ed.fix || {})}};
   }
+  // a caption word as it will show: fixed by hand in the editor, or as it was heard
+  function fixKey(w) { return Number(w.s).toFixed(2); }
+  function wtext(w) { const f = E && E.doc && E.doc.edit.fix; return f && Object.prototype.hasOwnProperty.call(f, fixKey(w)) ? f[fixKey(w)] : w.w; }
   async function open(jid, cid) {
     const job = jobOf(jid), clip = job && job.clips.find(c => c.id === cid);
     if (!clip) return;
@@ -388,6 +395,7 @@
         <div class="ed-tracks"><div class="ed-lbls" id="edLbls"></div><div class="ed-lane" id="edLane"><div class="ed-inner" id="edInner"></div></div></div>
       </div>`;
     E.root.addEventListener("click", onClick);
+    E.root.addEventListener("dblclick", onDbl);
     // the app's own page-wide click handlers stay out of the editor (only its "copy" and "campaign" buttons use them)
     E.root.addEventListener("click", e => { if (!e.target.closest("[data-act]")) e.stopPropagation(); });
     E.root.addEventListener("input", onInput);
@@ -649,7 +657,8 @@
   }
   function capWords() {
     const doc = E.doc, cuts = cutsMerged(doc.edit.cuts, doc.start, doc.end);
-    return (E.data.words || []).filter(w => w.s >= doc.start - 0.05 && w.s < doc.end && !cuts.some(([a, b]) => (w.s + w.e) / 2 >= a && (w.s + w.e) / 2 < b));
+    return (E.data.words || []).filter(w => w.s >= doc.start - 0.05 && w.s < doc.end && !cuts.some(([a, b]) => (w.s + w.e) / 2 >= a && (w.s + w.e) / 2 < b))
+      .map(w => { const t = wtext(w); return t === w.w ? w : Object.assign({}, w, {w: t}); }).filter(w => w.w);
   }
   function drawCaptions(ctx, t) {
     const doc = E.doc; if (!doc.captions) return;
@@ -743,7 +752,7 @@
     const cutW = w => cutsMerged(ed.cuts, doc.start, doc.end).some(([a, b]) => (w.s + w.e) / 2 >= a && (w.s + w.e) / 2 < b);
     let cw = "";
     for (const w of d.words) { const wx = X(w.s), ww = Math.max(6, X(w.e) - wx - 2);
-      cw += `<span class="ed-word${cutW(w) ? " cut" : ""}${w.s < doc.start || w.s >= doc.end ? " " : ""}" data-word="${w.s}" style="left:${wx}px;width:${ww}px;${w.s < doc.start || w.s >= doc.end ? "opacity:.35;" : ""}${ww < 30 ? "font-size:9px;padding:0 2px" : ""}">${ww > 13 ? esc(w.w) : ""}</span>`; }
+      cw += `<span class="ed-word${cutW(w) ? " cut" : ""}${w.s < doc.start || w.s >= doc.end ? " " : ""}" data-word="${w.s}" style="left:${wx}px;width:${ww}px;${w.s < doc.start || w.s >= doc.end ? "opacity:.35;" : ""}${ww < 30 ? "font-size:9px;padding:0 2px" : ""}">${ww > 13 ? esc(wtext(w) || "·") : ""}</span>`; }
     html += `<div class="ed-ln ed-cl" style="height:${hh[3]}px">${E.sel && E.sel.k === "range" ? `<div class="ed-rng" style="left:${X(E.sel.a)}px;width:${Math.max(2, X(E.sel.b) - X(E.sel.a))}px"></div>` : ""}${doc.captions ? cw : `<span style="position:absolute;left:${X(doc.start) + 8}px;top:8px;color:var(--faint);font-size:11px">Captions are off</span>`}</div>`;
     // text
     const hs = doc.start, he = ed.hook_dur > 0 ? fromOut(doc, Math.min(outLen(doc), ed.hook_dur)) : doc.end;
@@ -819,8 +828,8 @@
       const isCut = w => cuts.some(([a, b]) => (w.s + w.e) / 2 >= a && (w.s + w.e) / 2 < b);
       const fill = words.filter(w => w.s >= doc.start && w.s < doc.end && FILLER_SAFE.test(w.w.replace(/[^\w.,!?…]/g, "")) && !isCut(w)).length;
       h += `<div class="ed-sec"><div class="ed-h">Edit by transcript <em>Like a doc</em></div>
-        <p class="ed-help">Click a word to jump to it. Drag across words (or Shift-click) and press <span class="ed-kbd">Del</span> to cut them out of the video.</p>
-        <div class="ed-trans" id="edTrans">${words.length ? words.map(w => `<span data-word="${w.s}" class="${isCut(w) ? "cut" : ""}${w.s < doc.start || w.s >= doc.end ? " out" : ""}${E.tsel.includes(w.s) ? " sel" : ""}">${esc(w.w)}</span>`).join(" ") : `<span style="color:var(--faint)">The words show here once this clip has been made with captions on.</span>`}</div></div>
+        <p class="ed-help">Click a word to jump to it. Drag across words (or Shift-click) and press <span class="ed-kbd">Del</span> to cut them out of the video. <b>Double-click a word</b> to fix how it's written in the captions.</p>
+        <div class="ed-trans" id="edTrans">${words.length ? words.map(w => { const t = wtext(w); return `<span data-word="${w.s}" class="${isCut(w) ? "cut" : ""}${w.s < doc.start || w.s >= doc.end ? " out" : ""}${E.tsel.includes(w.s) ? " sel" : ""}${t !== w.w ? " fixed" : ""}" title="${t !== w.w ? `Heard as “${esc(w.w)}”. ` : ""}Double-click to fix">${t ? esc(t) : `<s>${esc(w.w)}</s>`}</span>`; }).join(" ") : `<span style="color:var(--faint)">The words show here once this clip has been made with captions on.</span>`}</div></div>
         <div class="ed-sec"><div class="ed-h">Clean up</div>
         <div class="ed-row"><div><b>Remove filler words</b><span>${fill ? `${fill} found: um, uh, hmm` : "None left in this clip"}</span></div><button class="ed-btn sm" data-e="fillers" ${fill ? "" : "disabled"}>Remove</button></div>
         <div class="ed-row"><div><b>Cut silences</b><span>Quiet stretches are shortened when you export</span></div><button class="ed-tg${doc.tighten ? " on" : ""}" data-tg="tighten"></button></div>
@@ -1120,7 +1129,8 @@
       layout: doc.layout, captions: doc.captions, tighten: doc.tighten, zoom: doc.zoom, watermark: doc.watermark, split: doc.split,
       edit: {cuts: cutsMerged(ed.cuts, doc.start, doc.end), fx: ed.fx.filter(f => f.t >= doc.start && f.t <= doc.end), sfx: ed.sfx.filter(s => s.t >= doc.start - 2 && s.t <= doc.end),
              punch: ed.punch.filter(p => p.t >= doc.start && p.t <= doc.end), look: ed.look, hook_fx: ed.hook_fx, hook_y: ed.hook_y, cap_y: ed.cap_y, hook_dur: ed.hook_dur,
-             media: ed.media.filter(m => m.t >= doc.start && m.t <= doc.end && libOk(m.id)), hook_font: libOk(ed.hook_font) ? ed.hook_font : "", cap_font: libOk(ed.cap_font) ? ed.cap_font : "", voice: ed.voice == null ? 1 : ed.voice}};
+             media: ed.media.filter(m => m.t >= doc.start && m.t <= doc.end && libOk(m.id)), hook_font: libOk(ed.hook_font) ? ed.hook_font : "", cap_font: libOk(ed.cap_font) ? ed.cap_font : "", voice: ed.voice == null ? 1 : ed.voice,
+             fix: Object.fromEntries(Object.entries(ed.fix || {}).filter(([k]) => +k >= doc.start - 1 && +k <= doc.end + 1))}};
   }
   /* Hype Edit on a clip without opening it: read its hype, add the edit, make it again. Used by "Hype Edit all"
      on Home and in the Editor page. Says what happened: "done", "same" (already hype-edited) or throws. */
@@ -1201,7 +1211,10 @@
     if (!b || !E) return;
     const d = b.dataset, doc = E.doc, ed = doc.edit;
     if (d.word !== undefined && b.closest("#edTrans")) {
-      const s = Number(d.word);
+      const s = Number(d.word), now = Date.now();
+      // a second click on the same word (a double-click: the first one redraws the words) fixes how it's written
+      if (!e.shiftKey && !e.ctrlKey && !e.metaKey && E.lastWord && E.lastWord.s === s && now - E.lastWord.at < 500) { E.lastWord = null; return fixWord(s); }
+      E.lastWord = {s, at: now};
       if (e.shiftKey && E.tsel.length) { const ws = E.data.words.map(w => w.s), a = ws.indexOf(E.tsel[0]), z = ws.indexOf(s); E.tsel = ws.slice(Math.min(a, z), Math.max(a, z) + 1); }
       else if (e.ctrlKey || e.metaKey) E.tsel = E.tsel.includes(s) ? E.tsel.filter(x => x !== s) : [...E.tsel, s];
       else { E.tsel = [s]; seek(s); }
@@ -1405,6 +1418,40 @@
     const mv = ev => { seek(laneX(ev)); };
     const up = () => { removeEventListener("pointermove", mv); removeEventListener("pointerup", up); if (wasPlaying) play(); };
     addEventListener("pointermove", mv); addEventListener("pointerup", up);
+  }
+  /* A word the speech model got wrong: double-click it (in the transcript or on the captions track) and type what was
+     said. The captions in the preview and in the export say that; "Hide word" takes it out of the captions. */
+  function onDbl(e) {
+    const sp = e.target.closest(".ed-word[data-word]");     // on the captions track (the transcript counts its own clicks)
+    if (!sp || !E || !E.data) return;
+    e.preventDefault();
+    fixWord(Number(sp.dataset.word));
+  }
+  function fixWord(s) {
+    const w = (E.data.words || []).find(x => x.s === s);
+    const sp = E.root.querySelector(`#edTrans [data-word="${s}"]`) || E.root.querySelector(`.ed-word[data-word="${s}"]`);
+    if (!w || !sp) return;
+    if (E.ov) { E.ov.remove(); E.ov = null; }
+    const r = sp.getBoundingClientRect(), box = document.createElement("div");
+    box.className = "ed-fixbox";
+    box.style.left = Math.max(8, Math.min(innerWidth - 268, r.left)) + "px";
+    box.style.top = (r.bottom + 156 > innerHeight ? Math.max(8, r.top - 150) : r.bottom + 6) + "px";
+    box.innerHTML = `<b>Fix this word</b><small>Heard as “${esc(w.w)}”</small><input class="ed-in" id="edFixIn" maxlength="40" value="${esc(wtext(w))}">
+      <div class="ed-fixrow"><button class="ed-btn sm p" data-fix="save">Save</button><button class="ed-btn sm" data-fix="hide">Hide word</button>${wtext(w) !== w.w ? `<button class="ed-btn sm" data-fix="reset">As heard</button>` : ""}</div>`;
+    E.root.appendChild(box); E.ov = box;
+    const inp = box.querySelector("input"); inp.focus(); inp.select();
+    const done = (val) => {
+      const k = fixKey(w), f = E.doc.edit.fix || (E.doc.edit.fix = {});
+      if (val === null || val === w.w) delete f[k]; else f[k] = val.replace(/[{}\\<>]/g, "").trim().slice(0, 40);
+      box.remove(); E.ov = null; commit("Fix word");
+    };
+    inp.addEventListener("keydown", ev => { if (ev.key === "Enter") { ev.preventDefault(); done(inp.value.trim() || w.w); } });
+    box.addEventListener("click", ev => {
+      ev.stopPropagation();
+      const b = ev.target.closest("[data-fix]"); if (!b) return;
+      done(b.dataset.fix === "save" ? (inp.value.trim() || w.w) : b.dataset.fix === "hide" ? "" : null);
+    });
+    box.addEventListener("pointerdown", ev => ev.stopPropagation());
   }
   function onKey(e) {
     if (!E) return;

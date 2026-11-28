@@ -1,6 +1,7 @@
 """Getting video in: link download, probing, audio extraction, loudness."""
 import contextlib
 import contextvars
+import os
 import json
 import re
 import shutil
@@ -184,7 +185,10 @@ def _biggest(job_dir: Path, stem: str) -> Path:
 
 
 # what no other way of asking can change: the video itself is private, removed, members-only, not out yet...
-_UNFIXABLE = re.compile(r"private video|members.only|join this channel|has been removed|account .*terminated|confirm your age|"
+# ("Sign in to confirm your age" isn't on this list: one of YouTube's apps says it about ordinary videos too, so every
+# video came back as "only for signed-in adults" for some people; the other apps are asked, and only when all of them
+# say so is it the video.)
+_UNFIXABLE = re.compile(r"private video|members.only|join this channel|has been removed|account .*terminated|"
                         r"not available in your country|live event will begin|premieres in|unsupported url|is not a valid url", re.I)
 
 
@@ -713,6 +717,54 @@ def find_offset(full: np.ndarray, part: np.ndarray, expected: float, search=20.0
     size = 1 << (len(hay) + n).bit_length()
     corr = np.fft.irfft(np.fft.rfft(hay, size) * np.conj(np.fft.rfft(needle, size)), size)[: len(hay) - n + 1]
     return (a0 + int(np.argmax(corr))) / 16000
+
+
+def _envelope(x: np.ndarray, hop: int = 800) -> np.ndarray:
+    """Loudness every 50 ms, in dB: what two copies of the same sound share even when they are a few ms apart."""
+    n = len(x) // hop
+    if n <= 0:
+        return np.zeros(0, dtype=np.float32)
+    y = x[: n * hop].astype(np.float32).reshape(n, hop) / 32768.0
+    return (10 * np.log10((y * y).mean(axis=1) + 1e-9)).astype(np.float32)
+
+
+def audio_glitches(full: np.ndarray, part: np.ndarray, offset: float, win: float = 2.0) -> dict:
+    """Does a downloaded piece sound like the same stretch of the whole video's audio? A piece fetched from a long
+    stream sometimes comes with its sound broken: bits repeated, skipped or stuttering, while the picture is fine.
+    Compared two seconds at a time by loudness: {"start_ok": the first seconds match (so `offset` is right),
+    "bad": the share of the rest that doesn't}."""
+    a = _envelope(full[max(0, int(offset * 16000)): int(offset * 16000) + len(part)])
+    b = _envelope(part)
+    n = min(len(a), len(b))
+    step = int(win * 20)
+    scores = []
+    for i in range(0, n - step + 1, step):
+        x, y = a[i:i + step], b[i:i + step]
+        if float(x.std()) < 1.5 and float(y.std()) < 1.5:
+            scores.append(None if abs(float(x.mean()) - float(y.mean())) < 12 else 0.0)   # both steady: nothing to tell
+            continue
+        scores.append(float(np.corrcoef(x, y)[0, 1]) if x.std() > 1e-3 and y.std() > 1e-3 else 0.0)
+    told = [s for s in scores if s is not None]
+    head = [s for s in scores[:4] if s is not None]
+    rest = [s for s in scores[4:] if s is not None]
+    return {"start_ok": bool(head) and sum(s >= 0.6 for s in head) >= max(1, len(head) - 1),
+            "bad": (sum(s < 0.4 for s in rest) / len(rest)) if rest else 0.0, "windows": len(told)}
+
+
+def replace_audio(piece: Path, audio_src: Path, offset: float) -> bool:
+    """Give a piece the sound of the whole video's own audio file from `offset`, in place of its own broken sound.
+    The picture is kept as it is. True when it worked (the piece is left as it was if not)."""
+    tmp = piece.with_name(piece.stem + ".fixed" + piece.suffix)
+    try:
+        run(["ffmpeg", "-y", "-v", "error", "-i", str(piece), "-ss", f"{max(0.0, offset):.3f}", "-i", str(audio_src),
+             "-map", "0:v:0", "-map", "1:a:0", "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-shortest", str(tmp)])
+        if tmp.stat().st_size < 1024:
+            raise RuntimeError("empty")
+        os.replace(tmp, piece)
+        return True
+    except Exception:  # noqa: BLE001 - the piece keeps its own sound
+        remove(tmp)
+        return False
 
 
 def probe(path: Path) -> dict:

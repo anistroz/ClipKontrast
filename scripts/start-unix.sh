@@ -40,12 +40,32 @@ if [ -z "$PY" ]; then
 fi
 say "Python: $($PY --version)"
 
+# On a Mac, Homebrew's "ffmpeg-full" is the one that draws captions; it isn't put on the PATH by itself.
+for d in /opt/homebrew/opt/ffmpeg-full/bin /usr/local/opt/ffmpeg-full/bin; do
+  if [ -x "$d/ffmpeg" ]; then PATH="$d:$PATH"; export PATH; break; fi
+done
 if ! command -v ffmpeg >/dev/null 2>&1; then
+  if [ "$(uname)" = "Darwin" ] && ! command -v brew >/dev/null 2>&1; then
+    # No Homebrew yet: ffmpeg comes with it, so it can be put in now (its own installer, from brew.sh).
+    say "ClipKontrast needs ffmpeg, which is installed with Homebrew (the usual way to add tools to a Mac)."
+    printf "  Install Homebrew and ffmpeg now? It asks for your Mac password once. [Y/n] "
+    read -r ans || ans="n"
+    case "$ans" in
+      [nN]*) ;;
+      *) /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" || true
+         if [ -x /opt/homebrew/bin/brew ]; then eval "$(/opt/homebrew/bin/brew shellenv)"; fi
+         if [ -x /usr/local/bin/brew ]; then eval "$(/usr/local/bin/brew shellenv)"; fi ;;
+    esac
+  fi
   if [ "$(uname)" = "Darwin" ] && command -v brew >/dev/null 2>&1; then
-    say "ffmpeg not found. Installing it with Homebrew..."
-    brew install ffmpeg
+    say "ffmpeg not found. Installing it with Homebrew (a few minutes, once)..."
+    brew install ffmpeg-full || brew install ffmpeg || true
+    for d in /opt/homebrew/opt/ffmpeg-full/bin /usr/local/opt/ffmpeg-full/bin; do
+      if [ -x "$d/ffmpeg" ]; then PATH="$d:$PATH"; export PATH; break; fi
+    done
   elif [ "$(uname)" = "Darwin" ]; then
-    say "ffmpeg not found. Install Homebrew from https://brew.sh then run: brew install ffmpeg"
+    say "ffmpeg not found. Install Homebrew from https://brew.sh (copy the one line it shows into Terminal),"
+    say "then start ClipKontrast again: it installs ffmpeg by itself."
   else
     say "ffmpeg not found. Install it with: sudo apt install ffmpeg"
   fi

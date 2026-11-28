@@ -523,12 +523,17 @@ def tightened_words(words, start, keep):
     return out
 
 
+# The stream's sound laid on its own clock before anything else: a gap in a downloaded piece's sound is filled with
+# silence and a stretch sent twice is dropped, instead of the sound stuttering, repeating or drifting off the picture.
+EVEN = "aresample=async=1:first_pts=0,"
+
+
 def _tighten_filter(keep, layout_fc):
     """Cut the clip down to `keep` (video and sound together, the sound faded at every join), then the layout."""
     k = len(keep)
     vs = "".join(f"[v{i}]" for i in range(k))
     av = "".join(f"[a{i}]" for i in range(k))
-    parts = [f"[0:v]split={k}{vs}" if k > 1 else "[0:v]null[v0]", f"[0:a:0]asplit={k}{av}" if k > 1 else "[0:a:0]anull[a0]"]
+    parts = [f"[0:v]split={k}{vs}" if k > 1 else "[0:v]null[v0]", f"[0:a:0]{EVEN}asplit={k}{av}" if k > 1 else f"[0:a:0]{EVEN}anull[a0]"]
     for i, (a, b) in enumerate(keep):
         d = b - a
         parts.append(f"[v{i}]trim=start={a:.3f}:end={b:.3f},setpts=PTS-STARTPTS[w{i}]")
@@ -825,7 +830,7 @@ def _render_in(work: Path, src: Path, out_dir: Path, name: str, start, end, layo
         first = 1 + len(over or []) + (1 if tag else 0)
         for f, _at, _vol in sfx or []:
             extra += ["-i", str(f)]
-        mix = [f"{'[ca]' if keep else '[0:a:0]'}loudnorm=I=-14:TP=-1.5:LRA=11{vol}[an]"]
+        mix = [f"{'[ca]' if keep else '[0:a:0]' + EVEN}loudnorm=I=-14:TP=-1.5:LRA=11{vol}[an]"]
         for i, (_f, at, vol) in enumerate(sfx or []):
             ms = int(at * 1000)
             mix.append(f"[{first + i}:a]aresample=48000,adelay={ms}|{ms},volume={vol:.2f}[x{i}]")
@@ -841,7 +846,7 @@ def _render_in(work: Path, src: Path, out_dir: Path, name: str, start, end, layo
         fc += f";[ca]loudnorm=I=-14:TP=-1.5:LRA=11{vol}[a]"
         sound = ["-map", "[a]"]
     else:
-        sound = ["-map", "0:a:0", "-af", f"loudnorm=I=-14:TP=-1.5:LRA=11{vol}"]
+        sound = ["-map", "0:a:0", "-af", f"{EVEN}loudnorm=I=-14:TP=-1.5:LRA=11{vol}"]
     base = ["ffmpeg", "-y", "-v", "error", "-ss", f"{start:.2f}", "-t", f"{end - start:.2f}", "-i", str(src), *extra,
             "-filter_complex", fc, "-map", "[v]", *sound,
             "-c:a", "aac", "-b:a", "160k", "-ar", "48000", "-movflags", "+faststart", "-pix_fmt"]

@@ -49,6 +49,7 @@ def main() -> int:
         only = os.environ.get("CLIPKONTRAST_TEST_ONLY", "")
         runs = [("permissions", ["tests/test_permissions.py", BASE, str(ROOT), sys.executable]),
                 ("Earn: campaigns, links, cross-checks, budget and payouts", ["tests/test_earn.py", BASE, str(ROOT), sys.executable]),
+                ("Earn: a clipper's own handles on every platform count as theirs", ["tests/test_earn_handles.py"]),
                 ("Earn-only website: clip-making off, Earn on", ["tests/test_earn_only.py", str(ROOT)]),
                 ("confirming the email with a six-digit code", ["tests/test_otp.py", str(ROOT)]),
                 ("mail through Brevo's web API", ["tests/test_mail_api.py"]),
@@ -57,6 +58,8 @@ def main() -> int:
                 ("Earn: levels, premium campaigns, badges and the weekly leaderboard", ["tests/test_levels.py"]),
                 ("Earn: applying, approval and levels in a browser", ["tests/test_levels_ui.py", str(ROOT)]),
                 ("Hearing laughs, cheers and music; headings platforms hold back", ["tests/test_sounds.py"]),
+                ("Pieces of long streams: broken sound swapped for the video's own", ["tests/test_piece_sound.py"]),
+                ("Editor cuts on a long stream's clips land where they were made", ["tests/test_piece_edit.py"]),
                 ("Following the face in clips filled to the screen", ["tests/test_faces.py"]),
                 ("Problems reporting themselves, when turned on", ["tests/test_autoreport.py"]),
                 ("The clip editor: edits, transitions, sounds, looks, text effects, preview", ["tests/test_editor.py"]),

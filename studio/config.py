@@ -69,13 +69,28 @@ UPDATE_MANIFEST = (env("CLIPKONTRAST_UPDATE_MANIFEST")
                    or "https://github.com/anistroz/clipkontrast/releases/latest/download/latest.json").strip()
 
 
+# What ClipKontrast itself keeps in its folder. Only these are ever moved or counted: someone may have chosen a
+# folder that also holds their own files (D:\Videos, a whole drive), and those are never touched.
+OWN_NAMES = {"users", "models", "tmp", "fonts", "earn", "sfx", "logs", "bug-shots", "resume-recordings", "ai.json", "apps.json",
+             "autoreport.json", "link.key", "posts.json", ".clipkontrast-folder"}
+
+
+def own_items(folder: Path) -> list:
+    """ClipKontrast's own things in this folder (never anything else that happens to be there)."""
+    try:
+        return [p for p in Path(folder).iterdir() if p.name in OWN_NAMES or p.name.startswith("clipkontrast.db")]
+    except OSError:
+        return []
+
+
 def _move_folder(old: Path, new: Path) -> bool:
-    """Move everything from the old folder into the new one. Done at start, before anything is open. True when
-    nothing is left behind; anything that could not be moved stays where it was and is tried again next start."""
+    """Move ClipKontrast's own things from the old folder into the new one. Done at start, before anything is open.
+    True when nothing is left behind; anything that could not be moved stays where it was and is tried again next
+    start. Other files in the old folder (the person's own) stay where they are."""
     import shutil
     if not old.is_dir() or old.resolve() == new.resolve():
         return True
-    items = list(old.iterdir())
+    items = own_items(old)
     if items:
         print(f"\n  Moving ClipKontrast's folder to {new} ({len(items)} things). This is done once and can take a while...", flush=True)
     done = True
@@ -107,6 +122,42 @@ def _move_folder(old: Path, new: Path) -> bool:
     return done
 
 
+# The installed app also notes where its folder is in the person's own profile, outside ClipKontrast's folder. If the
+# note in ClipKontrast's folder is ever lost (a reinstall, a cleanup), the next start finds the folder with the videos,
+# clips, settings and keys again, instead of starting empty as if they were gone.
+LAST_DATA_FILE = Path(env("CLIPKONTRAST_LAST_DATA_FILE") or Path.home() / ".clipkontrast" / "last-data.json")
+
+
+def _last_data(default: Path):
+    """The folder used before, when the default one is empty (nothing saved there yet) and that one still has
+    ClipKontrast's database in it. None otherwise."""
+    if not (INSTALLED or env("CLIPKONTRAST_LAST_DATA_FILE")):
+        return None
+    try:
+        last = Path(json.loads(LAST_DATA_FILE.read_text(encoding="utf-8")).get("path") or "")
+    except (OSError, ValueError, AttributeError):
+        return None
+    if not str(last) or str(last) == "." or (default / "clipkontrast.db").exists():
+        return None
+    try:
+        if last.resolve() == default.resolve() or not (last / "clipkontrast.db").is_file():
+            return None
+    except OSError:
+        return None
+    return last
+
+
+def note_data_folder():
+    """Remember where ClipKontrast's folder is, for _last_data(). Called once ClipKontrast has started."""
+    if not (INSTALLED or env("CLIPKONTRAST_LAST_DATA_FILE")) or DATA_FROM == "env":
+        return
+    try:
+        LAST_DATA_FILE.parent.mkdir(parents=True, exist_ok=True)
+        LAST_DATA_FILE.write_text(json.dumps({"path": str(DATA_DIR.resolve())}), encoding="utf-8")
+    except OSError:
+        pass
+
+
 def _data_folder():
     if env("CLIPKONTRAST_DATA"):
         return Path(env("CLIPKONTRAST_DATA")), "env"
@@ -116,7 +167,16 @@ def _data_folder():
         chosen = {}
     if not chosen.get("path"):
         # The Windows app keeps its data next to its code, not inside it, so an update can replace the code folder
-        return Path(env("CLIPKONTRAST_DEFAULT_DATA") or ROOT / "data"), "default"
+        default = Path(env("CLIPKONTRAST_DEFAULT_DATA") or ROOT / "data")
+        found = _last_data(default)
+        if found:                                    # the choice was lost (a reinstall): the folder in use before
+            try:
+                STORAGE_FILE.write_text(json.dumps({"path": str(found)}, indent=1), encoding="utf-8")
+            except OSError:
+                pass
+            print(f"\n  Using ClipKontrast's folder from before: {found}\n", flush=True)
+            return found, "chosen"
+        return default, "default"
     new = Path(chosen["path"])
     try:
         new.mkdir(parents=True, exist_ok=True)

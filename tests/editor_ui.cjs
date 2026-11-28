@@ -130,6 +130,19 @@ const check = (n, ok, got) => { console.log((ok ? "PASS " : "FAIL ") + n + (ok ?
     check("a library sound goes on the timeline", (await st()).doc.edit.sfx.some(x => x.kind.startsWith("lib:")));
     await p.screenshot({ path: OUT + "editor-library.png" });
   }
+  // a word heard wrong: double-click it in the transcript, type what was said (report #201)
+  await p.click('[data-tool="edit"]'); await p.waitForTimeout(150);
+  const wsp = await p.$("#edTrans [data-word]:not(.out)");
+  if (wsp) {
+    await wsp.dblclick();
+    await p.waitForSelector(".ed-fixbox", { timeout: 3000 });
+    await p.fill("#edFixIn", "Mizo");
+    await p.keyboard.press("Enter");
+    await p.waitForTimeout(200);
+    s = await st();
+    const shown = await p.$eval("#edTrans", e => e.textContent);
+    check("double-click a caption word and type: the captions say the fixed word", Object.values(s.doc.edit.fix || {}).includes("Mizo") && shown.includes("Mizo") && !(await p.$(".ed-fixbox")), s.doc.edit.fix);
+  } else check("the transcript shows words to fix", false);
   // every tool panel opens
   for (const t of ["frame", "captions", "post", "ai", "library"]) { await p.click(`[data-tool="${t}"]`); await p.waitForTimeout(150); }
   check("every tool's panel opens", (await p.$eval("#edPanel", e => e.textContent.length)) > 50);
@@ -144,6 +157,7 @@ const check = (n, ok, got) => { console.log((ok ? "PASS " : "FAIL ") + n + (ok ?
   const clip = await p.evaluate(([j, c]) => S.jobs.find(x => x.id === j).clips.find(x => x.id === c), ids);
   check("Export makes the clip with the edit: a new version comes back", /Your clip is ready/.test(msg) && clip.version === before + 1 && clip.status === "done", { msg, v: clip.version, before, st: clip.status, err: clip.error });
   check("...the edit is saved with the clip", !!(clip.edit && clip.edit.fx && clip.edit.fx.length && clip.edit.look), clip.edit);
+  check("...with the fixed word", Object.values(clip.edit.fix || {}).includes("Mizo"), clip.edit.fix);
   if (process.argv[4]) check("...with its library picture, font and sound", !!(clip.edit.media && clip.edit.media.length && clip.edit.hook_font && clip.edit.sfx.some(x => x.kind.startsWith("lib:"))), clip.edit);
   check("...and nothing failed quietly (no 'effects couldn't be added')", !/couldn't be added/.test(clip.layout_note || ""), clip.layout_note);
   await p.screenshot({ path: OUT + "editor-exported.png" });

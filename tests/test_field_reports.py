@@ -154,6 +154,51 @@ with ctx.as_user(user.id):
 t.join(20)
 check("Stop while downloading: the video stops at its next step, said as stopped, not as an error to report",
       (t.is_alive(), j3["status"], j3["stage"], "error_where" in j3), (False, "error", "Stopped by you", False))
+
+# ---- Stop while in the middle of something that never says how far it got (report #215, #193): stopped anyway
+def stuck_audio(url, d, on_progress=None):
+    time.sleep(6)                          # a long step that only looks at Stop when it's done
+    return real_audio(url, d, on_progress)
+
+
+media.download_audio = stuck_audio
+with ctx.as_user(user.id):
+    j5 = jobs.create({"type": "url", "url": URL, "name": URL}, {"max_clips": 1, "layout": "blur", "zoom": False}, enqueue=False)
+
+
+class Counting(Queue1):
+    done_calls = 0
+
+    def done(self):
+        Counting.done_calls += 1
+
+
+q5 = Counting(); q5._jid = j5["id"]
+j5["status"] = "queued"
+grace, jobs.STOP_GRACE = jobs.STOP_GRACE, 1
+real_worker = jobs._worker
+p5 = patch.object(jobs, "_q", q5); p5.start()
+def run5():
+    try:
+        real_worker()
+    except SystemExit:
+        pass
+t = _th.Thread(target=run5, daemon=True); t.start()
+for _ in range(400):
+    if j5.get("status") == "running":
+        break
+    time.sleep(0.05)
+with ctx.as_user(user.id):
+    jobs.stop(j5["id"])
+time.sleep(2.0)
+check("Stop during a long step: after a few seconds it's stopped anyway, not 'Stopping…' for minutes",
+      (j5["status"], j5["stage"], t.is_alive()), ("error", "Stopped by you", True))
+check("...its place in the line is given to the next video at once", Counting.done_calls, 1)
+t.join(15)
+check("...and when the old step finally ends, nothing changes and its place isn't given back twice",
+      (t.is_alive(), j5["status"], j5["stage"], Counting.done_calls, j5["id"] in jobs._freed), (False, "error", "Stopped by you", 1, False))
+p5.stop()
+jobs.STOP_GRACE = grace
 media.download_audio = real_audio
 with ctx.as_user(user.id):
     j4 = jobs.create({"type": "url", "url": URL, "name": URL}, {"max_clips": 1}, enqueue=False)
@@ -349,6 +394,8 @@ check("webcam layouts fetch 1080p, the others keep the quality chosen",
       (jobs._src_height({"quality": 720, "layout": "split"}), jobs._src_height({"quality": 720, "layout": "gameplay"}),
        jobs._src_height({"quality": 720, "layout": "blur"}), jobs._src_height({"quality": 720, "layout": "blur"}, "split"),
        jobs._src_height({"quality": 1080, "layout": "crop"})), (1080, 1080, 720, 1080, 1080))
+check("Fill the screen and Zoomed in fetch 1080p too: from 720p their middle was blown up and blurry (report #216)",
+      (jobs._src_height({"quality": 720, "layout": "crop"}), jobs._src_height({"quality": 720, "layout": "zoom"})), (1080, 1080))
 src_jobs = (config.ROOT / "studio" / "jobs.py").read_text(encoding="utf-8")
 check("...everywhere a video or a piece of it is fetched", 'int(o["quality"])' not in src_jobs and 'options"]["quality"]' not in src_jobs)
 

@@ -187,6 +187,53 @@ with ctx.as_user(user.id):
     accounts._tt_token(accounts.get(ttacc["id"]))
     check("TikTok: an old sign-in is renewed, and the new refresh token kept", accounts.get(ttacc["id"])["refresh_token"], "tt-refresh-2")
 
+# ---- Instagram on a newer Meta app (only Facebook / Unified login): Facebook Login for Business with a configuration
+# ID, the Instagram account linked to the person's Facebook Page, and posts through the Facebook Graph API
+r = a.put("/api/apps", json={"platform": "instagram", "client_id": "998877665544", "client_secret": "fb-secret", "config_id": "abc"}, headers=ORIGIN)
+check("a configuration ID that isn't one is refused", (r.status_code, "configuration ID" in r.text), (400, True))
+r = a.put("/api/apps", json={"platform": "instagram", "client_id": "998877665544", "client_secret": "fb-secret", "config_id": "123456789012345"}, headers=ORIGIN)
+check("Facebook login set up with the App ID, App secret and configuration ID", (r.status_code, r.json()["instagram"]["config"]), (200, "123456789012345"))
+fb_get = get
+def get(url, params=None, headers=None, timeout=None):  # noqa: F811
+    if url == accounts.FB + "/oauth/access_token":
+        calls.append(("GET", url, params, headers or {}))
+        if params.get("grant_type") == "fb_exchange_token":
+            return R(200, {"access_token": "fb-long", "expires_in": 5183944})
+        return R(200, {"access_token": "fb-short"}) if params.get("code") == "fbcode" else R(400, {"error": {"message": "bad code"}})
+    if url == accounts.FB + "/me/accounts":
+        return R(200, {"data": [{"name": "No IG page"}, {"name": "Clips", "instagram_business_account": {"id": "17999", "username": "fbclipper"}}]})
+    if url.startswith(accounts.FB + "/") and url.endswith("/container2"):
+        return R(200, {"status_code": "FINISHED"})
+    if url.startswith(accounts.FB + "/") and url.endswith("/media2"):
+        return R(200, {"permalink": "https://www.instagram.com/reel/fb/"})
+    return fb_get(url, params=params, headers=headers, timeout=timeout)
+fb_post = post
+def post(url, data=None, json=None, headers=None, params=None, timeout=None, content=None):  # noqa: F811
+    if url == accounts.FB + "/17999/media":
+        calls.append(("POST", url, data, headers or {}))
+        return R(200, {"id": "container2"})
+    if url == accounts.FB + "/17999/media_publish":
+        return R(200, {"id": "media2"})
+    return fb_post(url, data=data, json=json, headers=headers, params=params, timeout=timeout, content=content)
+accounts.httpx.get, accounts.httpx.post = get, post
+loc, back = connect(b, "instagram", "fbcode")
+q = parse_qs(loc.query)
+check("Connect goes to Facebook's sign-in with the configuration", (loc.netloc, loc.path.endswith("/dialog/oauth"), q["config_id"][0], q["client_id"][0]),
+      ("www.facebook.com", True, "123456789012345", "998877665544"))
+check("...and comes back connected", "connected=instagram" in back.headers["location"], True)
+with ctx.as_user(user.id):
+    fbacc = accounts.get("ig_17999")
+check("the Instagram account linked to the Facebook Page is the one connected, with a long-lasting sign-in",
+      (bool(fbacc), (fbacc or {}).get("name"), (fbacc or {}).get("via"), (fbacc or {}).get("token")), (True, "@fbclipper", "facebook", "fb-long"))
+with ctx.as_user(user.id):
+    calls.clear()
+    rid, url = accounts.instagram_upload(fbacc, jd / "clip01.mp4", "FB caption", "job-12345678")
+check("...and its Reels are posted through the Facebook Graph API", (rid, url, any(c[1] == accounts.FB + "/17999/media" for c in calls)),
+      ("media2", "https://www.instagram.com/reel/fb/", True))
+r = a.put("/api/apps", json={"platform": "instagram", "client_id": "998877665544", "client_secret": "", "config_id": ""}, headers=ORIGIN)
+check("emptying the configuration ID goes back to Instagram login", (r.status_code, r.json()["instagram"]["config"],
+      urlparse(b.get("/oauth/instagram/start").headers["location"]).netloc), (200, "", "www.instagram.com"))
+
 print("ALL PASSED" if not fails else f"{len(fails)} failed")
 import shutil; db.engine.dispose(); shutil.rmtree(os.environ["CLIPKONTRAST_DATA"], ignore_errors=True)
 sys.exit(1 if fails else 0)

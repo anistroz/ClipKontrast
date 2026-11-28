@@ -74,6 +74,7 @@ async def _more_threads():
 @app.on_event("startup")
 def _startup():
     db.init()
+    config.note_data_folder()                             # found again at the next start if its note is ever lost
     for f in (config.TMP_DIR / "uploads").glob("*"):      # uploads cut short by a restart
         try:
             f.unlink()
@@ -2153,7 +2154,7 @@ def apps_get(request: Request):
 def apps_put(request: Request, body: dict = Body(...)):
     _admin(request)
     try:
-        return accounts.save_app(str(body.get("platform", "")), body.get("client_id"), body.get("client_secret"))
+        return accounts.save_app(str(body.get("platform", "")), body.get("client_id"), body.get("client_secret"), body.get("config_id"))
     except ValueError as e:
         raise HTTPException(400, str(e))
 

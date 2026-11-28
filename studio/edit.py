@@ -12,6 +12,7 @@ is turned into the ffmpeg graph that makes the clip:
   look       a colour look for the whole clip
   hook_fx    how the big text appears, and hook_y / hook_dur: where it sits and how long it stays
   cap_y      where the captions sit
+  fix        caption words fixed by hand: {the word's start, in seconds: what it should say} ("" hides it)
 
 Every time in an edit is in the clip's own source timeline (the same seconds as the clip's start and end), so
 trimming the clip never moves an effect off the moment it was put on.
@@ -68,6 +69,7 @@ LOOKS = {
 HOOK_FX = {"box": "Box", "pop": "Pop", "lime": "Lime", "outline": "Outline", "glow": "Glow", "type": "Typewriter"}
 
 MAX_CUTS, MAX_FX, MAX_SFX, MAX_PUNCH, MAX_MEDIA = 60, 30, 40, 20, 12
+MAX_FIX = 400            # caption words fixed by hand
 LIB_ID = re.compile(r"^[0-9a-f]{12}$")             # an item of the person's own library (studio/library.py)
 LIB = re.compile(r"^lib:[0-9a-f]{12}$")
 PAD = 12.0                 # seconds of the video either side of the clip in its preview copy (room to trim out)
@@ -178,10 +180,51 @@ def clean(v, start: float, end: float, lo: float | None = None, hi: float | None
                       "from": _num(m.get("from", 0), 0, 600, "Where a video starts")})
     if media:
         out["media"] = sorted(media, key=lambda x: x["t"])
+    fix = v.get("fix") or {}
+    if not isinstance(fix, dict):
+        raise EditError("The fixed words aren't valid.")
+    fixed = {}
+    for k, w in list(fix.items())[:MAX_FIX]:
+        # what the captions should say for the word starting at k: plain text only (no caption styling codes)
+        text = re.sub(r"[\x00-\x1f{}\\<>]", "", str(w if w is not None else ""))[:40].strip()
+        fixed[f"{_num(k, lo, hi, 'A word'):.2f}"] = text
+    if fixed:
+        out["fix"] = fixed
+    return out
+
+
+def fix_words(words: list, fix: dict, off: float = 0.0) -> list:
+    """Caption words with the person's fixes: a word whose start (in the video's own seconds, `off` added to the
+    piece's) has a fix says that instead; a fix that is empty takes the word out of the captions."""
+    if not fix:
+        return words
+    keys = sorted((float(k), v) for k, v in fix.items())
+    out = []
+    for w in words:
+        at = w["s"] + off
+        hit = next((v for k, v in keys if abs(k - at) <= 0.011), None)
+        if hit is None:
+            out.append(w)
+        elif hit:
+            out.append(dict(w, w=hit))
     return out
 
 
 # ---------------------------------------------------------------- turning an edit into the clip
+def shifted(ed: dict, off: float) -> dict:
+    """The same edit with every time moved back by `off`: for a clip cut from a piece of a long stream (or a live
+    recording), whose file starts `off` seconds into the video while the edit's times are the video's own."""
+    if not ed or not off:
+        return ed
+    out = dict(ed)
+    if ed.get("cuts"):
+        out["cuts"] = [[round(a - off, 3), round(b - off, 3)] for a, b in ed["cuts"]]
+    for k in ("fx", "sfx", "punch", "media"):
+        if ed.get(k):
+            out[k] = [dict(x, t=round(x["t"] - off, 3)) for x in ed[k]]
+    return out
+
+
 def keep_from_cuts(cuts, start, end) -> list:
     """The parts of the clip kept after the edit's cuts, in seconds from the clip's start ([] when nothing is cut)."""
     keep, at = [], 0.0

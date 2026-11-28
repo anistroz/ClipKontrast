@@ -22,6 +22,7 @@ def check(n, got, want=True):
 check("the folder chosen in the dashboard is the one in use", (config.DATA_DIR, config.DATA_FROM), (old, "chosen"))
 (old / "users" / "u_local" / "jobs" / "job1").mkdir(parents=True)
 (old / "users" / "u_local" / "jobs" / "job1" / "clip01.mp4").write_bytes(b"v" * 5000)
+(old / "my holiday.mp4").write_bytes(b"h" * 900000)            # the person's own file, in the same folder
 c = TestClient(server.app, base_url="http://127.0.0.1:8765")
 ORIGIN = {"Origin": "http://127.0.0.1:8765"}
 
@@ -30,6 +31,7 @@ storage._used["at"] = 0
 s = c.get("/api/storage").json()
 check("it shows the folder, how much ClipKontrast uses, and the room on the drive", (s["path"], storage.used_bytes(), s["free_gb"] > 0, s["fixed"], s["pending"]),
       (str(old.resolve()), lambda n: n >= 5000, True, False, ""))
+check("...counting only ClipKontrast's own things, not the person's files next to them", storage.used_bytes() < 900000)
 check("a folder window is only offered on the computer ClipKontrast runs on", (s["local"], c.post("/api/storage/open", headers=ORIGIN).status_code), (False, 400))
 
 # ---- a full drive is explained, not just refused
@@ -47,6 +49,12 @@ check("not a whole path", put({"path": "videos"}).status_code, 400)
 check("the same folder", put({"path": str(old)}).status_code, 400)
 check("a folder inside the current one", put({"path": str(old / "inner")}).status_code, 400)
 check("from another website", c.put("/api/storage", json={"path": str(new)}, headers={"Origin": "https://evil.example"}).status_code, 403)
+mine = base / "My Videos"
+mine.mkdir(); (mine / "wedding.mp4").write_bytes(b"w" * 10)
+r = put({"path": str(mine), "move": True})
+check("a folder that already has the person's own files gets a ClipKontrast folder inside it", (r.status_code, r.json()["pending"]),
+      (200, str((mine / "ClipKontrast").resolve())))
+put({"cancel": True})
 r = put({"path": str(new), "move": True})
 check("a good folder is accepted for the next start", (r.status_code, r.json()["pending"], r.json()["path"]), (200, str(new.resolve()), str(old.resolve())))
 check("nothing is moved while ClipKontrast is running", (old / "users" / "u_local" / "jobs" / "job1" / "clip01.mp4").is_file() and not (new / "users").exists())
@@ -61,10 +69,24 @@ out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=Tru
 check("the next start uses the new folder", f"USING {new.resolve()}" in out.stdout)
 check("the clips were moved there", (new / "users" / "u_local" / "jobs" / "job1" / "clip01.mp4").read_bytes() == b"v" * 5000)
 check("the database went with them", (new / "clipkontrast.db").is_file())
-check("nothing is left in the old place", not old.exists() or not any(old.iterdir()))
+check("nothing of ClipKontrast's is left in the old place", sorted(p.name for p in old.iterdir()) == ["my holiday.mp4"])
+check("...and the person's own file there was not touched or moved", (old / "my holiday.mp4").stat().st_size == 900000 and not (new / "my holiday.mp4").exists())
 check("the move is done once", json.loads(pointer.read_text()), {"path": str(new.resolve())})
 out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, env=env, encoding="utf-8", errors="replace")
 check("a later start changes nothing", ("Moving" in out.stdout, f"USING {new.resolve()}" in out.stdout), (False, True))
+
+# ---- the note in ClipKontrast's folder lost (a reinstall): the folder from before is found again, not an empty one
+last = base / "profile" / "last-data.json"
+env2 = {**env, "CLIPKONTRAST_LAST_DATA_FILE": str(last), "CLIPKONTRAST_DEFAULT_DATA": str(base / "fresh-default")}
+subprocess.run([sys.executable, "-c", "from studio import config; config.note_data_folder()"], env=env2, capture_output=True)
+pointer.unlink()
+out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, env=env2, encoding="utf-8", errors="replace")
+check("after a reinstall that lost the folder choice, the folder with the clips, settings and keys is used again",
+      (f"USING {new.resolve()}" in out.stdout, json.loads(pointer.read_text()).get("path")), (True, str(new.resolve())))
+(base / "fresh-default").mkdir(exist_ok=True); (base / "fresh-default" / "clipkontrast.db").write_bytes(b"x")
+pointer.unlink()
+out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, env=env2, encoding="utf-8", errors="replace")
+check("...but a default folder that already has its own things is kept", f"USING {(base / 'fresh-default')}" in out.stdout)
 
 # ---- CLIPKONTRAST_DATA in .env wins, and then the dashboard cannot change it
 out = subprocess.run([sys.executable, "-c", "from studio import config, storage\ntry:\n    storage.change(r'" + str(base / "x") + "')\nexcept ValueError as e:\n    print(config.DATA_FROM, '|', e)"],
