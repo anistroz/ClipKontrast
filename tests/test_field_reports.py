@@ -156,51 +156,40 @@ check("Stop while downloading: the video stops at its next step, said as stopped
       (t.is_alive(), j3["status"], j3["stage"], "error_where" in j3), (False, "error", "Stopped by you", False))
 
 # ---- Stop while in the middle of something that never says how far it got (report #215, #193): stopped anyway
-def stuck_audio(url, d, on_progress=None):
-    time.sleep(6)                          # a long step that only looks at Stop when it's done
-    return real_audio(url, d, on_progress)
-
-
-media.download_audio = stuck_audio
 with ctx.as_user(user.id):
     j5 = jobs.create({"type": "url", "url": URL, "name": URL}, {"max_clips": 1, "layout": "blur", "zoom": False}, enqueue=False)
 
 
-class Counting(Queue1):
-    done_calls = 0
+class Counting:
+    def __init__(self):
+        self.done_calls, self.gets = 0, 0
 
     def done(self):
-        Counting.done_calls += 1
+        self.done_calls += 1
+
+    def get(self, *a, **k):          # the fresh worker started in the stuck one's place asks for work
+        self.gets += 1
+        raise SystemExit
 
 
-q5 = Counting(); q5._jid = j5["id"]
-j5["status"] = "queued"
-grace, jobs.STOP_GRACE = jobs.STOP_GRACE, 1
-real_worker = jobs._worker
-p5 = patch.object(jobs, "_q", q5); p5.start()
-def run5():
-    try:
-        real_worker()
-    except SystemExit:
-        pass
-t = _th.Thread(target=run5, daemon=True); t.start()
-for _ in range(400):
-    if j5.get("status") == "running":
-        break
-    time.sleep(0.05)
-with ctx.as_user(user.id):
-    jobs.stop(j5["id"])
-time.sleep(2.0)
-if j5.get("stage") != "Stopped by you":
-    print("DEBUG j5:", j5.get("status"), j5.get("stage"), j5.get("error"), j5.get("error_where"), flush=True)
-check("Stop during a long step: after a few seconds it's stopped anyway, not 'Stopping…' for minutes",
-      (j5["status"], j5["stage"], t.is_alive()), ("error", "Stopped by you", True))
-check("...its place in the line is given to the next video at once", Counting.done_calls, 1)
-t.join(15)
-check("...and when the old step finally ends, nothing changes and its place isn't given back twice",
-      (t.is_alive(), j5["status"], j5["stage"], Counting.done_calls, j5["id"] in jobs._freed), (False, "error", "Stopped by you", 1, False))
-p5.stop()
+q5 = Counting()
+stuck = 987654321                    # the worker still busy with the long step
+j5.update(status="running", stage="Getting the audio")
+jobs._making[j5["id"]] = stuck
+grace, jobs.STOP_GRACE = jobs.STOP_GRACE, 0.5
+with patch.object(jobs, "_q", q5):
+    with ctx.as_user(user.id):
+        jobs.stop(j5["id"])
+    check("Stop says Stopping… at once", j5["stage"], "Stopping…")
+    time.sleep(1.5)
+    check("Stop during a long step: after a few seconds it's stopped anyway, not 'Stopping…' for minutes",
+          (j5["status"], j5["stage"]), ("error", "Stopped by you"))
+    check("...its place in the line is given to the next video, and a fresh worker takes the stuck one's place",
+          (q5.done_calls, q5.gets >= 1, j5["id"] in jobs._freed, stuck in jobs._retire), (1, True, True, True))
+    jobs._force_stop(j5["id"])
+    check("...and only once", q5.done_calls, 1)
 jobs.STOP_GRACE = grace
+jobs._freed.discard(j5["id"]); jobs._retire.discard(stuck); jobs._making.pop(j5["id"], None)
 media.download_audio = real_audio
 with ctx.as_user(user.id):
     j4 = jobs.create({"type": "url", "url": URL, "name": URL}, {"max_clips": 1}, enqueue=False)
